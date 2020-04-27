@@ -109,7 +109,7 @@ class Tafra:
 
     def __setitem__(self, column: str, value: np.ndarray):
         self._data[column] = value
-        
+
     @property
     def columns(self) -> Tuple[str, ...]:
         return tuple(self._data.keys())
@@ -138,7 +138,7 @@ class Tafra:
 
     def to_list(self, columns: Optional[Iterable[str]] = None):
         """
-        Return a list of lists, each list being a column
+        return a list of lists, each list being a column
         """
         if columns is None:
             return list(self._data[c] for c in self.columns)
