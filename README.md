@@ -127,18 +127,18 @@ class Tafra:
     def group_by(self, group_by: List[str],
                  aggregation: Dict[str, Callable[[np.ndarray], Any]]) -> 'Tafra':
         return GroupBy(group_by, aggregation).apply(self)
-
-    def to_records(self, columns: Optional[Iterable[str]] = None):
+        
+    def to_record(self, columns: Optional[Iterable[str]] = None):
         """
-        return a list of lists, each list being a record (i.e. row)
+        return a tuple of tuples, each inner tuple being a record (i.e. row)
         """
         if columns is None:
-            return list(zip(*(self._data[c] for c in self.columns)))
-        return list(zip(*(self._data[c] for c in columns)))
+            return tuple(zip(*(self._data[c] for c in self.columns)))
+        return tuple(zip(*(self._data[c] for c in columns)))
 
     def to_list(self, columns: Optional[Iterable[str]] = None):
         """
-        return a list of lists, each list being a column
+        return a list of columns in the tafra
         """
         if columns is None:
             return list(self._data[c] for c in self.columns)
@@ -203,11 +203,19 @@ if __name__ == '__main__':
         'y': np.array(['one', 'two', 'one', 'two'], dtype='object'),
     })
 
+    print('List: ', t.to_list())
+    print('Record: ', t.to_record())
+
     gb = t.group_by(
         ['y'], {'x': sum}
     )
 
-    print(gb)
+    print('Group By: ', gb)
+```
+``` sh
+List:            [array([1, 2, 3, 4]), array(['one', 'two', 'one', 'two'], dtype=object)]
+Record:          ((1, 'one'), (2, 'two'), (3, 'one'), (4, 'two'))
+Group By:        Tafra(_data={'y': array(['two', 'one'], dtype=object), 'x': array([6, 4])})
 ```
 
 We use a new data class to represent the structure of a `group by` - we can
