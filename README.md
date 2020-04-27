@@ -1,4 +1,4 @@
-% "typing" group-by
+# Tafra: "typing" with group-by
 
 Let's discuss an interesting data structure we shall call a *tafra*, because
 it's just the innards of a dataframe. A *tafra* (plural: *tafrae*) consists of
