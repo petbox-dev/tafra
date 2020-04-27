@@ -94,17 +94,17 @@ class Tafra:
                   aggregation: Dict[str, Callable[[np.ndarray], Any]]) -> 'Tafra':
         return Transform(group_by, aggregation).apply(self)
 
-    def to_records(self, columns: Optional[Iterable[str]] = None):
+    def to_record(self, columns: Optional[Iterable[str]] = None):
         """
-        return a list of lists, each list being a record (i.e. row)
+        return a tuple of tuples, each inner tuple being a record (i.e. row)
         """
         if columns is None:
-            return list(zip(*(self._data[c] for c in self.columns)))
-        return list(zip(*(self._data[c] for c in columns)))
+            return tuple(zip(*(self._data[c] for c in self.columns)))
+        return tuple(zip(*(self._data[c] for c in columns)))
 
     def to_list(self, columns: Optional[Iterable[str]] = None):
         """
-        return a list of lists, each list being a column
+        return a list of columns in the tafra
         """
         if columns is None:
             return list(self._data[c] for c in self.columns)
@@ -201,8 +201,11 @@ if __name__ == '__main__':
         'y': np.array(['one', 'two', 'one', 'two'], dtype='object'),
     })
 
+    print('List:\t\t', t.to_list())
+    print('Record:\t\t', t.to_record())
+
     gb = t.group_by(
         ['y'], {'x': sum}
     )
 
-    print(gb)
+    print('Group By:\t', gb)
