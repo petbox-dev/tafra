@@ -94,17 +94,34 @@ class Tafra:
                   aggregation: Dict[str, Callable[[np.ndarray], Any]]) -> 'Tafra':
         return Transform(group_by, aggregation).apply(self)
 
-    def to_record(self, columns: Optional[Iterable[str]] = None):
+    def to_record(self, columns: Optional[Iterable[str]] = None,
+                  cast_null: bool = True) -> Tuple[Tuple[Any, ...], ...]:
         """
-        return a tuple of tuples, each inner tuple being a record (i.e. row)
+        Return a tuple of tuples, each inner tuple being a record (i.e. row).
+        Useful for e.g. sending records back to a database.
         """
-        if columns is None:
-            return tuple(zip(*(self._data[c] for c in self.columns)))
-        return tuple(zip(*(self._data[c] for c in columns)))
+        _cols: Iterable[str]
+        _vals: Iterable[Any]
 
-    def to_list(self, columns: Optional[Iterable[str]] = None):
+        if columns is None:
+            _cols = self.columns
+        else:
+            _cols = columns
+
+        is_null = lambda x: (isinstance(x, float) or isinstance(x, int)) and np.isnan(x)
+        if cast_null:
+            _vals = ((
+                None if is_null(v) else v
+                for v in self._data[c]
+            ) for c in _cols)
+        else:
+            _vals = (self._data[c] for c in _cols)
+
+        return tuple(zip(*_vals))
+
+    def to_list(self, columns: Optional[Iterable[str]] = None) -> List[np.ndarray]:
         """
-        return a list of columns in the tafra
+        Return a list of columns in the tafra
         """
         if columns is None:
             return list(self._data[c] for c in self.columns)
@@ -188,7 +205,8 @@ class Transform(AggMethod):
         tafra_innards: Dict[str, np.ndarray] = dict()
         # preserve dtype on group-by columns
         for col in self._group_by_cols:
-            tafra_innards[col] = np.asarray(result[col], dtype=tafra[col].dtype)
+            tafra_innards[col] = np.asarray(
+                result[col], dtype=tafra[col].dtype)
         for col in self._aggregation.keys():
             tafra_innards[col] = np.asarray(result[col])
 
