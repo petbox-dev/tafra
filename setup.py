@@ -44,7 +44,8 @@ setup(
     name='tafra',
     version='0.1.0',
     description='Tafra: innards of a dataframe',
-    long_description = open('README.rst').read(),
+    long_description = open('README.md').read(),
+    long_description_content_type="text/markdown",
     url = 'https://github.com/petbox-dev/tafra',
     author='Derrick W. Turk',
     install_requires=['numpy', 'typing_extensions'],
@@ -52,5 +53,6 @@ setup(
     package_data={
         'tafra': ['py.typed']
     },
-    packages=['tafra']
+    packages=['tafra'],
+    python_requires='>3.7',
 )
