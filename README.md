@@ -21,7 +21,7 @@ import dataclasses as dc
 
 import numpy as np
 
-from typing import Dict
+from typing import Any, Callable, Dict, List, Tuple, Optional, Iterable
 
 @dc.dataclass
 class Tafra:
