@@ -70,8 +70,8 @@ class Tafra:
 
         for column in self._dtypes.keys():
             self._dtypes[column] = self.__format_type(self._dtypes[column])
-            self._data[column] = self.__apply_type(
-                self._dtypes[column], self._data[column])
+            if self.__format_type(self._data[column].dtype) != self._dtypes[column]:
+                self._data[column] = self.__apply_type(self._dtypes[column], self._data[column])
 
     def __getitem__(self, column: str) -> np.ndarray:
         return self._data[column]
@@ -113,8 +113,12 @@ class Tafra:
     def from_dataframe(cls, df: DataFrame, dtypes: Optional[Dict[str, str]] = None) -> 'Tafra':
         if dtypes is None:
             dtypes = {c: t for c, t in zip(df.columns, df.dtypes)}
-        return cls({c: cls.__apply_type(
-            cls.__format_type(dtypes[c]), df[c].values) for c in df.columns})
+        dtypes = {c: cls.__format_type(t) for c, t in dtypes.items()}
+
+        return cls(
+            {c: cls.__apply_type(dtypes[c], df[c].values) for c in df.columns},
+            {c: dtypes[c] for c in df.columns}
+        )
 
     @property
     def columns(self) -> Tuple[str, ...]:
@@ -145,7 +149,7 @@ class Tafra:
                 self._data[column][where_nan] = None
 
     def to_records(self, columns: Optional[Iterable[str]] = None,
-                  cast_null: bool = True) -> Tuple[Tuple[Any, ...], ...]:
+                  cast_null: bool = True) -> Iterable[Iterable[Any]]:
         """
         Return a generator of tuples, each tuple being a record (i.e. row)
         and allowing heterogeneous typing.
