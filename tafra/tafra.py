@@ -61,9 +61,9 @@ class Tafra:
         else:
             self._dtypes = {c: self.__format_type(v.dtype) for c, v in self._data.items()}
 
-    def update_types(self, dtypes: Optional[Dict[str, str]] = None):
+    def update_types(self, dtypes: Optional[Dict[str, str]] = None) -> None:
         """
-        Apply new dtypes.
+        Apply new dtypes or update dtype `dict` for missing keys.
         """
         if dtypes is not None:
             self._dtypes.update(dtypes)
@@ -73,6 +73,11 @@ class Tafra:
             if self.__format_type(self._data[column].dtype) != self._dtypes[column]:
                 self._data[column] = self.__apply_type(self._dtypes[column], self._data[column])
 
+    def coalesce_types(self) -> None:
+        for column in self._data.keys():
+            if column not in self._dtypes.keys():
+                self._dtypes[column] = self.__format_type(self._data[column])
+
     def __getitem__(self, column: str) -> np.ndarray:
         return self._data[column]
 
@@ -81,6 +86,7 @@ class Tafra:
 
     def __setitem__(self, column: str, value: np.ndarray):
         self._data[column] = value
+        self._dtypes[column] = self.__format_type(value.dtype)
 
     def __setattr__(self, column: str, value: np.ndarray):
         if not (_real_has_attribute(self, '_init') and self._init):
@@ -91,6 +97,7 @@ class Tafra:
             raise ValueError('tafra must have consistent row counts')
 
         self._data[column] = value
+        self._dtypes[column] = self.__format_type(value.dtype)
 
     @staticmethod
     def __format_type(t: Any) -> str:
