@@ -138,18 +138,26 @@ class Tafra:
     def dtypes(self) -> Tuple[np.dtype, ...]:
         return tuple(value.dtype for value in self._data.values())
 
-    def cast_nulls(self) -> None:
+    @staticmethod
+    def cast_null(dtype: str, data: np.ndarray) -> np.ndarray:
         """
         Cast np.nan to None. Requires changing `dtype` to `object`.
         """
-        for column in (k for k, v in self._dtypes.items() if v == 'float'):
-            where_nan = np.isnan(self._data[column])
-            if np.sum(where_nan) > 0:
-                self.update_types({column: 'object'})
-                self._data[column][where_nan] = None
+        if dtype != 'float':
+            return data
+
+        where_nan = np.isnan(data)
+        if np.sum(where_nan) == 0:
+            return data
+
+        data = data.copy()
+        data = data.astype(object)
+        data[where_nan] = None
+
+        return data
 
     def to_records(self, columns: Optional[Iterable[str]] = None,
-                  cast_null: bool = True) -> Iterable[Iterable[Any]]:
+                  cast_null: bool = True) -> Iterable[Tuple[Any, ...]]:
         """
         Return a generator of tuples, each tuple being a record (i.e. row)
         and allowing heterogeneous typing.
@@ -157,9 +165,11 @@ class Tafra:
         """
         cols: Iterable[str] = self.columns if columns is None else columns
         if cast_null:
-            self.cast_nulls()
+            yield from zip(*(self.cast_null(self._dtypes[c], self._data[c]) for c in cols))
+            return
 
-        yield zip(*(self._data[c] for c in cols))
+        yield from zip(*(self._data[c] for c in cols))
+        return
 
     def to_list(self, columns: Optional[Iterable[str]] = None) -> List[np.ndarray]:
         """
