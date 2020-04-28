@@ -144,10 +144,10 @@ class Tafra:
                 self.update_types({column: 'object'})
                 self._data[column][where_nan] = None
 
-    def to_record(self, columns: Optional[Iterable[str]] = None,
+    def to_records(self, columns: Optional[Iterable[str]] = None,
                   cast_null: bool = True) -> Tuple[Tuple[Any, ...], ...]:
         """
-        Return a tuple of tuples, each inner tuple being a record (i.e. row)
+        Return a generator of tuples, each tuple being a record (i.e. row)
         and allowing heterogeneous typing.
         Useful for e.g. sending records back to a database.
         """
@@ -155,7 +155,7 @@ class Tafra:
         if cast_null:
             self.cast_nulls()
 
-        return tuple(zip(*(self._data[c] for c in cols)))
+        yield zip(*(self._data[c] for c in cols))
 
     def to_list(self, columns: Optional[Iterable[str]] = None) -> List[np.ndarray]:
         """
@@ -281,7 +281,7 @@ if __name__ == '__main__':
     })
 
     print('List:\t\t', t.to_list())
-    print('Record:\t\t', t.to_record())
+    print('Record:\t\t', t.to_records())
 
     gb = t.group_by(
         ['y', 'z'], {'x': sum}
