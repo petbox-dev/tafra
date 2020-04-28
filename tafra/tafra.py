@@ -3,7 +3,15 @@ import dataclasses as dc
 
 import numpy as np
 
-from typing import Any, Callable, Dict, List, Tuple, Optional, Iterable
+from typing import Any, Callable, Dict, List, Tuple, Optional, Iterable, Union, cast
+
+InitAggregation = Dict[
+    str,
+    Union[
+        Callable[[np.ndarray], Any],
+        Tuple[Callable[[np.ndarray], Any], str]
+    ]
+]
 
 
 TAFRA_TYPE = {
@@ -164,7 +172,7 @@ class Tafra:
         return data
 
     def to_records(self, columns: Optional[Iterable[str]] = None,
-                  cast_null: bool = True) -> Iterable[Tuple[Any, ...]]:
+                   cast_null: bool = True) -> Iterable[Tuple[Any, ...]]:
         """
         Return a generator of tuples, each tuple being a record (i.e. row)
         and allowing heterogeneous typing.
@@ -186,15 +194,15 @@ class Tafra:
             return list(self._data[c] for c in self.columns)
         return list(self._data[c] for c in columns)
 
-    def group_by(self, group_by: List[str],
-                 aggregation: Dict[str, Callable[[np.ndarray], Any]]) -> 'Tafra':
+    def group_by(self, group_by: Iterable[str],
+                 aggregation: InitAggregation) -> 'Tafra':
         """
         Helper function to implement the `GroupBy` class.
         """
         return GroupBy(group_by, aggregation).apply(self)
 
-    def transform(self, group_by: List[str],
-                  aggregation: Dict[str, Callable[[np.ndarray], Any]]) -> 'Tafra':
+    def transform(self, group_by: Iterable[str],
+                  aggregation: InitAggregation) -> 'Tafra':
         """
         Helper function to implement the `Transform` class.
         """
@@ -206,16 +214,31 @@ class AggMethod:
     """
     Basic methods for aggregations over a data table.
     """
-    _group_by_cols: List[str]
+    _group_by_cols: Iterable[str]
     # TODO: specify dtype of result?
-    _aggregation: Dict[str, Callable[[np.ndarray], Any]]
+    aggregation: dc.InitVar[InitAggregation]
+    _aggregation: Dict[str, Tuple[Callable[[np.ndarray], Any], str]] = dc.field(
+        default_factory=dict, init=False)
+
+    def __post_init__(self, aggregation: InitAggregation):
+        for rename, agg in aggregation.items():
+            if callable(agg):
+                self._aggregation[rename] = cast(
+                    Tuple[Callable[[np.ndarray], Any], str],
+                    (agg, rename))
+            elif (isinstance(agg, Iterable) and len(agg) == 2
+                  and callable(cast(Tuple, agg)[0])):
+                self._aggregation[rename] = agg
+            else:
+                raise ValueError(f'{agg} is not a valid aggregation argument')
 
     def _validate(self, tafra: Tafra):
         cols = set(tafra.columns)
         for col in self._group_by_cols:
             if col not in cols:
                 raise KeyError(f'{col} does not exist in tafra')
-        for col in self._aggregation.keys():
+        for rename, agg in self._aggregation.items():
+            col = self._aggregation[rename][1]
             if col not in cols:
                 raise KeyError(f'{col} does not exist in tafra')
         # we don't have to use all the columns!
@@ -227,10 +250,23 @@ class AggMethod:
         """
         return list(OrderedDict.fromkeys(zip(*(tafra[col] for col in self._group_by_cols))))
 
+    def result_factory(self, fn: Callable[[str, str], np.ndarray]) -> Dict[str, np.ndarray]:
+        """
+        Factory function to generate the dict for the results set.
+        A function to take the new column name and source column name
+        and return an empty `np.ndarray` should be given.
+        """
+        return {
+            rename: fn(rename, col) for rename, col in (
+                *((col, col) for col in self._group_by_cols),
+                *((rename, agg[1]) for rename, agg in self._aggregation.items())
+            )
+        }
+
     def apply(self, tafra: Tafra) -> Tafra:
         """
-        Apply the `AggMethod`. Should probably call `unique_groups` to obtain the set of grouped
-        values.
+        Apply the `AggMethod`. Should probably call `unique_groups` to
+        obtain the set of grouped values.
         """
         raise NotImplementedError
 
@@ -240,24 +276,21 @@ class GroupBy(AggMethod):
     """
     Analogy to SQL `GROUP BY`, not `pandas.DataFrame.groupby()`. A `reduce` operation.
     """
+
     def apply(self, tafra: Tafra) -> Tafra:
         self._validate(tafra)
         unique = self.unique_groups(tafra)
-
-        result: Dict[str, np.ndarray] = {
-            col: np.empty(len(unique), dtype=tafra[col].dtype) for col in (
-                *self._group_by_cols,
-                *self._aggregation.keys()
-            )
-        }
+        result = self.result_factory(
+            lambda rename, col: np.empty(len(unique), dtype=tafra[col].dtype))
 
         for i, u in enumerate(unique):
             which_rows = np.full(tafra.rows, True)
             for val, col in zip(u, self._group_by_cols):
                 which_rows &= tafra[col] == val
                 result[col][i] = val
-            for col, fn in self._aggregation.items():
-                result[col][i] = fn(tafra[col][which_rows])
+            for rename, agg in self._aggregation.items():
+                fn, col = agg
+                result[rename][i] = fn(tafra[col][which_rows])
 
         return Tafra(result)
 
@@ -268,24 +301,21 @@ class Transform(AggMethod):
     Analogy to `pandas.DataFrame.transform()`,
     i.e. a SQL `GROUP BY` and `LEFT JOIN` back to the original table.
     """
+
     def apply(self, tafra: Tafra) -> Tafra:
         self._validate(tafra)
         unique = self.unique_groups(tafra)
-
-        result: Dict[str, np.ndarray] = {
-            col: np.empty_like(tafra[col]) for col in (
-                *self._group_by_cols,
-                *self._aggregation.keys()
-            )
-        }
+        result = self.result_factory(
+            lambda rename, col: np.empty_like(tafra[col]))
 
         for u in unique:
             which_rows = np.full(tafra.rows, True)
             for val, col in zip(u, self._group_by_cols):
                 which_rows &= tafra[col] == val
                 result[col][which_rows] = tafra[col][which_rows]
-            for col, fn in self._aggregation.items():
-                result[col][which_rows] = fn(tafra[col][which_rows])
+            for rename, agg in self._aggregation.items():
+                fn, col = agg
+                result[rename][which_rows] = fn(tafra[col][which_rows])
 
         return Tafra(result)
 
