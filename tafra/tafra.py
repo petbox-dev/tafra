@@ -3,7 +3,7 @@ import dataclasses as dc
 
 import numpy as np
 
-from typing import Any, Callable, Dict, List, Tuple, Optional, Iterable, Union, cast
+from typing import Any, Callable, Dict, List, Tuple, Optional, Iterable, Union, cast, NoReturn
 
 InitAggregation = Dict[
     str,
@@ -33,8 +33,7 @@ def _real_has_attribute(obj: object, attr: str) -> bool:
 
 
 class DataFrame():
-    """
-    A fake class to satisfy typing of a `pandas.DataFrame` without a dependency.
+    """A fake class to satisfy typing of a `pandas.DataFrame` without a dependency.
     """
     _data: Dict[str, np.ndarray]
     columns: List[str]
@@ -49,8 +48,7 @@ class DataFrame():
 
 @dc.dataclass
 class Tafra:
-    """
-    The innards of a dataframe.
+    """The innards of a dataframe.
     """
     _data: Dict[str, np.ndarray]
     _dtypes: Dict[str, str] = dc.field(default_factory=dict)
@@ -66,12 +64,12 @@ class Tafra:
 
         if self._dtypes:
             self.update_types()
+            self.coalesce_types()
         else:
             self._dtypes = {c: self.__format_type(v.dtype) for c, v in self._data.items()}
 
     def update_types(self, dtypes: Optional[Dict[str, str]] = None) -> None:
-        """
-        Apply new dtypes or update dtype `dict` for missing keys.
+        """Apply new dtypes or update dtype `dict` for missing keys.
         """
         if dtypes is not None:
             self._dtypes.update(dtypes)
@@ -86,26 +84,36 @@ class Tafra:
             if column not in self._dtypes.keys():
                 self._dtypes[column] = self.__format_type(self._data[column])
 
-    def __getitem__(self, column: str) -> np.ndarray:
-        return self._data[column]
+    def __getitem__(self, item: Union[str, slice]) -> Union[np.ndarray, 'Tafra']:
+        if isinstance(item, str):
+            return self._data[item]
+        elif isinstance(item, slice):
+            return Tafra(
+                {column: value[item]
+                 for column, value in self._data.items()},
+                {column: value
+                 for column, value in self._dtypes.items()}
+            )
+        else:
+            raise ValueError(f'Type {type(item)} not supported')
 
-    def __getattr__(self, column: str) -> np.ndarray:
-        return self._data[column]
+    def __getattr__(self, attr: str) -> np.ndarray:
+        return self._data[attr]
 
-    def __setitem__(self, column: str, value: np.ndarray):
-        self._data[column] = value
-        self._dtypes[column] = self.__format_type(value.dtype)
+    def __setitem__(self, item: str, value: np.ndarray):
+        self._data[item] = value
+        self._dtypes[item] = self.__format_type(value.dtype)
 
-    def __setattr__(self, column: str, value: np.ndarray):
+    def __setattr__(self, attr: str, value: np.ndarray):
         if not (_real_has_attribute(self, '_init') and self._init):
-            object.__setattr__(self, column, value)
+            object.__setattr__(self, attr, value)
             return
 
         if len(value) != self.rows:
             raise ValueError('tafra must have consistent row counts')
 
-        self._data[column] = value
-        self._dtypes[column] = self.__format_type(value.dtype)
+        self._data[attr] = value
+        self._dtypes[attr] = self.__format_type(value.dtype)
 
     @staticmethod
     def __format_type(t: Any) -> str:
@@ -153,16 +161,25 @@ class Tafra:
     def dtypes(self) -> Tuple[np.dtype, ...]:
         return tuple(value.dtype for value in self._data.values())
 
+    def copy(self, order: str = 'C') -> 'Tafra':
+        """Helper function to create a copy of a `Tafra`s data.
+        """
+        return Tafra(
+            {column: value.copy(order=order)
+                for column, value in self._data.items()},
+            {column: value
+                for column, value in self._dtypes.items()}
+        )
+
     @staticmethod
     def cast_null(dtype: str, data: np.ndarray) -> np.ndarray:
-        """
-        Cast np.nan to None. Requires changing `dtype` to `object`.
+        """Cast np.nan to None. Requires changing `dtype` to `object`.
         """
         if dtype != 'float':
             return data
 
         where_nan = np.isnan(data)
-        if np.sum(where_nan) == 0:
+        if not np.any(where_nan):
             return data
 
         data = data.copy()
@@ -173,8 +190,7 @@ class Tafra:
 
     def to_records(self, columns: Optional[Iterable[str]] = None,
                    cast_null: bool = True) -> Iterable[Tuple[Any, ...]]:
-        """
-        Return a generator of tuples, each tuple being a record (i.e. row)
+        """Return a generator of tuples, each tuple being a record (i.e. row)
         and allowing heterogeneous typing.
         Useful for e.g. sending records back to a database.
         """
@@ -187,8 +203,7 @@ class Tafra:
         return
 
     def to_list(self, columns: Optional[Iterable[str]] = None) -> List[np.ndarray]:
-        """
-        Return a list of homogeneously typed columns (as np.ndarrays) in the tafra
+        """Return a list of homogeneously typed columns (as np.ndarrays) in the tafra
         """
         if columns is None:
             return list(self._data[c] for c in self.columns)
@@ -196,23 +211,20 @@ class Tafra:
 
     def group_by(self, group_by: Iterable[str],
                  aggregation: InitAggregation) -> 'Tafra':
-        """
-        Helper function to implement the `GroupBy` class.
+        """Helper function to implement the `GroupBy` class.
         """
         return GroupBy(group_by, aggregation).apply(self)
 
     def transform(self, group_by: Iterable[str],
                   aggregation: InitAggregation) -> 'Tafra':
-        """
-        Helper function to implement the `Transform` class.
+        """Helper function to implement the `Transform` class.
         """
         return Transform(group_by, aggregation).apply(self)
 
 
 @dc.dataclass
 class AggMethod:
-    """
-    Basic methods for aggregations over a data table.
+    """Basic methods for aggregations over a data table.
     """
     _group_by_cols: Iterable[str]
     # TODO: specify dtype of result?
@@ -232,7 +244,7 @@ class AggMethod:
             else:
                 raise ValueError(f'{agg} is not a valid aggregation argument')
 
-    def _validate(self, tafra: Tafra):
+    def _validate(self, tafra: Tafra) -> None:
         cols = set(tafra.columns)
         for col in self._group_by_cols:
             if col not in cols:
@@ -244,15 +256,13 @@ class AggMethod:
         # we don't have to use all the columns!
 
     def unique_groups(self, tafra: Tafra) -> List[Any]:
-        """
-        Construct a unique set of grouped values.
+        """Construct a unique set of grouped values.
         Uses `OrderedDict` rather than `set` to maintain order.
         """
-        return list(OrderedDict.fromkeys(zip(*(tafra[col] for col in self._group_by_cols))))
+        return list(OrderedDict.fromkeys(zip(*(cast(np.ndarray, tafra[col]) for col in self._group_by_cols))))
 
     def result_factory(self, fn: Callable[[str, str], np.ndarray]) -> Dict[str, np.ndarray]:
-        """
-        Factory function to generate the dict for the results set.
+        """Factory function to generate the dict for the results set.
         A function to take the new column name and source column name
         and return an empty `np.ndarray` should be given.
         """
@@ -264,8 +274,7 @@ class AggMethod:
         }
 
     def apply(self, tafra: Tafra) -> Tafra:
-        """
-        Apply the `AggMethod`. Should probably call `unique_groups` to
+        """Apply the `AggMethod`. Should probably call `unique_groups` to
         obtain the set of grouped values.
         """
         raise NotImplementedError
@@ -273,15 +282,14 @@ class AggMethod:
 
 @dc.dataclass
 class GroupBy(AggMethod):
-    """
-    Analogy to SQL `GROUP BY`, not `pandas.DataFrame.groupby()`. A `reduce` operation.
+    """Analogy to SQL `GROUP BY`, not `pandas.DataFrame.groupby()`. A `reduce` operation.
     """
 
     def apply(self, tafra: Tafra) -> Tafra:
         self._validate(tafra)
         unique = self.unique_groups(tafra)
         result = self.result_factory(
-            lambda rename, col: np.empty(len(unique), dtype=tafra[col].dtype))
+            lambda rename, col: np.empty(len(unique), dtype=cast(np.ndarray, tafra[col]).dtype))
 
         for i, u in enumerate(unique):
             which_rows = np.full(tafra.rows, True)
@@ -290,15 +298,14 @@ class GroupBy(AggMethod):
                 result[col][i] = val
             for rename, agg in self._aggregation.items():
                 fn, col = agg
-                result[rename][i] = fn(tafra[col][which_rows])
+                result[rename][i] = fn(cast(np.ndarray, tafra[col])[which_rows])
 
         return Tafra(result)
 
 
 @dc.dataclass
 class Transform(AggMethod):
-    """
-    Analogy to `pandas.DataFrame.transform()`,
+    """Analogy to `pandas.DataFrame.transform()`,
     i.e. a SQL `GROUP BY` and `LEFT JOIN` back to the original table.
     """
 
@@ -312,14 +319,15 @@ class Transform(AggMethod):
             which_rows = np.full(tafra.rows, True)
             for val, col in zip(u, self._group_by_cols):
                 which_rows &= tafra[col] == val
-                result[col][which_rows] = tafra[col][which_rows]
+                result[col][which_rows] = cast(np.ndarray, tafra[col])[which_rows]
             for rename, agg in self._aggregation.items():
                 fn, col = agg
-                result[rename][which_rows] = fn(tafra[col][which_rows])
+                result[rename][which_rows] = fn(cast(np.ndarray, tafra[col])[which_rows])
 
         return Tafra(result)
 
 
+Tafra.copy.__doc__ += '\n\nnumpy doc string:\n' + np.ndarray.copy.__doc__  # type: ignore
 Tafra.group_by.__doc__ += GroupBy.__doc__  # type: ignore
 Tafra.transform.__doc__ += Transform.__doc__  # type: ignore
 
@@ -332,7 +340,7 @@ if __name__ == '__main__':
     })
 
     print('List:\t\t', t.to_list())
-    print('Record:\t\t', t.to_records())
+    print('Record:\t\t', list(t.to_records()))
 
     gb = t.group_by(
         ['y', 'z'], {'x': sum}
