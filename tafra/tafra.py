@@ -84,7 +84,7 @@ class Tafra:
             if column not in self._dtypes.keys():
                 self._dtypes[column] = self.__format_type(self._data[column])
 
-    def __getitem__(self, item: Union[str, slice]) -> Union[np.ndarray, 'Tafra']:
+    def __getitem__(self, item: Union[str, slice, np.ndarray]) -> Union[np.ndarray, 'Tafra']:
         if isinstance(item, str):
             return self._data[item]
         elif isinstance(item, slice):
@@ -94,6 +94,15 @@ class Tafra:
                 {column: value
                  for column, value in self._dtypes.items()}
             )
+        elif isinstance(item, np.ndarray) and item.ndim == 1:
+            return Tafra(
+                {column: value[item]
+                 for column, value in self._data.items()},
+                {column: value
+                 for column, value in self._dtypes.items()}
+            )
+        elif isinstance(item, np.ndarray) and item.ndim == 1:
+            raise ValueError(f'Indexing np.ndarray must ndim == 1')
         else:
             raise ValueError(f'Type {type(item)} not supported')
 
