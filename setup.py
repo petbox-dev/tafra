@@ -48,7 +48,7 @@ setup(
     long_description_content_type="text/markdown",
     url='https://github.com/petbox-dev/tafra',
     author='Petroleum Engineering Toolbox Developers',
-    email='petbox.dev@gmail.com',
+    author_email='petbox.dev@gmail.com',
     install_requires=['numpy'],
     zip_safe=False,
     package_data={
