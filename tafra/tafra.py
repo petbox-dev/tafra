@@ -1,3 +1,16 @@
+"""
+Tafra: the innards of a dataframe
+
+Author
+------
+Derrick W. Turk
+David S. Fulford
+
+Notes
+-----
+Created on April 25, 2020
+"""
+
 import warnings
 from collections import OrderedDict
 import dataclasses as dc
@@ -13,6 +26,7 @@ InitAggregation = Dict[
         Tuple[Callable[[np.ndarray], Any], str]
     ]
 ]
+
 
 TAFRA_TYPE = {
     'int': lambda x: x.astype(int),
@@ -60,7 +74,7 @@ class Tafra:
                 rows = len(values)
             else:
                 if rows != len(values):
-                    raise ValueError('tafra must have consistent row counts')
+                    raise ValueError('`Tafra` must have consistent row counts.')
 
         if self._dtypes:
             self.update_types()
@@ -96,7 +110,7 @@ class Tafra:
             return self._index(item)
 
         else:
-            raise ValueError(f'Type {type(item)} not supported')
+            raise ValueError(f'Type {type(item)} not supported.')
 
     def __getattr__(self, attr: str) -> np.ndarray:
         return self._data[attr]
@@ -121,15 +135,15 @@ class Tafra:
 
         # is it an ndarray now?
         if not isinstance(value, np.ndarray):
-            raise ValueError('`Tafra` only supports assigning `ndarray`')
+            raise ValueError('`Tafra` only supports assigning `ndarray`.')
 
         if value.ndim > 1:
             sq_value = value.squeeze()
             if sq_value.ndim > 1:
-                raise ValueError('`ndarray` or `np.squeeze(ndarray)` must have ndim == 1')
+                raise ValueError('`ndarray` or `np.squeeze(ndarray)` must have ndim == 1.')
             elif sq_value.ndim == 1:
                 # if value was a single item, squeeze returns zero length item
-                warnings.warn('`np.squeeze(ndarray)` applied to set ndim == 1')
+                warnings.warn('`np.squeeze(ndarray)` applied to set ndim == 1.')
                 warnings.resetwarnings()
                 value = sq_value
             else:
@@ -137,7 +151,7 @@ class Tafra:
 
         if len(value) != self.rows:
             raise ValueError(
-                '`Tafra` must have consistent row counts. '
+                '`Tafra` must have consistent row counts.\n'
                 f'This `Tafra` has {self.rows} rows. Assigned np.ndarray has {len(value)} rows.')
 
         return value
@@ -148,7 +162,7 @@ class Tafra:
         for column, _dtype in dtypes.items():
             _dtypes[column] = self.__format_type(_dtype)
             if _dtypes[column] not in TAFRA_TYPE:
-                msg += f'`{_dtypes[column]}` is not a valid dtype for `{column}`\n'
+                msg += f'`{_dtypes[column]}` is not a valid dtype for `{column}.`\n'
 
         if len(msg) > 0:
             # should be KeyError value Python 3.7.x has a bug with '\n'
@@ -188,23 +202,35 @@ class Tafra:
 
     @property
     def columns(self) -> Tuple[str, ...]:
+        """Get the names of the columns.
+        Equivalent to `Tafra`.keys().
+        """
         return tuple(self._data.keys())
 
     @property
     def rows(self) -> int:
+        """Get the rows of the first item in the data `dict`.
+        The `len()` of all values have been previously validated.
+        """
         if not self._data:
             return 0
         return len(next(iter(self._data.values())))
 
     @property
     def data(self) -> Dict[str, np.ndarray]:
+        """Return the data `dict` attribute.
+        """
         return self._data
 
     @property
     def dtypes(self) -> Dict[str, str]:
+        """Return the dtypes `dict`.
+        """
         return self._dtypes
 
     def _slice(self, _slice: slice) -> 'Tafra':
+        """Use slice object to slice np.ndarray.
+        """
         return Tafra(
             {column: value[_slice]
                 for column, value in self._data.items()},
@@ -213,6 +239,8 @@ class Tafra:
         )
 
     def _index(self, index: np.ndarray) -> 'Tafra':
+        """Use numpy indexing to slice np.ndarray.
+        """
         if index.ndim != 1:
             raise ValueError(f'Indexing np.ndarray must ndim == 1, got ndim == {index.ndim}')
         return Tafra(
@@ -223,12 +251,18 @@ class Tafra:
         )
 
     def keys(self):
+        """Return the keys of the data attribute, i.e. like a `dict.keys()`.
+        """
         return self._data.keys()
 
     def values(self):
+        """Return the values of the data attribute, i.e. like a `dict.values()`.
+        """
         return self._data.values()
 
     def items(self):
+        """Return the items of the data attribute, i.e. like a `dict.items()`.
+        """
         return self._data.items()
 
     def update(self, other: 'Tafra'):
@@ -241,6 +275,7 @@ class Tafra:
                 raise ValueError(
                     'Other `Tafra` must have consistent row count. '
                     f'This `Tafra` has {rows} rows, other `Tafra` has {len(values)} rows.')
+            self._data[column] = values
 
         self.update_types(other._dtypes)
 
@@ -290,8 +325,8 @@ class Tafra:
         return
 
     def to_list(self, columns: Optional[Iterable[str]] = None) -> List[np.ndarray]:
-        """Return a list of homogeneously typed columns (as np.ndarrays) in the tafra
-        If a generator is needed, use `Tafra.values()`
+        """Return a list of homogeneously typed columns (as np.ndarrays) in the tafra.
+        If a generator is needed, use `Tafra.values()`.
         """
         if columns is None:
             return list(self._data.values())
@@ -447,6 +482,7 @@ class IterateBy(AggMethod):
 Tafra.copy.__doc__ += '\n\nnumpy doc string:\n' + np.ndarray.copy.__doc__  # type: ignore
 Tafra.group_by.__doc__ += GroupBy.__doc__  # type: ignore
 Tafra.transform.__doc__ += Transform.__doc__  # type: ignore
+Tafra.iterate_by.__doc__ += IterateBy.__doc__  # type: ignore
 
 
 if __name__ == '__main__':
