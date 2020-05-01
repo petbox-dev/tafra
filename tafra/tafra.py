@@ -1,3 +1,4 @@
+import warnings
 from collections import OrderedDict
 import dataclasses as dc
 
@@ -12,7 +13,6 @@ InitAggregation = Dict[
         Tuple[Callable[[np.ndarray], Any], str]
     ]
 ]
-
 
 TAFRA_TYPE = {
     'int': lambda x: x.astype(int),
@@ -64,65 +64,97 @@ class Tafra:
 
         if self._dtypes:
             self.update_types()
-            self.coalesce_types()
         else:
-            self._dtypes = {c: self.__format_type(v.dtype) for c, v in self._data.items()}
+            self._dtypes = {}
+        self.coalesce_types()
 
-    def update_types(self, dtypes: Optional[Dict[str, str]] = None) -> None:
+    def update_types(self, dtypes: Optional[Dict[str, Any]] = None) -> None:
         """Apply new dtypes or update dtype `dict` for missing keys.
         """
         if dtypes is not None:
+            dtypes = self.__validate_types(dtypes)
             self._dtypes.update(dtypes)
 
         for column in self._dtypes.keys():
-            self._dtypes[column] = self.__format_type(self._dtypes[column])
             if self.__format_type(self._data[column].dtype) != self._dtypes[column]:
                 self._data[column] = self.__apply_type(self._dtypes[column], self._data[column])
 
     def coalesce_types(self) -> None:
         for column in self._data.keys():
-            if column not in self._dtypes.keys():
-                self._dtypes[column] = self.__format_type(self._data[column])
+            if column not in self._dtypes:
+                self._dtypes[column] = self.__format_type(self._data[column].dtype)
 
-    def __getitem__(self, item: Union[str, slice, np.ndarray]) -> Union[np.ndarray, 'Tafra']:
+    def __getitem__(self, item: Union[str, slice, np.ndarray]):
+        # type is actually Union[np.ndarray, 'Tafra'] but mypy goes insane
         if isinstance(item, str):
             return self._data[item]
+
         elif isinstance(item, slice):
-            return Tafra(
-                {column: value[item]
-                 for column, value in self._data.items()},
-                {column: value
-                 for column, value in self._dtypes.items()}
-            )
-        elif isinstance(item, np.ndarray) and item.ndim == 1:
-            return Tafra(
-                {column: value[item]
-                 for column, value in self._data.items()},
-                {column: value
-                 for column, value in self._dtypes.items()}
-            )
-        elif isinstance(item, np.ndarray) and item.ndim == 1:
-            raise ValueError(f'Indexing np.ndarray must ndim == 1')
+            return self._slice(item)
+
+        elif isinstance(item, np.ndarray):
+            return self._index(item)
+
         else:
             raise ValueError(f'Type {type(item)} not supported')
 
     def __getattr__(self, attr: str) -> np.ndarray:
         return self._data[attr]
 
-    def __setitem__(self, item: str, value: np.ndarray):
+    def __setitem__(self, item: str, value: Union[np.ndarray, Iterable]):
+        value = self.__validate(value)
         self._data[item] = value
         self._dtypes[item] = self.__format_type(value.dtype)
 
-    def __setattr__(self, attr: str, value: np.ndarray):
+    def __setattr__(self, attr: str, value: Union[np.ndarray, Iterable]):
         if not (_real_has_attribute(self, '_init') and self._init):
             object.__setattr__(self, attr, value)
             return
 
-        if len(value) != self.rows:
-            raise ValueError('tafra must have consistent row counts')
-
+        value = self.__validate(value)
         self._data[attr] = value
         self._dtypes[attr] = self.__format_type(value.dtype)
+
+    def __validate(self, value: Union[np.ndarray, Iterable]) -> np.ndarray:
+        if not isinstance(value, np.ndarray):
+            value = np.asarray(value)
+
+        # is it an ndarray now?
+        if not isinstance(value, np.ndarray):
+            raise ValueError('`Tafra` only supports assigning `ndarray`')
+
+        if value.ndim > 1:
+            sq_value = value.squeeze()
+            if sq_value.ndim > 1:
+                raise ValueError('`ndarray` or `np.squeeze(ndarray)` must have ndim == 1')
+            elif sq_value.ndim == 1:
+                # if value was a single item, squeeze returns zero length item
+                warnings.warn('`np.squeeze(ndarray)` applied to set ndim == 1')
+                warnings.resetwarnings()
+                value = sq_value
+            else:
+                assert 0, 'ndim <= 0, unreachable'
+
+        if len(value) != self.rows:
+            raise ValueError(
+                '`Tafra` must have consistent row counts. '
+                f'This `Tafra` has {self.rows} rows. Assigned np.ndarray has {len(value)} rows.')
+
+        return value
+
+    def __validate_types(self, dtypes: Dict[str, Any]) -> Dict[str, str]:
+        msg = ''
+        _dtypes = {}
+        for column, _dtype in dtypes.items():
+            _dtypes[column] = self.__format_type(_dtype)
+            if _dtypes[column] not in TAFRA_TYPE:
+                msg += f'`{_dtypes[column]}` is not a valid dtype for `{column}`\n'
+
+        if len(msg) > 0:
+            # should be KeyError value Python 3.7.x has a bug with '\n'
+            raise ValueError(msg)
+
+        return _dtypes
 
     @staticmethod
     def __format_type(t: Any) -> str:
@@ -133,8 +165,10 @@ class Tafra:
         elif 'str' in _t: _type = 'str'
         elif '<U' in _t: _type = 'str'
         elif 'date' in _t: _type = 'datetime64'
+        elif '<M' in _t: _type = 'datetime64'
         elif 'object' in _t: _type = 'object'
         elif 'O' in _t: _type = 'object'
+        else: return _t
         return _type
 
     @staticmethod
@@ -167,8 +201,48 @@ class Tafra:
         return self._data
 
     @property
-    def dtypes(self) -> Tuple[np.dtype, ...]:
-        return tuple(value.dtype for value in self._data.values())
+    def dtypes(self) -> Dict[str, str]:
+        return self._dtypes
+
+    def _slice(self, _slice: slice) -> 'Tafra':
+        return Tafra(
+            {column: value[_slice]
+                for column, value in self._data.items()},
+            {column: value
+                for column, value in self._dtypes.items()}
+        )
+
+    def _index(self, index: np.ndarray) -> 'Tafra':
+        if index.ndim != 1:
+            raise ValueError(f'Indexing np.ndarray must ndim == 1, got ndim == {index.ndim}')
+        return Tafra(
+            {column: value[index]
+                for column, value in self._data.items()},
+            {column: value
+                for column, value in self._dtypes.items()}
+        )
+
+    def keys(self):
+        return self._data.keys()
+
+    def values(self):
+        return self._data.values()
+
+    def items(self):
+        return self._data.items()
+
+    def update(self, other: 'Tafra'):
+        """Update the data and dtypes of this `Tafra` with another `Tafra`.
+        Length of rows must match, while data of different `dtype` will overwrite.
+        """
+        rows = self.rows
+        for column, values in other._data.items():
+            if len(values) != rows:
+                raise ValueError(
+                    'Other `Tafra` must have consistent row count. '
+                    f'This `Tafra` has {rows} rows, other `Tafra` has {len(values)} rows.')
+
+        self.update_types(other._dtypes)
 
     def copy(self, order: str = 'C') -> 'Tafra':
         """Helper function to create a copy of a `Tafra`s data.
@@ -203,19 +277,24 @@ class Tafra:
         and allowing heterogeneous typing.
         Useful for e.g. sending records back to a database.
         """
-        cols: Iterable[str] = self.columns if columns is None else columns
-        if cast_null:
-            yield from zip(*(self.cast_null(self._dtypes[c], self._data[c]) for c in cols))
-            return
+        _columns: Iterable[str] = self.columns if columns is None else columns
 
-        yield from zip(*(self._data[c] for c in cols))
+        if cast_null:
+            for row in range(self.rows):
+                yield tuple(self.cast_null(
+                    self._dtypes[c], self._data[c][[row]])[0] for c in _columns)
+        else:
+            for row in range(self.rows):
+                yield tuple(self._data[c][row] for c in _columns)
+
         return
 
     def to_list(self, columns: Optional[Iterable[str]] = None) -> List[np.ndarray]:
         """Return a list of homogeneously typed columns (as np.ndarrays) in the tafra
+        If a generator is needed, use `Tafra.values()`
         """
         if columns is None:
-            return list(self._data[c] for c in self.columns)
+            return list(self._data.values())
         return list(self._data[c] for c in columns)
 
     def group_by(self, group_by: Iterable[str],
@@ -230,6 +309,11 @@ class Tafra:
         """
         return Transform(group_by, aggregation).apply(self)
 
+    def iterate_by(self, group_by: Iterable[str]) -> Iterable['Tafra']:
+        """Helper function to implement the `IterateBy` class.
+        """
+        return IterateBy(group_by, {}).iter(self)
+
 
 @dc.dataclass
 class AggMethod:
@@ -243,6 +327,7 @@ class AggMethod:
 
     def __post_init__(self, aggregation: InitAggregation):
         for rename, agg in aggregation.items():
+
             if callable(agg):
                 self._aggregation[rename] = cast(
                     Tuple[Callable[[np.ndarray], Any], str],
@@ -268,7 +353,7 @@ class AggMethod:
         """Construct a unique set of grouped values.
         Uses `OrderedDict` rather than `set` to maintain order.
         """
-        return list(OrderedDict.fromkeys(zip(*(cast(np.ndarray, tafra[col]) for col in self._group_by_cols))))
+        return list(OrderedDict.fromkeys(zip(*(tafra[col] for col in self._group_by_cols))))
 
     def result_factory(self, fn: Callable[[str, str], np.ndarray]) -> Dict[str, np.ndarray]:
         """Factory function to generate the dict for the results set.
@@ -298,16 +383,17 @@ class GroupBy(AggMethod):
         self._validate(tafra)
         unique = self.unique_groups(tafra)
         result = self.result_factory(
-            lambda rename, col: np.empty(len(unique), dtype=cast(np.ndarray, tafra[col]).dtype))
+            lambda rename, col: np.empty(len(unique), dtype=tafra[col].dtype))
 
         for i, u in enumerate(unique):
             which_rows = np.full(tafra.rows, True)
             for val, col in zip(u, self._group_by_cols):
                 which_rows &= tafra[col] == val
                 result[col][i] = val
+
             for rename, agg in self._aggregation.items():
                 fn, col = agg
-                result[rename][i] = fn(cast(np.ndarray, tafra[col])[which_rows])
+                result[rename][i] = fn(tafra[col][which_rows])
 
         return Tafra(result)
 
@@ -328,12 +414,34 @@ class Transform(AggMethod):
             which_rows = np.full(tafra.rows, True)
             for val, col in zip(u, self._group_by_cols):
                 which_rows &= tafra[col] == val
-                result[col][which_rows] = cast(np.ndarray, tafra[col])[which_rows]
+                result[col][which_rows] = tafra[col][which_rows]
+
             for rename, agg in self._aggregation.items():
                 fn, col = agg
-                result[rename][which_rows] = fn(cast(np.ndarray, tafra[col])[which_rows])
+                result[rename][which_rows] = fn(tafra[col][which_rows])
 
         return Tafra(result)
+
+@dc.dataclass
+class IterateBy(AggMethod):
+    """Analogy to `pandas.DataFrame.groupby()`, i.e. an Iterable of `Tafra` objects.
+    """
+
+    def __postinit__(self, *args):
+        pass
+
+    def iter(self, tafra: Tafra) -> Iterable[Tafra]:
+        self._validate(tafra)
+        unique = self.unique_groups(tafra)
+
+        for u in unique:
+            which_rows = np.full(tafra.rows, True)
+            result = self.result_factory(
+                lambda rename, col: np.empty(len(which_rows)))
+            for val, col in zip(u, self._group_by_cols):
+                which_rows &= tafra[col] == val
+
+            yield tafra[which_rows]
 
 
 Tafra.copy.__doc__ += '\n\nnumpy doc string:\n' + np.ndarray.copy.__doc__  # type: ignore
