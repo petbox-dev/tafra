@@ -316,11 +316,11 @@ class Tafra:
 
         if cast_null:
             for row in range(self.rows):
-                yield tuple(self.cast_null(
-                    self._dtypes[c], self._data[c][[row]])[0] for c in _columns)
+                yield tuple(zip((self.cast_null(
+                    self._dtypes[c], self._data[c][[row]])[0] for c in _columns)))
         else:
             for row in range(self.rows):
-                yield tuple(self._data[c][row] for c in _columns)
+                yield tuple(zip((self._data[c][row] for c in _columns)))
 
         return
 

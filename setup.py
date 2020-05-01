@@ -33,12 +33,23 @@ Notes
 -----
 Created on April 25, 2020
 """
+# from .tafra import Tafra, GroupBy, Transform, IterateBy, TAFRA_TYPE
+
+import os
+import sys
 
 try:
     from setuptools import setup  # type: ignore
 except ImportError:
     from distutils.core import setup
 
+if sys.argv[-1] == 'build':
+    os.system('python setup.py sdist bdist_wheel')
+    sys.exit()
+
+if sys.argv[-1] == 'publish':
+    os.system('twine upload --repository pypi dist/*')
+    sys.exit()
 
 setup(
     name='tafra',
@@ -54,6 +65,7 @@ setup(
     package_data={
         'tafra': ['py.typed']
     },
-    packages=['tafra'],
+    # packages=['tafra'],
+     py_modules=['tafra'],
     python_requires='>3.7',
 )
