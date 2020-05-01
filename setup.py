@@ -35,20 +35,21 @@ Created on April 25, 2020
 """
 
 try:
-    from setuptools import setup
+    from setuptools import setup  # type: ignore
 except ImportError:
     from distutils.core import setup
 
 
 setup(
     name='tafra',
-    version='0.1.0',
+    version='1.0.0',
     description='Tafra: innards of a dataframe',
-    long_description = open('README.md').read(),
+    long_description=open('README.md').read(),
     long_description_content_type="text/markdown",
-    url = 'https://github.com/petbox-dev/tafra',
-    author='Derrick W. Turk',
-    install_requires=['numpy', 'typing_extensions'],
+    url='https://github.com/petbox-dev/tafra',
+    author='Petroleum Engineering Toolbox Developers',
+    email='petbox.dev@gmail.com',
+    install_requires=['numpy'],
     zip_safe=False,
     package_data={
         'tafra': ['py.typed']
