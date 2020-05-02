@@ -37,6 +37,15 @@ TAFRA_TYPE = {
     'object': lambda x: x.astype(object),
 }
 
+RECORD_TYPE = {
+    'int': lambda x: int(x),
+    'float': lambda x: float(x),
+    'bool': lambda x: bool(x),
+    'str': lambda x: str(x),
+    'date': lambda x: x.strftime(r'%Y-%m-%d'),
+    'object': lambda x: str(x),
+}
+
 
 def _real_has_attribute(obj: object, attr: str) -> bool:
     try:
@@ -178,8 +187,8 @@ class Tafra:
         elif 'bool' in _t: _type = 'bool'
         elif 'str' in _t: _type = 'str'
         elif '<U' in _t: _type = 'str'
-        elif 'date' in _t: _type = 'datetime64'
-        elif '<M' in _t: _type = 'datetime64'
+        elif 'date' in _t: _type = 'date'
+        elif '<M' in _t: _type = 'date'
         elif 'object' in _t: _type = 'object'
         elif 'O' in _t: _type = 'object'
         else: return _t
@@ -279,6 +288,12 @@ class Tafra:
 
         self.update_types(other._dtypes)
 
+    def delete(self, column: str):
+        """Remove a column from the `Tafra` data and dtypes.
+        """
+        _ = self._data.pop(column, None)
+        _ = self._dtypes.pop(column, None)
+
     def copy(self, order: str = 'C') -> 'Tafra':
         """Helper function to create a copy of a `Tafra`s data.
         """
@@ -290,21 +305,13 @@ class Tafra:
         )
 
     @staticmethod
-    def cast_null(dtype: str, data: np.ndarray) -> np.ndarray:
+    def __cast_records(dtype: str, data: np.ndarray, cast_null: bool) -> Any:
         """Cast np.nan to None. Requires changing `dtype` to `object`.
         """
-        if dtype != 'float':
-            return data
-
-        where_nan = np.isnan(data)
-        if not np.any(where_nan):
-            return data
-
-        data = data.copy()
-        data = data.astype(object)
-        data[where_nan] = None
-
-        return data
+        value: Any = RECORD_TYPE[dtype](data.item())
+        if cast_null and dtype == 'float' and np.isnan(data.item()):
+            return None
+        return value
 
     def to_records(self, columns: Optional[Iterable[str]] = None,
                    cast_null: bool = True) -> Iterable[Tuple[Any, ...]]:
@@ -313,15 +320,11 @@ class Tafra:
         Useful for e.g. sending records back to a database.
         """
         _columns: Iterable[str] = self.columns if columns is None else columns
-
-        if cast_null:
-            for row in range(self.rows):
-                yield tuple(zip((self.cast_null(
-                    self._dtypes[c], self._data[c][[row]])[0] for c in _columns)))
-        else:
-            for row in range(self.rows):
-                yield tuple(zip((self._data[c][row] for c in _columns)))
-
+        for row in range(self.rows):
+            yield tuple(self.__cast_records(
+                self._dtypes[c], self._data[c][[row]],
+                cast_null
+            ) for c in _columns)
         return
 
     def to_list(self, columns: Optional[Iterable[str]] = None) -> List[np.ndarray]:
@@ -344,10 +347,10 @@ class Tafra:
         """
         return Transform(group_by, aggregation).apply(self)
 
-    def iterate_by(self, group_by: Iterable[str]) -> Iterable['Tafra']:
+    def iterate_by(self, group_by: Iterable[str]) -> Iterable[Tuple[int, 'Tafra']]:
         """Helper function to implement the `IterateBy` class.
         """
-        return IterateBy(group_by, {}).iter(self)
+        yield from IterateBy(group_by, {}).apply(self)
 
 
 @dc.dataclass
@@ -374,15 +377,20 @@ class AggMethod:
                 raise ValueError(f'{agg} is not a valid aggregation argument')
 
     def _validate(self, tafra: Tafra) -> None:
+        tafra['__id__'] = np.empty(tafra.rows, dtype=int)
         cols = set(tafra.columns)
         for col in self._group_by_cols:
             if col not in cols:
                 raise KeyError(f'{col} does not exist in tafra')
         for rename, agg in self._aggregation.items():
             col = self._aggregation[rename][1]
-            if col not in cols:
+            if col not in cols and col != '__id__':
+                # __id__ is our "magic" enumerator column
                 raise KeyError(f'{col} does not exist in tafra')
         # we don't have to use all the columns!
+
+    def _cleanup(self, tafra: Tafra) -> None:
+        tafra.delete('__id__')
 
     def unique_groups(self, tafra: Tafra) -> List[Any]:
         """Construct a unique set of grouped values.
@@ -402,11 +410,12 @@ class AggMethod:
             )
         }
 
-    def apply(self, tafra: Tafra) -> Tafra:
-        """Apply the `AggMethod`. Should probably call `unique_groups` to
-        obtain the set of grouped values.
-        """
-        raise NotImplementedError
+    # def apply(self, tafra: Tafra) -> Tafra:
+    #     """Implement the `AggMethod`.
+    #     Should probably call `unique_groups` to obtain the set of grouped values.
+    #     Assign tafra['__id__'] for enumator in result rows.
+    #     """
+    #     raise NotImplementedError
 
 
 @dc.dataclass
@@ -422,6 +431,8 @@ class GroupBy(AggMethod):
 
         for i, u in enumerate(unique):
             which_rows = np.full(tafra.rows, True)
+            tafra['__id__'][i] = i
+
             for val, col in zip(u, self._group_by_cols):
                 which_rows &= tafra[col] == val
                 result[col][i] = val
@@ -430,6 +441,7 @@ class GroupBy(AggMethod):
                 fn, col = agg
                 result[rename][i] = fn(tafra[col][which_rows])
 
+        self._cleanup(tafra)
         return Tafra(result)
 
 
@@ -445,8 +457,10 @@ class Transform(AggMethod):
         result = self.result_factory(
             lambda rename, col: np.empty_like(tafra[col]))
 
-        for u in unique:
+        for i, u in enumerate(unique):
             which_rows = np.full(tafra.rows, True)
+            tafra['__id__'][which_rows] = i
+
             for val, col in zip(u, self._group_by_cols):
                 which_rows &= tafra[col] == val
                 result[col][which_rows] = tafra[col][which_rows]
@@ -455,7 +469,9 @@ class Transform(AggMethod):
                 fn, col = agg
                 result[rename][which_rows] = fn(tafra[col][which_rows])
 
+        self._cleanup(tafra)
         return Tafra(result)
+
 
 @dc.dataclass
 class IterateBy(AggMethod):
@@ -465,18 +481,23 @@ class IterateBy(AggMethod):
     def __postinit__(self, *args):
         pass
 
-    def iter(self, tafra: Tafra) -> Iterable[Tafra]:
+    def apply(self, tafra: Tafra) -> Iterable[Tuple[int, Tafra]]:
         self._validate(tafra)
         unique = self.unique_groups(tafra)
 
-        for u in unique:
+        for i, u in enumerate(unique):
             which_rows = np.full(tafra.rows, True)
+            tafra['__id__'][which_rows] = i
             result = self.result_factory(
-                lambda rename, col: np.empty(len(which_rows)))
+                lambda rename, col: np.empty(np.sum(which_rows)))
+
             for val, col in zip(u, self._group_by_cols):
                 which_rows &= tafra[col] == val
 
-            yield tafra[which_rows]
+            yield (i, tafra[which_rows])
+
+        self._cleanup(tafra)
+        return
 
 
 Tafra.copy.__doc__ += '\n\nnumpy doc string:\n' + np.ndarray.copy.__doc__  # type: ignore
