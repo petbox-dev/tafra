@@ -13,6 +13,7 @@ Created on April 25, 2020
 
 import warnings
 from collections import OrderedDict
+from itertools import chain
 import dataclasses as dc
 
 import numpy as np
@@ -304,6 +305,47 @@ class Tafra:
                 for column, value in self._dtypes.items()}
         )
 
+    def union(self, other: 'Tafra', inplace: bool = False) -> Union['Tafra', None]:
+        """Analogy to SQL UNION or `pandas.append`. All column names and dtypes must match.
+        """
+        # These should be unreachable unless attributes were directly modified
+        if len(self._data) != len(self._dtypes):
+            assert 0, 'This `Tafra` Length of data and dtypes do not match'
+        if len(other._data) != len(other._dtypes):
+            assert 0, 'Other `Tafra` Length of data and dtypes do not match'
+
+        # ensure same number of columns
+        if len(self._data) != len(other._data) or len(self._dtypes) != len(other._dtypes):
+            raise ValueError(
+                f'This `Tafra` column count does not match other `Tafra` column count.')
+
+        # ensure all columns in this `Tafra` exist in other `Tafra`
+        # if len() is same AND all columns in this exist in other,
+        # do not need to other other `Tafra` colums in this `Tafra`.
+        for (data_column, value), (dtype_column, dtype) \
+                in zip(self._data.items(), self._dtypes.items()):
+
+            if data_column not in other._data or dtype_column not in other._dtypes:
+                raise ValueError(
+                    f'This `Tafra` column `{data_column}` does not exist in other `Tafra`.')
+
+            elif value.dtype != other._data[data_column].dtype \
+                    or dtype != other._dtypes[dtype_column]:
+                raise ValueError(
+                    f'This `Tafra` column `{data_column}` dtype `{dtype}` '
+                    f'does not match other `Tafra` dtype `{other._dtypes[dtype_column]}`.')
+
+        if inplace:
+            for column, value in self._data.items():
+                self._data[column] = np.append(value, self._data[column])
+            return None
+
+        # np.append is not done inplace
+        return Tafra(
+            {column: np.append(value, self._data[column]) for column, value in self._data.items()},
+            self._dtypes
+        )
+
     @staticmethod
     def __cast_records(dtype: str, data: np.ndarray, cast_null: bool) -> Any:
         """Cast np.nan to None. Requires changing `dtype` to `object`.
@@ -498,6 +540,33 @@ class IterateBy(AggMethod):
 
         self._cleanup(tafra)
         return
+
+@dc.dataclass
+class LeftJoin(AggMethod):
+    """Analogy to SQL LEFT JOIN, `pandas.DataFrame.transform()`,
+    i.e. a SQL `GROUP BY` and `LEFT JOIN` back to the original table.
+    """
+
+    def apply(self, tafra: Tafra) -> Tafra:
+        self._validate(tafra)
+        unique = self.unique_groups(tafra)
+        result = self.result_factory(
+            lambda rename, col: np.empty_like(tafra[col]))
+
+        for i, u in enumerate(unique):
+            which_rows = np.full(tafra.rows, True)
+            tafra['__id__'][which_rows] = i
+
+            for val, col in zip(u, self._group_by_cols):
+                which_rows &= tafra[col] == val
+                result[col][which_rows] = tafra[col][which_rows]
+
+            for rename, agg in self._aggregation.items():
+                fn, col = agg
+                result[rename][which_rows] = fn(tafra[col][which_rows])
+
+        self._cleanup(tafra)
+        return Tafra(result)
 
 
 Tafra.copy.__doc__ += '\n\nnumpy doc string:\n' + np.ndarray.copy.__doc__  # type: ignore
