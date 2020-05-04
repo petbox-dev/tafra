@@ -82,17 +82,17 @@ class Tafra:
         """Apply new dtypes or update dtype `dict` for missing keys.
         """
         if dtypes is not None:
-            dtypes = self.__validate_types(dtypes)
+            dtypes = self._validate_types(dtypes)
             self._dtypes.update(dtypes)
 
         for column in self._dtypes.keys():
-            if self.__format_type(self._data[column].dtype) != self._dtypes[column]:
-                self._data[column] = self.__apply_type(self._dtypes[column], self._data[column])
+            if self._format_type(self._data[column].dtype) != self._dtypes[column]:
+                self._data[column] = self._apply_type(self._dtypes[column], self._data[column])
 
     def coalesce_types(self) -> None:
         for column in self._data.keys():
             if column not in self._dtypes:
-                self._dtypes[column] = self.__format_type(self._data[column].dtype)
+                self._dtypes[column] = self._format_type(self._data[column].dtype)
 
     def __getitem__(self, item: Union[str, slice, np.ndarray]):
         # type is actually Union[np.ndarray, 'Tafra'] but mypy goes insane
@@ -112,20 +112,20 @@ class Tafra:
         return self._data[attr]
 
     def __setitem__(self, item: str, value: Union[np.ndarray, Iterable]):
-        value = self.__validate(value)
+        value = self._validate(value)
         self._data[item] = value
-        self._dtypes[item] = self.__format_type(value.dtype)
+        self._dtypes[item] = self._format_type(value.dtype)
 
     def __setattr__(self, attr: str, value: Union[np.ndarray, Iterable]):
         if not (_real_has_attribute(self, '_init') and self._init):
             object.__setattr__(self, attr, value)
             return
 
-        value = self.__validate(value)
+        value = self._validate(value)
         self._data[attr] = value
-        self._dtypes[attr] = self.__format_type(value.dtype)
+        self._dtypes[attr] = self._format_type(value.dtype)
 
-    def __validate(self, value: Union[np.ndarray, Iterable]) -> np.ndarray:
+    def _validate(self, value: Union[np.ndarray, Iterable]) -> np.ndarray:
         if not isinstance(value, np.ndarray):
             value = np.asarray(value)
 
@@ -152,11 +152,11 @@ class Tafra:
 
         return value
 
-    def __validate_types(self, dtypes: Dict[str, Any]) -> Dict[str, str]:
+    def _validate_types(self, dtypes: Dict[str, Any]) -> Dict[str, str]:
         msg = ''
         _dtypes = {}
         for column, _dtype in dtypes.items():
-            _dtypes[column] = self.__format_type(_dtype)
+            _dtypes[column] = self._format_type(_dtype)
             if _dtypes[column] not in TAFRA_TYPE:
                 msg += f'`{_dtypes[column]}` is not a valid dtype for `{column}.`\n'
 
@@ -167,7 +167,7 @@ class Tafra:
         return _dtypes
 
     @staticmethod
-    def __format_type(t: Any) -> str:
+    def _format_type(t: Any) -> str:
         _t = str(t)
         if 'int' in _t: _type = 'int'
         elif 'float' in _t: _type = 'float'
@@ -182,17 +182,17 @@ class Tafra:
         return _type
 
     @staticmethod
-    def __apply_type(t: str, array: np.ndarray) -> np.ndarray:
+    def _apply_type(t: str, array: np.ndarray) -> np.ndarray:
         return TAFRA_TYPE[t](array)
 
     @classmethod
     def from_dataframe(cls, df: DataFrame, dtypes: Optional[Dict[str, str]] = None) -> 'Tafra':
         if dtypes is None:
             dtypes = {c: t for c, t in zip(df.columns, df.dtypes)}
-        dtypes = {c: cls.__format_type(t) for c, t in dtypes.items()}
+        dtypes = {c: cls._format_type(t) for c, t in dtypes.items()}
 
         return cls(
-            {c: cls.__apply_type(dtypes[c], df[c].values) for c in df.columns},
+            {c: cls._apply_type(dtypes[c], df[c].values) for c in df.columns},
             {c: dtypes[c] for c in df.columns}
         )
 
@@ -333,7 +333,7 @@ class Tafra:
         )
 
     @staticmethod
-    def __cast_records(dtype: str, data: np.ndarray, cast_null: bool) -> Any:
+    def _cast_records(dtype: str, data: np.ndarray, cast_null: bool) -> Any:
         """Cast np.nan to None. Requires changing `dtype` to `object`.
         """
         value: Any = RECORD_TYPE[dtype](data.item())
@@ -349,7 +349,7 @@ class Tafra:
         """
         _columns: Iterable[str] = self.columns if columns is None else columns
         for row in range(self.rows):
-            yield tuple(self.__cast_records(
+            yield tuple(self._cast_records(
                 self._dtypes[c], self._data[c][[row]],
                 cast_null
             ) for c in _columns)
