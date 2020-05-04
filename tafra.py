@@ -19,13 +19,9 @@ import dataclasses as dc
 import numpy as np
 from pandas import DataFrame # just for mypy...
 
-<<<<<<< HEAD
 from typing import Any, Callable, Dict, List, Iterable, Tuple, Optional, Union
 from typing import cast
 from typing_extensions import Protocol
-=======
-from typing import Any, Callable, Dict, List, Tuple, Optional, Iterable, Union, cast
->>>>>>> unused import
 
 
 # for the passed argument to an aggregation
@@ -452,12 +448,9 @@ class AggMethod(GroupSet):
         for col in chain(self._group_by_cols, (col for (_, col) in self._aggregation.values())):
             if col not in cols:
                 raise KeyError(f'{col} does not exist in tafra')
-<<<<<<< HEAD
         # we don't have to use all the columns!
 
-=======
-        for rename, agg in self._aggregation.items():
-            col = self._aggregation[rename][1]
+        for (_, col) in self._aggregation.values():
             if col not in cols:
                 raise KeyError(f'{col} does not exist in tafra')
         # we don't have to use all the columns!
@@ -468,7 +461,6 @@ class AggMethod(GroupSet):
         """
         return list(OrderedDict.fromkeys(zip(*(tafra[col] for col in self._group_by_cols))))
 
->>>>>>> magic column was write-only
     def result_factory(self, fn: Callable[[str, str], np.ndarray]) -> Dict[str, np.ndarray]:
         """Factory function to generate the dict for the results set.
         A function to take the new column name and source column name
@@ -507,13 +499,10 @@ class GroupBy(AggMethod):
             for rename, (fn, col) in self._aggregation.items():
                 result[rename][i] = fn(tafra[col][which_rows])
 
-<<<<<<< HEAD
             for rename, fn in self._iter_fn.items():
                 iter_fn[rename][i] = fn(i * ones[which_rows])
 
         result.update(iter_fn)
-=======
->>>>>>> magic column was write-only
         return Tafra(result)
 
 
@@ -541,7 +530,6 @@ class Transform(AggMethod):
                 fn, col = agg
                 result[rename][which_rows] = fn(tafra[col][which_rows])
 
-<<<<<<< HEAD
             for rename, fn in self._iter_fn.items():
                 iter_fn[rename][which_rows] = fn(i * ones[which_rows])
 
@@ -550,16 +538,6 @@ class Transform(AggMethod):
 
 
 class IterateBy(GroupSet):
-=======
-        return Tafra(result)
-
-
-# TODO: it's probably better for this to return (UniqueTuple, Tafra) than
-#   to enumerate - the caller can enumerate but doesn't have easy access
-#   to the unique tuple
-@dc.dataclass
-class IterateBy(AggMethod):
->>>>>>> magic column was write-only
     """Analogy to `pandas.DataFrame.groupby()`, i.e. an Iterable of `Tafra` objects.
     """
 
@@ -572,18 +550,11 @@ class IterateBy(AggMethod):
 
         for i, u in enumerate(unique):
             which_rows = np.full(tafra.rows, True)
-<<<<<<< HEAD
-=======
-            result = self.result_factory(
-                lambda rename, col: np.empty(np.sum(which_rows)))
->>>>>>> magic column was write-only
 
             for val, col in zip(u, self._group_by_cols):
                 which_rows &= tafra[col] == val
 
             yield (u, which_rows, tafra[which_rows])
-
-        return
 
 
 class LeftJoin(GroupSet):
