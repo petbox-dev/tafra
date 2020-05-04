@@ -19,7 +19,7 @@ import dataclasses as dc
 import numpy as np
 from pandas import DataFrame # just for mypy...
 
-from typing import Any, Callable, Dict, List, Tuple, Optional, Iterable, Union, cast, NoReturn
+from typing import Any, Callable, Dict, List, Tuple, Optional, Iterable, Union, cast
 
 InitAggregation = Dict[
     str,
