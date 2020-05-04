@@ -17,7 +17,6 @@ from itertools import chain
 import dataclasses as dc
 
 import numpy as np
-from pandas import DataFrame # just for mypy...
 
 from typing import Any, Callable, Dict, List, Iterable, Tuple, Optional, Union
 from typing import cast
@@ -60,6 +59,19 @@ RECORD_TYPE = {
     'object': lambda x: str(x),
 }
 
+
+class DataFrame(Protocol):
+    """A fake class to satisfy typing of a `pandas.DataFrame` without a dependency.
+    """
+    _data: Dict[str, np.ndarray]
+    columns: List[str]
+    dtypes: List[str]
+
+    def __getitem__(self, column: str) -> np.ndarray:
+        ...
+
+    def __setitem__(self, column: str, value: np.ndarray):
+        ...
 
 def _real_has_attribute(obj: object, attr: str) -> bool:
     try:
