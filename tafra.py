@@ -35,9 +35,15 @@ InitAggregation = Dict[
 
 # for the result type of IterateBy
 GroupDescription = Tuple[
+<<<<<<< HEAD
     Tuple[Any, ...],  # tuple of unique values from group-by columns
     np.ndarray,  # int array of row indices into original tafra for this group
     'Tafra'  # sub-tafra for the group
+=======
+    Tuple[Any, ...], # tuple of unique values from group-by columns
+    np.ndarray, # int array of row indices into original tafra for this group
+    'Tafra' # sub-tafra for the group
+>>>>>>> yield 'reverse' indices during iterate_by
 ]
 
 
@@ -72,6 +78,7 @@ class DataFrame(Protocol):
 
     def __setitem__(self, column: str, value: np.ndarray):
         ...
+
 
 def _real_has_attribute(obj: object, attr: str) -> bool:
     try:
@@ -551,7 +558,7 @@ class Transform(AggMethod):
 
 class IterateBy(GroupSet):
     """Analogy to `pandas.DataFrame.groupby()`, i.e. an Iterable of `Tafra` objects.
-    Yields tuples of ((unique grouping values, ...), subset tafra)
+    Yields tuples of ((unique grouping values, ...), row indices array, subset tafra)
     """
 
     def __postinit__(self, *args):
