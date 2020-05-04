@@ -393,7 +393,6 @@ class AggMethod:
 
     def __post_init__(self, aggregation: InitAggregation):
         for rename, agg in aggregation.items():
-
             if callable(agg):
                 self._aggregation[rename] = cast(
                     Tuple[Callable[[np.ndarray], Any], str],
@@ -405,20 +404,15 @@ class AggMethod:
                 raise ValueError(f'{agg} is not a valid aggregation argument')
 
     def _validate(self, tafra: Tafra) -> None:
-        tafra['__id__'] = np.empty(tafra.rows, dtype=int)
         cols = set(tafra.columns)
         for col in self._group_by_cols:
             if col not in cols:
                 raise KeyError(f'{col} does not exist in tafra')
         for rename, agg in self._aggregation.items():
             col = self._aggregation[rename][1]
-            if col not in cols and col != '__id__':
-                # __id__ is our "magic" enumerator column
+            if col not in cols:
                 raise KeyError(f'{col} does not exist in tafra')
         # we don't have to use all the columns!
-
-    def _cleanup(self, tafra: Tafra) -> None:
-        tafra.delete('__id__')
 
     def unique_groups(self, tafra: Tafra) -> List[Any]:
         """Construct a unique set of grouped values.
@@ -459,7 +453,6 @@ class GroupBy(AggMethod):
 
         for i, u in enumerate(unique):
             which_rows = np.full(tafra.rows, True)
-            tafra['__id__'][i] = i
 
             for val, col in zip(u, self._group_by_cols):
                 which_rows &= tafra[col] == val
@@ -469,7 +462,6 @@ class GroupBy(AggMethod):
                 fn, col = agg
                 result[rename][i] = fn(tafra[col][which_rows])
 
-        self._cleanup(tafra)
         return Tafra(result)
 
 
@@ -487,7 +479,6 @@ class Transform(AggMethod):
 
         for i, u in enumerate(unique):
             which_rows = np.full(tafra.rows, True)
-            tafra['__id__'][which_rows] = i
 
             for val, col in zip(u, self._group_by_cols):
                 which_rows &= tafra[col] == val
@@ -497,10 +488,12 @@ class Transform(AggMethod):
                 fn, col = agg
                 result[rename][which_rows] = fn(tafra[col][which_rows])
 
-        self._cleanup(tafra)
         return Tafra(result)
 
 
+# TODO: it's probably better for this to return (UniqueTuple, Tafra) than
+#   to enumerate - the caller can enumerate but doesn't have easy access
+#   to the unique tuple
 @dc.dataclass
 class IterateBy(AggMethod):
     """Analogy to `pandas.DataFrame.groupby()`, i.e. an Iterable of `Tafra` objects.
@@ -515,7 +508,6 @@ class IterateBy(AggMethod):
 
         for i, u in enumerate(unique):
             which_rows = np.full(tafra.rows, True)
-            tafra['__id__'][which_rows] = i
             result = self.result_factory(
                 lambda rename, col: np.empty(np.sum(which_rows)))
 
@@ -524,7 +516,6 @@ class IterateBy(AggMethod):
 
             yield (i, tafra[which_rows])
 
-        self._cleanup(tafra)
         return
 
 @dc.dataclass
@@ -576,3 +567,9 @@ if __name__ == '__main__':
     )
 
     print('Group By:\t', gb)
+
+    # transform example
+
+    print('Iterate by y, z:')
+    for grp in gb.iterate_by(('y', 'z')):
+        print(grp)
