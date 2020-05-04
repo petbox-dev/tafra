@@ -19,9 +19,13 @@ import dataclasses as dc
 import numpy as np
 from pandas import DataFrame # just for mypy...
 
+<<<<<<< HEAD
 from typing import Any, Callable, Dict, List, Iterable, Tuple, Optional, Union
 from typing import cast
 from typing_extensions import Protocol
+=======
+from typing import Any, Callable, Dict, List, Tuple, Optional, Iterable, Union, cast
+>>>>>>> unused import
 
 
 # for the passed argument to an aggregation
