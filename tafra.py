@@ -539,6 +539,7 @@ class Transform(AggMethod):
 
 class IterateBy(GroupSet):
     """Analogy to `pandas.DataFrame.groupby()`, i.e. an Iterable of `Tafra` objects.
+    Yields tuples of ((unique grouping values, ...), subset tafra)
     """
 
     def __postinit__(self, *args):
