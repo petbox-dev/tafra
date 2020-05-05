@@ -11,6 +11,7 @@ Notes
 Created on April 25, 2020
 """
 
+import operator
 import warnings
 from collections import OrderedDict
 from itertools import chain
@@ -42,7 +43,17 @@ GroupDescription = Tuple[
 ]
 
 
-TAFRA_TYPE = {
+JOIN_OPS: Dict[str, Callable[[Any, Any], Any]] = {
+    '==': operator.eq,
+    '!=': operator.ne,
+    '<': operator.lt,
+    '<=': operator.le,
+    '>': operator.gt,
+    '>=': operator.ge
+}
+
+
+TAFRA_TYPE: Dict[str, Callable[[np.ndarray], np.ndarray]] = {
     'int': lambda x: x.astype(int),
     'float': lambda x: x.astype(float),
     'bool': lambda x: x.astype(bool),
@@ -51,7 +62,7 @@ TAFRA_TYPE = {
     'object': lambda x: x.astype(object),
 }
 
-RECORD_TYPE = {
+RECORD_TYPE: Dict[str, Callable[[Any], Any]] = {
     'int': lambda x: int(x),
     'float': lambda x: float(x),
     'bool': lambda x: bool(x),
@@ -107,10 +118,13 @@ class Tafra:
             if column not in self._dtypes:
                 self._dtypes[column] = self._format_type(self._data[column].dtype)
 
-    def __getitem__(self, item: Union[str, slice, np.ndarray]):
+    def __getitem__(self, item: Union[str, int, slice, np.ndarray]):
         # type is actually Union[np.ndarray, 'Tafra'] but mypy goes insane
         if isinstance(item, str):
             return self._data[item]
+
+        elif isinstance(item, int):
+            return self._slice(slice(item, item + 1))
 
         elif isinstance(item, slice):
             return self._slice(item)
@@ -328,8 +342,12 @@ class Tafra:
                 raise ValueError(
                     f'This `Tafra` column `{data_column}` does not exist in other `Tafra`.')
 
-            elif value.dtype != other._data[data_column].dtype \
-                    or dtype != other._dtypes[dtype_column]:
+            elif value.dtype != other._data[data_column].dtype:
+                raise ValueError(
+                    f'This `Tafra` column `{data_column}` dtype `{value.dtype}` '
+                    f'does not match other `Tafra` dtype `{other._data[data_column].dtype}`.')
+
+            elif dtype != other._dtypes[dtype_column]:
                 raise ValueError(
                     f'This `Tafra` column `{data_column}` dtype `{dtype}` '
                     f'does not match other `Tafra` dtype `{other._dtypes[dtype_column]}`.')
@@ -378,14 +396,14 @@ class Tafra:
 
     def group_by(self, group_by: Iterable[str],
                  aggregation: InitAggregation = {},
-                 iter_fn: Dict[str, Callable[[np.ndarray], Any]] = {}) -> 'Tafra':
+                 iter_fn: Dict[str, Callable[[np.ndarray], Any]] = dict()) -> 'Tafra':
         """Helper function to implement the `GroupBy` class.
         """
         return GroupBy(group_by, aggregation, iter_fn).apply(self)
 
     def transform(self, group_by: Iterable[str],
                   aggregation: InitAggregation = {},
-                  iter_fn: Dict[str, Callable[[np.ndarray], Any]] = {}) -> 'Tafra':
+                  iter_fn: Dict[str, Callable[[np.ndarray], Any]] = dict()) -> 'Tafra':
         """Helper function to implement the `Transform` class.
         """
         return Transform(group_by, aggregation, iter_fn).apply(self)
@@ -395,10 +413,17 @@ class Tafra:
         """
         yield from IterateBy(group_by).apply(self)
 
-    def left_join(self, right: 'Tafra', on: Iterable[str]) -> 'Tafra':
+    def inner_join(self, right: 'Tafra', on: Iterable[Tuple[str, str, str]],
+                  select: Iterable[str] = list()) -> 'Tafra':
+        """Helper function to implement the `InnerJoin` class.
+        """
+        return InnerJoin(on, select).apply(self, right)
+
+    def left_join(self, right: 'Tafra', on: Iterable[Tuple[str, str, str]],
+                  select: Iterable[str] = list()) -> 'Tafra':
         """Helper function to implement the `LeftJoin` class.
         """
-        return LeftJoin(on).apply(self, right)
+        return LeftJoin(on, select).apply(self, right)
 
 
 @dc.dataclass
@@ -553,62 +578,158 @@ class IterateBy(GroupSet):
 
 
 @dc.dataclass
-class LeftJoin(GroupSet):
-    """Analogy to SQL LEFT JOIN, or `pandas.merge(..., how='inner')`,
+class Join(GroupSet):
+    """Base class for SQL-like JOINs.
     """
-    _on: Iterable[str]
+    _on: Iterable[Tuple[str, str, str]]
+    _select: Iterable[str]
 
-    def apply(self, this: Tafra, other: Tafra) -> Tafra:  # type: ignore[override]
-        self._validate(this, self._on)
-        unique = self._unique_groups(this, self._on)
-        result = Tafra(
-            {column: np.empty_like(value, shape=0) for column, value in chain(
-                this._data.items(),
-                other._data.items()
-            )},
-            {column: dtype for column, dtype in chain(
-                this._dtypes.items(),
-                other._dtypes.items()
-            )}
+    @staticmethod
+    def _validate_dtypes(left_t: Tafra, right_t: Tafra):
+        for (data_column, left_value), (dtype_column, left_dtype) \
+                in zip(left_t._data.items(), left_t._dtypes.items()):
+            right_value = right_t._data.get(data_column, None)
+            right_dtype = right_t._dtypes.get(dtype_column, None)
+
+            if right_value is None or right_dtype is None:
+                continue
+
+            elif left_value.dtype != right_value.dtype:
+                raise ValueError(
+                    f'This `Tafra` column `{data_column}` dtype `{left_value.dtype}` '
+                    f'does not match other `Tafra` dtype `{right_value.dtype}`.')
+
+            elif left_dtype != right_dtype or left_dtype != right_dtype:
+                raise ValueError(
+                    f'This `Tafra` column `{data_column}` dtype `{left_dtype}` '
+                    f'does not match other `Tafra` dtype `{right_dtype}`.')
+
+    @staticmethod
+    def _validate_ops(ops: Iterable[str]):
+        for op in ops:
+            _op = JOIN_OPS.get(op, None)
+            if _op is None:
+                raise ValueError(f'The operator {op} is not valid.')
+
+
+class InnerJoin(Join):
+    """Analogy to SQL INNER JOIN, or `pandas.merge(..., how='inner')`,
+    """
+
+    def apply(self, left_t: Tafra, right_t: Tafra) -> Tafra:  # type: ignore[override]
+        left_cols, right_cols, ops = list(zip(*self._on))
+        self._validate(left_t, left_cols)
+        self._validate(right_t, right_cols)
+        self._validate_dtypes(left_t, right_t)
+        self._validate_ops(ops)
+
+        _on = tuple((left_col, right_col, JOIN_OPS[op]) for left_col, right_col, op in self._on)
+        left_unique = self._unique_groups(left_t, left_cols)
+        right_unique = self._unique_groups(right_t, right_cols)
+
+        join: Dict[str, List] = {column: list() for column in chain(
+            left_t._data.keys(),
+            right_t._data.keys()
+        ) if (not self._select)
+            or (self._select and column in self._select)}
+
+        dtypes: Dict[str, str] = {column: dtype for column, dtype in chain(
+            left_t._dtypes.items(),
+            right_t._dtypes.items()
+        ) if column in join.keys()}
+
+        for i in range(left_t.rows):
+            right_rows = np.full(right_t.rows, True)
+
+            for left_col, right_col, op in _on:
+                right_rows &= op(left_t[left_col][i], right_t[right_col])
+
+            right_count = np.sum(right_rows)
+
+            # this is the only difference from the LeftJoin
+            if right_count <= 0:
+                continue
+
+            for column in join.keys():
+                if column in left_t._data:
+                    if right_count <= 1:
+                        join[column].append(left_t[column][i])
+
+                    else:
+                        for j in range(right_count):
+                            join[column].append(left_t[column][i])
+
+                elif column in right_t._data:
+                    if right_count <= 0:
+                        join[column].append(None)
+                        if dtypes[column] != 'object': dtypes[column] = 'object'
+
+                    else:
+                        join[column].extend(right_t[column][right_rows])
+
+        return Tafra(
+            {column: np.array(value, dtype=dtypes[column])
+             for column, value in join.items()},
+            dtypes
         )
-        # we want to apply the left's dtypes
-        result.update_types(this._dtypes)
 
-        for i, u in enumerate(unique):
-            left_rows = np.full(this.rows, True)
-            right_rows = np.full(other.rows, True)
 
-            for val, col in zip(u, self._on):
-                left_rows &= this[col] == val
-                right_rows &= other[col] == val
+class LeftJoin(Join):
+    """Analogy to SQL LEFT JOIN, or `pandas.merge(..., how='left')`,
+    """
 
-            if np.sum(left_rows) <= 0 or np.sum(right_rows) <= 0:
-                next
+    def apply(self, left_t: Tafra, right_t: Tafra) -> Tafra:  # type: ignore[override]
+        left_cols, right_cols, ops = list(zip(*self._on))
+        self._validate(left_t, left_cols)
+        self._validate(right_t, right_cols)
+        self._validate_dtypes(left_t, right_t)
+        self._validate_ops(ops)
 
-            elif np.sum(left_rows) == 1 and np.sum(right_rows) == 1:
-                for column, value in result._data.items():
-                    if column in this._data:
-                        np.append(result[column], this[column][left_rows])
-                    elif column in other._data:
-                        np.append(result[column], other[column][right_rows])
+        _on = tuple((left_col, right_col, JOIN_OPS[op]) for left_col, right_col, op in self._on)
+        left_unique = self._unique_groups(left_t, left_cols)
+        right_unique = self._unique_groups(right_t, right_cols)
 
-            elif np.sum(left_rows) == 1 and np.sum(right_rows) > 1:
-                for column, value in result._data.items():
-                    if column in this._data:
-                        np.append(result[column], this[column][left_rows])
-                    elif column in other._data:
-                        np.append(result[column],
-                                  np.repeat(other[column][right_rows], np.sum(right_rows)))
+        join: Dict[str, List] = {column: list() for column in chain(
+            left_t._data.keys(),
+            right_t._data.keys()
+        ) if (not self._select)
+            or (self._select and column in self._select)}
 
-            elif np.sum(left_rows) > 1 and np.sum(right_rows) == 1:
-                for column, value in result._data.items():
-                    if column in this._data:
-                        np.append(result[column],
-                                  np.repeat(this[column][left_rows], np.sum(left_rows)))
-                    elif column in other._data:
-                        np.append(result[column], other[column][right_rows])
+        dtypes: Dict[str, str] = {column: dtype for column, dtype in chain(
+            left_t._dtypes.items(),
+            right_t._dtypes.items()
+        ) if column in join.keys()}
 
-        return result
+        for i in range(left_t.rows):
+            right_rows = np.full(right_t.rows, True)
+
+            for left_col, right_col, op in _on:
+                right_rows &= op(left_t[left_col][i], right_t[right_col])
+
+            right_count = np.sum(right_rows)
+
+            for column in join.keys():
+                if column in left_t._data:
+                    if right_count <= 1:
+                        join[column].append(left_t[column][i])
+
+                    else:
+                        for j in range(right_count):
+                            join[column].append(left_t[column][i])
+
+                elif column in right_t._data:
+                    if right_count <= 0:
+                        join[column].append(None)
+                        if dtypes[column] != 'object': dtypes[column] = 'object'
+
+                    else:
+                        join[column].extend(right_t[column][right_rows])
+
+        return Tafra(
+            {column: np.array(value, dtype=dtypes[column])
+             for column, value in join.items()},
+            dtypes
+        )
 
 
 Tafra.copy.__doc__ += '\n\nnumpy doc string:\n' + np.ndarray.copy.__doc__  # type: ignore
