@@ -17,7 +17,7 @@ from itertools import chain
 import dataclasses as dc
 
 import numpy as np
-from pandas import DataFrame # just for mypy...
+from pandas import DataFrame  # just for mypy...
 
 from typing import Any, Callable, Dict, List, Iterable, Tuple, Optional, Union
 from typing import cast
@@ -61,26 +61,13 @@ RECORD_TYPE = {
 }
 
 
-class DataFrame(Protocol):
-    """A fake class to satisfy typing of a `pandas.DataFrame` without a dependency.
-    """
-    _data: Dict[str, np.ndarray]
-    columns: List[str]
-    dtypes: List[str]
-
-    def __getitem__(self, column: str) -> np.ndarray:
-        ...
-
-    def __setitem__(self, column: str, value: np.ndarray):
-        ...
-
-
 def _real_has_attribute(obj: object, attr: str) -> bool:
     try:
         obj.__getattribute__(attr)
         return True
     except AttributeError:
         return False
+
 
 @dc.dataclass
 class Tafra:
@@ -390,14 +377,14 @@ class Tafra:
         return list(self._data[c] for c in columns)
 
     def group_by(self, group_by: Iterable[str],
-                 aggregation: InitAggregation,
+                 aggregation: InitAggregation = {},
                  iter_fn: Dict[str, Callable[[np.ndarray], Any]] = {}) -> 'Tafra':
         """Helper function to implement the `GroupBy` class.
         """
         return GroupBy(group_by, aggregation, iter_fn).apply(self)
 
     def transform(self, group_by: Iterable[str],
-                  aggregation: InitAggregation,
+                  aggregation: InitAggregation = {},
                   iter_fn: Dict[str, Callable[[np.ndarray], Any]] = {}) -> 'Tafra':
         """Helper function to implement the `Transform` class.
         """
@@ -413,17 +400,18 @@ class Tafra:
 class GroupSet():
     """A `GroupSet` is the set of columns by which we construct our groups.
     """
-    _group_by_cols: Iterable[str]
 
-    def unique_groups(self, tafra: Tafra) -> List[Any]:
+    @staticmethod
+    def _unique_groups(tafra: Tafra, columns: Iterable[str]) -> List[Any]:
         """Construct a unique set of grouped values.
         Uses `OrderedDict` rather than `set` to maintain order.
         """
-        return list(OrderedDict.fromkeys(zip(*(tafra[col] for col in self._group_by_cols))))
+        return list(OrderedDict.fromkeys(zip(*(tafra[col] for col in columns))))
 
-    def _validate(self, tafra: Tafra) -> None:
+    @staticmethod
+    def _validate(tafra: Tafra, columns: Iterable[str]) -> None:
         cols = set(tafra.columns)
-        for col in self._group_by_cols:
+        for col in columns:
             if col not in cols:
                 raise KeyError(f'{col} does not exist in tafra')
 
@@ -435,12 +423,13 @@ class GroupSet():
 class AggMethod(GroupSet):
     """Basic methods for aggregations over a data table.
     """
+    _group_by_cols: Iterable[str]
     aggregation: dc.InitVar[InitAggregation]
-    _aggregation: Dict[str, Tuple[Callable[[np.ndarray], Any], str]] = dc.field(
-        default_factory=dict, init=False)
+    _aggregation: Dict[str, Tuple[Callable[[np.ndarray], Any], str]] = dc.field(init=False)
     _iter_fn: Dict[str, Callable[[np.ndarray], Any]]
 
     def __post_init__(self, aggregation: InitAggregation):
+        self._aggregation = dict()
         for rename, agg in aggregation.items():
             if callable(agg):
                 self._aggregation[rename] = cast(
@@ -455,22 +444,6 @@ class AggMethod(GroupSet):
         for rename, agg in self._iter_fn.items():
             if not callable(agg):
                 raise ValueError(f'{rename}: {agg} is not a valid aggregation argument')
-
-    def _validate(self, tafra: Tafra) -> None:
-        cols = set(tafra.columns)
-        for col in chain(self._group_by_cols, (col for (_, col) in self._aggregation.values())):
-            if col not in cols:
-                raise KeyError(f'{col} does not exist in tafra')
-        for (_, col) in self._aggregation.values():
-            if col not in cols:
-                raise KeyError(f'{col} does not exist in tafra')
-        # we don't have to use all the columns!
-
-    def unique_groups(self, tafra: Tafra) -> List[Any]:
-        """Construct a unique set of grouped values.
-        Uses `OrderedDict` rather than `set` to maintain order.
-        """
-        return list(OrderedDict.fromkeys(zip(*(tafra[col] for col in self._group_by_cols))))
 
     def result_factory(self, fn: Callable[[str, str], np.ndarray]) -> Dict[str, np.ndarray]:
         """Factory function to generate the dict for the results set.
@@ -493,8 +466,11 @@ class GroupBy(AggMethod):
     """
 
     def apply(self, tafra: Tafra) -> Tafra:
-        self._validate(tafra)
-        unique = self.unique_groups(tafra)
+        self._validate(tafra, (
+            *self._group_by_cols,
+            *(col for (_, col) in self._aggregation.values())
+        ))
+        unique = self._unique_groups(tafra, self._group_by_cols)
         result = self.result_factory(
             lambda rename, col: np.empty(len(unique), dtype=tafra[col].dtype))
         iter_fn = self.iter_fn_factory(lambda: np.ones(len(unique), dtype=int))
@@ -523,8 +499,11 @@ class Transform(AggMethod):
     """
 
     def apply(self, tafra: Tafra) -> Tafra:
-        self._validate(tafra)
-        unique = self.unique_groups(tafra)
+        self._validate(tafra, (
+            *self._group_by_cols,
+            *(col for (_, col) in self._aggregation.values())
+        ))
+        unique = self._unique_groups(tafra, self._group_by_cols)
         result = self.result_factory(
             lambda rename, col: np.empty_like(tafra[col]))
         iter_fn = self.iter_fn_factory(lambda: np.ones(tafra.rows, dtype=int))
@@ -548,19 +527,18 @@ class Transform(AggMethod):
         return Tafra(result)
 
 
+@dc.dataclass
 class IterateBy(GroupSet):
     """Analogy to `pandas.DataFrame.groupby()`, i.e. an Iterable of `Tafra` objects.
     Yields tuples of ((unique grouping values, ...), row indices array, subset tafra)
     """
-
-    def __postinit__(self, *args):
-        pass
+    _group_by_cols: Iterable[str]
 
     def apply(self, tafra: Tafra) -> Iterable[GroupDescription]:
-        self._validate(tafra)
-        unique = self.unique_groups(tafra)
+        self._validate(tafra, self._group_by_cols)
+        unique = self._unique_groups(tafra, self._group_by_cols)
 
-        for i, u in enumerate(unique):
+        for u in unique:
             which_rows = np.full(tafra.rows, True)
 
             for val, col in zip(u, self._group_by_cols):
@@ -569,22 +547,62 @@ class IterateBy(GroupSet):
             yield (u, which_rows, tafra[which_rows])
 
 
+@dc.dataclass
 class LeftJoin(GroupSet):
     """Analogy to SQL LEFT JOIN, `pandas.DataFrame.transform()`,
     i.e. a SQL `GROUP BY` and `LEFT JOIN` back to the original table.
     """
+    _on: Iterable[str]
 
-    def apply(self, tafra: Tafra, other: Tafra) -> Tafra:  # type: ignore[override]
-        self._validate(tafra)
-        unique = self.unique_groups(tafra)
-        result = tafra.copy()
+    def apply(self, this: Tafra, other: Tafra) -> Tafra:  # type: ignore[override]
+        self._validate(this, self._on)
+        unique = self._unique_groups(this, self._on)
+        result = Tafra(
+            {column: np.empty_like(value, shape=0) for column, value in chain(
+                this._data.items(),
+                other._data.items()
+            )},
+            {column: dtype for column, dtype in chain(
+                this._dtypes.items(),
+                other._dtypes.items()
+            )}
+        )
+        # we want to apply the left's dtypes
+        result.update_types(this._dtypes)
 
         for i, u in enumerate(unique):
-            which_rows = np.full(tafra.rows, True)
+            left_rows = np.full(this.rows, True)
+            right_rows = np.full(other.rows, True)
 
-            for val, col in zip(u, self._group_by_cols):
-                which_rows &= tafra[col] == val
-                result[col][which_rows] = tafra[col][which_rows]
+            for val, col in zip(u, self._on):
+                left_rows &= this[col] == val
+                right_rows &= other[col] == val
+
+            if np.sum(left_rows) <= 0 or np.sum(right_rows) <= 0:
+                next
+
+            elif np.sum(left_rows) == 1 and np.sum(right_rows) == 1:
+                for column, value in result._data.items():
+                    if column in this._data:
+                        np.append(result[column], this[column][left_rows])
+                    elif column in other._data:
+                        np.append(result[column], other[column][right_rows])
+
+            elif np.sum(left_rows) == 1 and np.sum(right_rows) > 1:
+                for column, value in result._data.items():
+                    if column in this._data:
+                        np.append(result[column], this[column][left_rows])
+                    elif column in other._data:
+                        np.append(result[column],
+                                  np.repeat(other[column][right_rows], np.sum(right_rows)))
+
+            elif np.sum(left_rows) > 1 and np.sum(right_rows) == 1:
+                for column, value in result._data.items():
+                    if column in this._data:
+                        np.append(result[column],
+                                  np.repeat(this[column][left_rows], np.sum(left_rows)))
+                    elif column in other._data:
+                        np.append(result[column], other[column][right_rows])
 
         return result
 
