@@ -395,6 +395,11 @@ class Tafra:
         """
         yield from IterateBy(group_by).apply(self)
 
+    def left_join(self, right: 'Tafra', on: Iterable[str]) -> 'Tafra':
+        """Helper function to implement the `LeftJoin` class.
+        """
+        return LeftJoin(on).apply(self, right)
+
 
 @dc.dataclass
 class GroupSet():
@@ -549,8 +554,7 @@ class IterateBy(GroupSet):
 
 @dc.dataclass
 class LeftJoin(GroupSet):
-    """Analogy to SQL LEFT JOIN, `pandas.DataFrame.transform()`,
-    i.e. a SQL `GROUP BY` and `LEFT JOIN` back to the original table.
+    """Analogy to SQL LEFT JOIN, or `pandas.merge(..., how='inner')`,
     """
     _on: Iterable[str]
 
@@ -611,6 +615,7 @@ Tafra.copy.__doc__ += '\n\nnumpy doc string:\n' + np.ndarray.copy.__doc__  # typ
 Tafra.group_by.__doc__ += GroupBy.__doc__  # type: ignore
 Tafra.transform.__doc__ += Transform.__doc__  # type: ignore
 Tafra.iterate_by.__doc__ += IterateBy.__doc__  # type: ignore
+Tafra.left_join.__doc__ += LeftJoin.__doc__  # type: ignore
 
 
 if __name__ == '__main__':
