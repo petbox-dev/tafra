@@ -35,15 +35,9 @@ InitAggregation = Dict[
 
 # for the result type of IterateBy
 GroupDescription = Tuple[
-<<<<<<< HEAD
     Tuple[Any, ...],  # tuple of unique values from group-by columns
     np.ndarray,  # int array of row indices into original tafra for this group
     'Tafra'  # sub-tafra for the group
-=======
-    Tuple[Any, ...], # tuple of unique values from group-by columns
-    np.ndarray, # int array of row indices into original tafra for this group
-    'Tafra' # sub-tafra for the group
->>>>>>> yield 'reverse' indices during iterate_by
 ]
 
 
