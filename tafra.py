@@ -17,6 +17,7 @@ from itertools import chain
 import dataclasses as dc
 
 import numpy as np
+from pandas import DataFrame # just for mypy...
 
 from typing import Any, Callable, Dict, List, Iterable, Tuple, Optional, Union
 from typing import cast
@@ -80,7 +81,6 @@ def _real_has_attribute(obj: object, attr: str) -> bool:
         return True
     except AttributeError:
         return False
-
 
 @dc.dataclass
 class Tafra:
@@ -461,8 +461,6 @@ class AggMethod(GroupSet):
         for col in chain(self._group_by_cols, (col for (_, col) in self._aggregation.values())):
             if col not in cols:
                 raise KeyError(f'{col} does not exist in tafra')
-        # we don't have to use all the columns!
-
         for (_, col) in self._aggregation.values():
             if col not in cols:
                 raise KeyError(f'{col} does not exist in tafra')
