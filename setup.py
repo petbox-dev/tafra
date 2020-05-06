@@ -62,10 +62,10 @@ setup(
     author_email='petbox.dev@gmail.com',
     install_requires=['numpy'],
     zip_safe=False,
+    packages=['tafra'],
     package_data={
         'tafra': ['py.typed']
     },
-    # packages=['tafra'],
-     py_modules=['tafra'],
+    py_modules=['tafra'],
     python_requires='>3.7',
 )
