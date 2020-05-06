@@ -11,6 +11,7 @@ Notes
 Created on April 25, 2020
 """
 
+import sys
 import operator
 import warnings
 from collections import OrderedDict
@@ -97,26 +98,10 @@ class Tafra:
                     raise ValueError('`Tafra` must have consistent row counts.')
 
         if self._dtypes:
-            self.update_types()
+            self.update_dtypes()
         else:
             self._dtypes = {}
         self.coalesce_types()
-
-    def update_types(self, dtypes: Optional[Dict[str, Any]] = None) -> None:
-        """Apply new dtypes or update dtype `dict` for missing keys.
-        """
-        if dtypes is not None:
-            dtypes = self._validate_types(dtypes)
-            self._dtypes.update(dtypes)
-
-        for column in self._dtypes.keys():
-            if self._format_type(self._data[column].dtype) != self._dtypes[column]:
-                self._data[column] = self._apply_type(self._dtypes[column], self._data[column])
-
-    def coalesce_types(self) -> None:
-        for column in self._data.keys():
-            if column not in self._dtypes:
-                self._dtypes[column] = self._format_type(self._data[column].dtype)
 
     def __getitem__(self, item: Union[str, int, slice, np.ndarray]):
         # type is actually Union[np.ndarray, 'Tafra'] but mypy goes insane
@@ -138,8 +123,10 @@ class Tafra:
     def __getattr__(self, attr: str) -> np.ndarray:
         return self._data[attr]
 
-    def __setitem__(self, item: str, value: Union[np.ndarray, Iterable]):
-        value = self._validate(value)
+    def __setitem__(self, item: str, value: Union[np.ndarray, Iterable, Any]):
+        value = self._validate_value(value)
+        # create the dict entry as a np.ndarray if it doesn't exist
+        self._data.setdefault(item, np.empty(self.rows, dtype=value.dtype))
         self._data[item] = value
         self._dtypes[item] = self._format_type(value.dtype)
 
@@ -148,13 +135,19 @@ class Tafra:
             object.__setattr__(self, attr, value)
             return
 
-        value = self._validate(value)
+        value = self._validate_value(value)
         self._data[attr] = value
         self._dtypes[attr] = self._format_type(value.dtype)
 
-    def _validate(self, value: Union[np.ndarray, Iterable]) -> np.ndarray:
+    def __len__(self):
+        return self.rows
+
+    def _validate_value(self, value: Union[np.ndarray, Iterable, Any]) -> np.ndarray:
         if not isinstance(value, np.ndarray):
-            value = np.asarray(value)
+            if not isinstance(value, Iterable) or isinstance(value, str):
+                value = np.asarray([value])
+            else:
+                value = np.asarray(value)
 
         # is it an ndarray now?
         if not isinstance(value, np.ndarray):
@@ -179,9 +172,17 @@ class Tafra:
 
         return value
 
-    def _validate_types(self, dtypes: Dict[str, Any]) -> Dict[str, str]:
+    def _validate_columns(self, columns: Iterable[str]):
+        for column in columns:
+            if column not in self._data.keys():
+                raise ValueError(f'Column {column} does not exist in `tafra`.')
+
+    def _validate_dtypes(self, dtypes: Dict[str, Any]) -> Dict[str, str]:
         msg = ''
         _dtypes = {}
+
+        self._validate_columns(dtypes.keys())
+
         for column, _dtype in dtypes.items():
             _dtypes[column] = self._format_type(_dtype)
             if _dtypes[column] not in TAFRA_TYPE:
@@ -251,6 +252,18 @@ class Tafra:
         """
         return self._dtypes
 
+    def select(self, columns: Iterable[str]) -> 'Tafra':
+        """Use column name iterable to slice `tafra` columns analogous to SQL SELECT.
+        """
+        self._validate_columns(columns)
+
+        return Tafra(
+            {column: value
+             for column, value in self._data.items() if column in columns},
+            {column: value
+             for column, value in self._dtypes.items() if column in columns}
+        )
+
     def _slice(self, _slice: slice) -> 'Tafra':
         """Use slice object to slice np.ndarray.
         """
@@ -300,7 +313,25 @@ class Tafra:
                     f'This `Tafra` has {rows} rows, other `Tafra` has {len(values)} rows.')
             self._data[column] = values
 
-        self.update_types(other._dtypes)
+        self.update_dtypes(other._dtypes)
+
+    def update_dtypes(self, dtypes: Optional[Dict[str, Any]] = None) -> None:
+        """Apply new dtypes or update dtype `dict` for missing keys.
+        """
+
+        if dtypes is not None:
+            self._validate_columns(dtypes.keys())
+            dtypes = self._validate_dtypes(dtypes)
+            self._dtypes.update(dtypes)
+
+        for column in self._dtypes.keys():
+            if self._format_type(self._data[column].dtype) != self._dtypes[column]:
+                self._data[column] = self._apply_type(self._dtypes[column], self._data[column])
+
+    def coalesce_types(self) -> None:
+        for column in self._data.keys():
+            if column not in self._dtypes:
+                self._dtypes[column] = self._format_type(self._data[column].dtype)
 
     def delete(self, column: str):
         """Remove a column from the `Tafra` data and dtypes.
@@ -317,6 +348,30 @@ class Tafra:
             {column: value
                 for column, value in self._dtypes.items()}
         )
+
+    def coalesce(self, column: str, fills: Iterable[Any]) -> np.ndarray:
+        #TODO: handle dtype?
+        value = self._data[column].copy()
+        for fill in fills:
+            f = np.atleast_1d(fill)
+            where_na = np.full(self.rows, False)
+            try:
+                where_na |= np.isnan(value)
+            except:
+                pass
+
+            try:
+                where_na |= value == None
+            except:
+                pass
+
+            for w in where_na:
+                if len(f) == 1:
+                    value[where_na] = f
+                else:
+                    value[where_na] = f[where_na]
+
+        return value
 
     def union(self, other: 'Tafra', inplace: bool = False) -> Union['Tafra', None]:
         """Analogy to SQL UNION or `pandas.append`. All column names and dtypes must match.
@@ -378,12 +433,16 @@ class Tafra:
         and allowing heterogeneous typing.
         Useful for e.g. sending records back to a database.
         """
-        _columns: Iterable[str] = self.columns if columns is None else columns
+        if columns is None:
+            columns = self.columns
+        else:
+            self._validate_columns(columns)
+
         for row in range(self.rows):
             yield tuple(self._cast_records(
                 self._dtypes[c], self._data[c][[row]],
                 cast_null
-            ) for c in _columns)
+            ) for c in columns)
         return
 
     def to_list(self, columns: Optional[Iterable[str]] = None) -> List[np.ndarray]:
@@ -414,7 +473,7 @@ class Tafra:
         yield from IterateBy(group_by).apply(self)
 
     def inner_join(self, right: 'Tafra', on: Iterable[Tuple[str, str, str]],
-                  select: Iterable[str] = list()) -> 'Tafra':
+                   select: Iterable[str] = list()) -> 'Tafra':
         """Helper function to implement the `InnerJoin` class.
         """
         return InnerJoin(on, select).apply(self, right)
@@ -424,6 +483,12 @@ class Tafra:
         """Helper function to implement the `LeftJoin` class.
         """
         return LeftJoin(on, select).apply(self, right)
+
+    def cross_join(self, right: 'Tafra',
+                  select: Iterable[str] = list()) -> 'Tafra':
+        """Helper function to implement the `CrossJoin` class.
+        """
+        return CrossJoin([], select).apply(self, right)
 
 
 @dc.dataclass
@@ -440,13 +505,11 @@ class GroupSet():
 
     @staticmethod
     def _validate(tafra: Tafra, columns: Iterable[str]) -> None:
-        cols = set(tafra.columns)
-        for col in columns:
-            if col not in cols:
-                raise KeyError(f'{col} does not exist in tafra')
+        rows = tafra.rows
+        if rows < 1:
+            raise ValueError(f'No rows exist in `tafra`.')
 
-    def apply(self, tafra: Tafra):
-        ...
+        tafra._validate_columns(columns)
 
 
 @dc.dataclass
@@ -489,6 +552,9 @@ class AggMethod(GroupSet):
 
     def iter_fn_factory(self, fn: Callable[[], np.ndarray]) -> Dict[str, np.ndarray]:
         return {rename: fn() for rename in self._iter_fn.keys()}
+
+    def apply(self, tafra: Tafra):
+        ...
 
 
 class GroupBy(AggMethod):
@@ -611,12 +677,15 @@ class Join(GroupSet):
             if _op is None:
                 raise ValueError(f'The operator {op} is not valid.')
 
+    def apply(self, left_t: Tafra, right_t: Tafra) -> Tafra:
+        ...
+
 
 class InnerJoin(Join):
     """Analogy to SQL INNER JOIN, or `pandas.merge(..., how='inner')`,
     """
 
-    def apply(self, left_t: Tafra, right_t: Tafra) -> Tafra:  # type: ignore[override]
+    def apply(self, left_t: Tafra, right_t: Tafra) -> Tafra:
         left_cols, right_cols, ops = list(zip(*self._on))
         self._validate(left_t, left_cols)
         self._validate(right_t, right_cols)
@@ -652,23 +721,17 @@ class InnerJoin(Join):
 
             for column in join.keys():
                 if column in left_t._data:
-                    if right_count <= 1:
-                        join[column].append(left_t[column][i])
-
-                    else:
-                        for j in range(right_count):
-                            join[column].append(left_t[column][i])
+                    join[column].extend(max(1, right_count) * [left_t[column][i]])
 
                 elif column in right_t._data:
                     if right_count <= 0:
                         join[column].append(None)
                         if dtypes[column] != 'object': dtypes[column] = 'object'
-
                     else:
                         join[column].extend(right_t[column][right_rows])
 
         return Tafra(
-            {column: np.array(value, dtype=dtypes[column])
+            {column: np.array(value)
              for column, value in join.items()},
             dtypes
         )
@@ -678,7 +741,7 @@ class LeftJoin(Join):
     """Analogy to SQL LEFT JOIN, or `pandas.merge(..., how='left')`,
     """
 
-    def apply(self, left_t: Tafra, right_t: Tafra) -> Tafra:  # type: ignore[override]
+    def apply(self, left_t: Tafra, right_t: Tafra) -> Tafra:
         left_cols, right_cols, ops = list(zip(*self._on))
         self._validate(left_t, left_cols)
         self._validate(right_t, right_cols)
@@ -710,23 +773,55 @@ class LeftJoin(Join):
 
             for column in join.keys():
                 if column in left_t._data:
-                    if right_count <= 1:
-                        join[column].append(left_t[column][i])
-
-                    else:
-                        for j in range(right_count):
-                            join[column].append(left_t[column][i])
+                    join[column].extend(max(1, right_count) * [left_t[column][i]])
 
                 elif column in right_t._data:
                     if right_count <= 0:
                         join[column].append(None)
                         if dtypes[column] != 'object': dtypes[column] = 'object'
-
                     else:
                         join[column].extend(right_t[column][right_rows])
 
         return Tafra(
-            {column: np.array(value, dtype=dtypes[column])
+            {column: np.array(value)
+             for column, value in join.items()},
+            dtypes
+        )
+
+
+@dc.dataclass
+class CrossJoin(Join):
+    """Analogy to SQL CROSS APPLY, or `pandas.merge(..., how='outer')
+    using temporary columns of static value to intersect all rows`,
+    """
+
+    def apply(self, left_t: Tafra, right_t: Tafra) -> Tafra:
+        self._validate_dtypes(left_t, right_t)
+
+        join: Dict[str, List] = {column: list() for column in chain(
+            left_t._data.keys(),
+            right_t._data.keys()
+        ) if (not self._select)
+            or (self._select and column in self._select)}
+
+        dtypes: Dict[str, str] = {column: dtype for column, dtype in chain(
+            left_t._dtypes.items(),
+            right_t._dtypes.items()
+        ) if column in join.keys()}
+
+        left_count = left_t.rows
+        right_count = right_t.rows
+
+        for i in range(left_t.rows):
+            for column in join.keys():
+                if column in left_t._data:
+                    join[column].extend(max(1, right_count) * [left_t[column][i]])
+
+                elif column in right_t._data:
+                    join[column].extend(right_t[column])
+
+        return Tafra(
+            {column: np.array(value)
              for column, value in join.items()},
             dtypes
         )
@@ -736,7 +831,9 @@ Tafra.copy.__doc__ += '\n\nnumpy doc string:\n' + np.ndarray.copy.__doc__  # typ
 Tafra.group_by.__doc__ += GroupBy.__doc__  # type: ignore
 Tafra.transform.__doc__ += Transform.__doc__  # type: ignore
 Tafra.iterate_by.__doc__ += IterateBy.__doc__  # type: ignore
+Tafra.inner_join.__doc__ += InnerJoin.__doc__  # type: ignore
 Tafra.left_join.__doc__ += LeftJoin.__doc__  # type: ignore
+Tafra.cross_join.__doc__ += CrossJoin.__doc__  # type: ignore
 
 
 if __name__ == '__main__':
