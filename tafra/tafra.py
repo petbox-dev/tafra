@@ -19,7 +19,7 @@ from itertools import chain
 import dataclasses as dc
 
 import numpy as np
-from pandas import DataFrame  # just for mypy...
+from .pandas import DataFrame  # just for mypy...
 
 from typing import Any, Callable, Dict, List, Iterable, Tuple, Optional, Union
 from typing import cast
@@ -373,7 +373,7 @@ class Tafra:
 
         return value
 
-    def union(self, other: 'Tafra', inplace: bool = False) -> Union['Tafra', None]:
+    def union(self, other: 'Tafra', inplace: bool = False) -> Optional['Tafra']:
         """Analogy to SQL UNION or `pandas.append`. All column names and dtypes must match.
         """
         # These should be unreachable unless attributes were directly modified
@@ -693,13 +693,11 @@ class InnerJoin(Join):
         self._validate_ops(ops)
 
         _on = tuple((left_col, right_col, JOIN_OPS[op]) for left_col, right_col, op in self._on)
-        left_unique = self._unique_groups(left_t, left_cols)
-        right_unique = self._unique_groups(right_t, right_cols)
 
         join: Dict[str, List] = {column: list() for column in chain(
             left_t._data.keys(),
             right_t._data.keys()
-        ) if (not self._select)
+        ) if not self._select
             or (self._select and column in self._select)}
 
         dtypes: Dict[str, str] = {column: dtype for column, dtype in chain(
@@ -749,13 +747,11 @@ class LeftJoin(Join):
         self._validate_ops(ops)
 
         _on = tuple((left_col, right_col, JOIN_OPS[op]) for left_col, right_col, op in self._on)
-        left_unique = self._unique_groups(left_t, left_cols)
-        right_unique = self._unique_groups(right_t, right_cols)
 
         join: Dict[str, List] = {column: list() for column in chain(
             left_t._data.keys(),
             right_t._data.keys()
-        ) if (not self._select)
+        ) if not self._select
             or (self._select and column in self._select)}
 
         dtypes: Dict[str, str] = {column: dtype for column, dtype in chain(
@@ -791,8 +787,8 @@ class LeftJoin(Join):
 
 @dc.dataclass
 class CrossJoin(Join):
-    """Analogy to SQL CROSS APPLY, or `pandas.merge(..., how='outer')
-    using temporary columns of static value to intersect all rows`,
+    """Analogy to SQL CROSS JOIN, or `pandas.merge(..., how='outer')
+    using temporary columns of static value to intersect all rows`.
     """
 
     def apply(self, left_t: Tafra, right_t: Tafra) -> Tafra:
@@ -801,7 +797,7 @@ class CrossJoin(Join):
         join: Dict[str, List] = {column: list() for column in chain(
             left_t._data.keys(),
             right_t._data.keys()
-        ) if (not self._select)
+        ) if not self._select
             or (self._select and column in self._select)}
 
         dtypes: Dict[str, str] = {column: dtype for column, dtype in chain(
@@ -809,7 +805,6 @@ class CrossJoin(Join):
             right_t._dtypes.items()
         ) if column in join.keys()}
 
-        left_count = left_t.rows
         right_count = right_t.rows
 
         for i in range(left_t.rows):
