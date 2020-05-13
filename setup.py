@@ -33,7 +33,6 @@ Notes
 -----
 Created on April 25, 2020
 """
-# from .tafra import Tafra, GroupBy, Transform, IterateBy, TAFRA_TYPE
 
 import os
 import sys
