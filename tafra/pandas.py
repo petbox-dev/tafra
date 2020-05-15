@@ -11,5 +11,5 @@ class DataFrame():
     def __getitem__(self, column: str) -> np.ndarray:
         ...
 
-    def __setitem__(self, column: str, value: np.ndarray):
+    def __setitem__(self, column: str, value: np.ndarray) -> None:
         ...
