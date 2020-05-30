@@ -19,7 +19,7 @@ import dataclasses as dc
 import numpy as np
 from .pandas import DataFrame  # just for mypy...
 
-from typing import (Any, Callable, Dict, List, Iterable, Tuple, Optional, Union,
+from typing import (Any, Callable, Dict, List, Iterable, Tuple, Optional, Union, Type,
                     KeysView, ValuesView, ItemsView)
 from typing import cast
 from typing_extensions import Protocol
@@ -59,24 +59,22 @@ class Tafra:
     _data: Dict[str, np.ndarray]
     _dtypes: Dict[str, str] = dc.field(default_factory=dict)
 
-    def __post_init__(self):
-        rows = None
+    def __post_init__(self) -> None:
+        rows: Optional[int] = None
         for column, values in self._data.items():
             if rows is None:
                 rows = len(values)
-            else:
-                if rows != len(values):
-                    raise ValueError('`Tafra` must have consistent row counts.')
+            elif rows != len(values):
+                raise ValueError('`Tafra` must have consistent row counts.')
 
+        if rows is None:
+            raise ValueError('No data provided in constructor statement.')
         self._rows = rows
 
-        if self._dtypes:
-            self.update_dtypes()
-        else:
-            self._dtypes = {}
+        self.update_dtypes()
         self.coalesce_types()
 
-    def __getitem__(self, item: Union[str, int, slice, np.ndarray]):
+    def __getitem__(self, item: Union[str, int, slice, np.ndarray]) -> Any:
         # type is actually Union[np.ndarray, 'Tafra'] but mypy goes insane
         if isinstance(item, str):
             return self._data[item]
@@ -96,14 +94,14 @@ class Tafra:
     def __getattr__(self, attr: str) -> np.ndarray:
         return self._data[attr]
 
-    def __setitem__(self, item: str, value: Union[np.ndarray, Iterable, Any]):
+    def __setitem__(self, item: str, value: Union[np.ndarray, Iterable[Any], Any]) -> None:
         value = self._validate_value(value)
         # create the dict entry as a np.ndarray if it doesn't exist
         self._data.setdefault(item, np.empty(self._rows, dtype=value.dtype))
         self._data[item] = value
         self._dtypes[item] = self._format_type(value.dtype)
 
-    def __setattr__(self, attr: str, value: Union[np.ndarray, Iterable]):
+    def __setattr__(self, attr: str, value: Union[np.ndarray, Iterable[Any]]) -> None:
         if not (_real_has_attribute(self, '_init') and self._init):
             object.__setattr__(self, attr, value)
             return
@@ -122,20 +120,22 @@ class Tafra:
         return f'Tafra(data={self._data}, dtypes={self._dtypes}, rows={self._rows})'
 
     @staticmethod
-    def _html_tr(row) -> str:
-        return '<tr>\n{td}\n</tr>'.format(td='\n'.join(f'<td>{td}</td>' for td in row))
+    def _html_tr(row: Iterable[Any]) -> str:
+        return '<tr>\n{td}\n</tr>' \
+            .format(td='\n'.join(f'<td>{td}</td>' for td in row))
 
     @staticmethod
-    def _html_tbody(html_tr_iter) -> str:
-        return '<tbody>\n{tr}\n</tbody>'.format(tr='\n'.join(html_tr_iter))
+    def _html_tbody(html_tr_iter: Iterable[str]) -> str:
+        return '<tbody>\n{tr}\n</tbody>' \
+            .format(tr='\n'.join(html_tr_iter))
 
     @staticmethod
-    def _html_thead(columns: Iterable[str]) -> str:
+    def _html_thead(columns: Iterable[Any]) -> str:
         return '<thead>\n<tr>\n{th}\n</tr>\n</thead>' \
             .format(th='\n'.join(f'<th>{c}</th>' for c in columns))
 
     @staticmethod
-    def _html_table(html_thead, html_tbody) -> str:
+    def _html_table(html_thead: str, html_tbody: str) -> str:
         return f'<table>\n{html_thead}\n{html_tbody}\n</table>'
 
     def to_html(self, n: int = 40) -> str:
@@ -152,7 +152,7 @@ class Tafra:
         """Pretty print tables in a Jupyter Notebook"""
         return self.to_html()
 
-    def _validate_value(self, value: Union[np.ndarray, Iterable, Any]) -> np.ndarray:
+    def _validate_value(self, value: Union[np.ndarray, Iterable[Any], Any]) -> np.ndarray:
         if not isinstance(value, np.ndarray):
             if not isinstance(value, Iterable) or isinstance(value, str):
                 value = np.asarray([value])
@@ -207,16 +207,26 @@ class Tafra:
     @staticmethod
     def _format_type(t: Any) -> str:
         _t = str(t)
-        if 'int' in _t: _type = 'int'
-        elif 'float' in _t: _type = 'float'
-        elif 'bool' in _t: _type = 'bool'
-        elif 'str' in _t: _type = 'str'
-        elif '<U' in _t: _type = 'str'
-        elif 'date' in _t: _type = 'date'
-        elif '<M' in _t: _type = 'date'
-        elif 'object' in _t: _type = 'object'
-        elif 'O' in _t: _type = 'object'
-        else: return _t
+        if 'int' in _t:
+            _type = 'int'
+        elif 'float' in _t:
+            _type = 'float'
+        elif 'bool' in _t:
+            _type = 'bool'
+        elif 'str' in _t:
+            _type = 'str'
+        elif '<U' in _t:
+            _type = 'str'
+        elif 'date' in _t:
+            _type = 'date'
+        elif '<M' in _t:
+            _type = 'date'
+        elif 'object' in _t:
+            _type = 'object'
+        elif 'O' in _t:
+            _type = 'object'
+        else:
+            return _t
         return _type
 
     @staticmethod
@@ -347,18 +357,29 @@ class Tafra:
 
         self.update_dtypes(other._dtypes)
 
-    def update_dtypes(self, dtypes: Optional[Dict[str, Any]] = None) -> None:
+    def update_dtypes(self, dtypes: Optional[Dict[str, Any]] = None,
+                      inplace: bool = True) -> Optional['Tafra']:
         """Apply new dtypes or update dtype `dict` for missing keys.
         """
 
-        if dtypes is not None:
-            self._validate_columns(dtypes.keys())
-            dtypes = self._validate_dtypes(dtypes)
-            self._dtypes.update(dtypes)
+        if inplace:
+            tf = self
+        else:
+            tf = self.copy()
 
-        for column in self._dtypes.keys():
-            if self._format_type(self._data[column].dtype) != self._dtypes[column]:
-                self._data[column] = self._apply_type(self._dtypes[column], self._data[column])
+        if dtypes is not None:
+            tf._validate_columns(dtypes.keys())
+            dtypes = tf._validate_dtypes(dtypes)
+            tf._dtypes.update(dtypes)
+
+        for column in tf._dtypes.keys():
+            if tf._format_type(tf._data[column].dtype) != tf._dtypes[column]:
+                tf._data[column] = tf._apply_type(tf._dtypes[column], tf._data[column])
+
+        if inplace:
+            return None
+        else:
+            return tf
 
     def coalesce_types(self) -> None:
         for column in self._data.keys():
