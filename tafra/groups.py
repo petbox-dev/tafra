@@ -67,15 +67,13 @@ class AggMethod(GroupSet):
     _aggregation: Dict[str, Tuple[Callable[[np.ndarray], Any], str]] = dc.field(init=False)
     _iter_fn: Dict[str, Callable[[np.ndarray], Any]]
 
-    def __post_init__(self, aggregation: InitAggregation):
+    def __post_init__(self, aggregation: InitAggregation) -> None:
         self._aggregation = dict()
         for rename, agg in aggregation.items():
             if callable(agg):
-                self._aggregation[rename] = cast(
-                    Tuple[Callable[[np.ndarray], Any], str],
-                    (agg, rename))
+                self._aggregation[rename] = (agg, rename)
             elif (isinstance(agg, Iterable) and len(agg) == 2
-                  and callable(cast(Tuple, agg)[0])):
+                  and callable(cast(Tuple[Callable[[np.ndarray], Any], str], agg)[0])):
                 self._aggregation[rename] = agg
             else:
                 raise ValueError(f'{rename}: {agg} is not a valid aggregation argument')
@@ -99,8 +97,8 @@ class AggMethod(GroupSet):
     def iter_fn_factory(self, fn: Callable[[], np.ndarray]) -> Dict[str, np.ndarray]:
         return {rename: fn() for rename in self._iter_fn.keys()}
 
-    def apply(self, tafra: 'Tafra'):
-        ...
+    def apply(self, tafra: 'Tafra') -> 'Tafra':
+        raise NotImplementedError
 
 
 class GroupBy(AggMethod):
@@ -197,7 +195,7 @@ class Join(GroupSet):
     _select: Iterable[str]
 
     @staticmethod
-    def _validate_dtypes(left_t: 'Tafra', right_t: 'Tafra'):
+    def _validate_dtypes(left_t: 'Tafra', right_t: 'Tafra') -> None:
         for (data_column, left_value), (dtype_column, left_dtype) \
                 in zip(left_t._data.items(), left_t._dtypes.items()):
             right_value = right_t._data.get(data_column, None)
@@ -217,14 +215,14 @@ class Join(GroupSet):
                     f'does not match other `Tafra` dtype `{right_dtype}`.')
 
     @staticmethod
-    def _validate_ops(ops: Iterable[str]):
+    def _validate_ops(ops: Iterable[str]) -> None:
         for op in ops:
             _op = JOIN_OPS.get(op, None)
             if _op is None:
                 raise ValueError(f'The operator {op} is not valid.')
 
     def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
-        ...
+        raise NotImplementedError
 
 
 class InnerJoin(Join):
@@ -240,15 +238,16 @@ class InnerJoin(Join):
 
         _on = tuple((left_col, right_col, JOIN_OPS[op]) for left_col, right_col, op in self._on)
 
-        join: Dict[str, List] = {column: list() for column in chain(
+        join: Dict[str, List[Any]] = {column: list() for column in chain(
             left_t._data.keys(),
             right_t._data.keys()
         ) if not self._select
             or (self._select and column in self._select)}
 
+        # right-to-left so left dtypes overwrite
         dtypes: Dict[str, str] = {column: dtype for column, dtype in chain(
-            left_t._dtypes.items(),
-            right_t._dtypes.items()
+            right_t._dtypes.items(),
+            left_t._dtypes.items()
         ) if column in join.keys()}
 
         for i in range(left_t.rows):
@@ -294,7 +293,7 @@ class LeftJoin(Join):
 
         _on = tuple((left_col, right_col, JOIN_OPS[op]) for left_col, right_col, op in self._on)
 
-        join: Dict[str, List] = {column: list() for column in chain(
+        join: Dict[str, List[Any]] = {column: list() for column in chain(
             left_t._data.keys(),
             right_t._data.keys()
         ) if not self._select
@@ -340,7 +339,7 @@ class CrossJoin(Join):
     def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
         self._validate_dtypes(left_t, right_t)
 
-        join: Dict[str, List] = {column: list() for column in chain(
+        join: Dict[str, List[Any]] = {column: list() for column in chain(
             left_t._data.keys(),
             right_t._data.keys()
         ) if not self._select
@@ -369,4 +368,4 @@ class CrossJoin(Join):
 
 
 # Import here to resolve circular dependency
-from .tafra import Tafra
+from .base import Tafra

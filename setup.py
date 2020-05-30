@@ -1,28 +1,6 @@
 """
 Tafra: the innards of a dataframe
 
-MIT License
-
-Copyright (c) 2020 Petroleum Engineering Toolbox
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
 
 Author
 ------
@@ -36,35 +14,89 @@ Created on April 25, 2020
 
 import os
 import sys
+import re
+
+from tafra import __version__
 
 try:
     from setuptools import setup  # type: ignore
 except ImportError:
     from distutils.core import setup
 
+
+def get_long_description() -> str:
+    # Fix display issues on PyPI caused by RST markup
+    with open('README.rst', 'r') as f:
+        readme = f.read()
+
+    replacements = [
+        '.. automodule:: petbox.dca',
+        ':noindex:',
+    ]
+
+    subs = [
+        r':func:`([a-zA-Z0-9._]+)`',
+        r':meth:`([a-zA-Z0-9._]+)`',
+    ]
+
+    def replace(s: str) -> str:
+        for r in replacements:
+            s = s.replace(r, '')
+        return s
+
+    lines = []
+    with open('docs/versions.rst', 'r') as f:
+        iter_f = iter(f)
+        _ = next(f)
+        for line in f:
+            if any(r in line for r in replacements):
+                continue
+            lines.append(line)
+
+    version_history = ''.join(lines)
+    for sub in subs:
+        version_history = re.sub(sub, r'\1', version_history)
+
+    return readme + '\n\n' + version_history
+
 if sys.argv[-1] == 'build':
     os.system('python setup.py sdist bdist_wheel')
     sys.exit()
 
-if sys.argv[-1] == 'publish':
-    os.system('twine upload --repository pypi dist/*')
-    sys.exit()
 
 setup(
     name='tafra',
-    version='1.0.0',
+    version=__version__,
     description='Tafra: innards of a dataframe',
     long_description=open('README.md').read(),
     long_description_content_type="text/markdown",
     url='https://github.com/petbox-dev/tafra',
-    author='Petroleum Engineering Toolbox Developers',
+    author='David S. Fulford',
     author_email='petbox.dev@gmail.com',
-    install_requires=['numpy'],
+    install_requires=['numpy>=1.17'],
     zip_safe=False,
     packages=['tafra'],
     package_data={
         'tafra': ['py.typed']
     },
-    py_modules=['tafra'],
-    python_requires='>3.7',
+    python_requires='>=3.7',
+    classifiers=[
+        'Development Status :: 5 - Production/Stable',
+        'Intended Audience :: Science/Research',
+        'Intended Audience :: Education',
+        'Intended Audience :: Developers',
+        'Natural Language :: English',
+        'License :: OSI Approved :: MIT License',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: Implementation :: CPython',
+        'Topic :: Scientific/Engineering',
+        'Topic :: Scientific/Engineering :: Mathematics',
+        'Topic :: Software Development :: Libraries',
+        'Typing :: Typed'
+    ],
+    keywords=[
+        'tafra', 'dataframe', 'sql', 'group-by',
+        'performance'
+    ],
 )
