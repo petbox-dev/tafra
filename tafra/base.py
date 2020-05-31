@@ -10,9 +10,11 @@ Notes
 -----
 Created on April 25, 2020
 """
+__all__ = ['Tafra']
 
 import sys
 import warnings
+import pprint as pprint
 from itertools import chain
 import dataclasses as dc
 
@@ -44,20 +46,19 @@ RECORD_TYPE: Dict[str, Callable[[Any], Any]] = {
 }
 
 
-def _real_has_attribute(obj: object, attr: str) -> bool:
-    try:
-        obj.__getattribute__(attr)
-        return True
-    except AttributeError:
-        return False
-
-
 @dc.dataclass
 class Tafra:
     """The innards of a dataframe.
     """
     _data: Dict[str, np.ndarray]
     _dtypes: Dict[str, str] = dc.field(default_factory=dict)
+
+    # def __init__(self, _data: Dict[str, np.ndarray], _dtypes: Optional[Dict[str, str]] = None) -> None:
+    #     self._data = _data
+    #     if _dtypes is None:
+    #         self._dtypes = dict()
+    #     else:
+    #         self._dtypes = _dtypes
 
     def __post_init__(self) -> None:
         rows: Optional[int] = None
@@ -72,7 +73,14 @@ class Tafra:
         self._rows = rows
 
         self.update_dtypes()
-        self.coalesce_types()
+        self.coalesce_dtypes()
+
+    def _real_has_attribute(self, attr: str) -> bool:
+        try:
+            self.__getattribute__(attr)
+            return True
+        except AttributeError:
+            return False
 
     def __getitem__(self, item: Union[str, int, slice, np.ndarray]) -> Any:
         # type is actually Union[np.ndarray, 'Tafra'] but mypy goes insane
@@ -92,7 +100,12 @@ class Tafra:
             raise ValueError(f'Type {type(item)} not supported.')
 
     def __getattr__(self, attr: str) -> np.ndarray:
-        return self._data[attr]
+        if self._real_has_attribute(attr):
+            return self.__getattribute__(attr)
+        elif attr in self._data:
+            return self._data[attr]
+        else:
+            return self.__getattribute__(attr)
 
     def __setitem__(self, item: str, value: Union[np.ndarray, Iterable[Any], Any]) -> None:
         value = self._validate_value(value)
@@ -102,7 +115,7 @@ class Tafra:
         self._dtypes[item] = self._format_type(value.dtype)
 
     def __setattr__(self, attr: str, value: Union[np.ndarray, Iterable[Any]]) -> None:
-        if not (_real_has_attribute(self, '_init') and self._init):
+        if not (self._real_has_attribute(attr) and self.value):
             object.__setattr__(self, attr, value)
             return
 
@@ -118,6 +131,43 @@ class Tafra:
 
     def __repr__(self) -> str:
         return f'Tafra(data={self._data}, dtypes={self._dtypes}, rows={self._rows})'
+
+    def _repr_pretty_(self, p: 'IPython.lib.pretty.RepresentationPrinter',  # type: ignore
+                     cycle: bool) -> None:
+        def _pformat(s: Dict[str, Any]) -> str:
+            return pprint.pformat(s, indent=1)[1:].strip()
+
+        p.text('\n'.join([
+            'Tafra(',
+            'data = {',
+            f'  {_pformat(self._data)},',
+            'dtypes = {',
+            f'  {_pformat(self._dtypes)}',
+            ')'
+        ]))
+
+    def _repr_html_(self) -> str:
+        """
+        Pretty print in a Jupyter Notebook.
+        """
+        return self.to_html()
+
+    def pprint(self, indent: int = 1, width: int = 80, depth: Optional[int] = None,
+               compact: bool = False) -> None:
+        """
+        Pretty print to text.
+        """
+        def _pformat(s: Dict[str, Any]) -> str:
+            return pprint.pformat(s, indent, width, depth, compact=compact)[1:].strip()
+
+        print('\n'.join([
+            'Tafra(',
+            'data = {',
+            f'  {_pformat(self._data)},',
+            'dtypes = {',
+            f'  {_pformat(self._dtypes)}',
+            ')'
+        ]))
 
     @staticmethod
     def _html_tr(row: Iterable[Any]) -> str:
@@ -138,19 +188,15 @@ class Tafra:
     def _html_table(html_thead: str, html_tbody: str) -> str:
         return f'<table>\n{html_thead}\n{html_tbody}\n</table>'
 
-    def to_html(self, n: int = 40) -> str:
+    def to_html(self, n: int = 20) -> str:
         html_thead = self._html_thead(chain([''], self._data.keys()))
         html_tr = chain(
             [self._html_tr(chain([''], self._dtypes.values()))],
             (self._html_tr(chain([i], (v[i] for v in self._data.values())))
-             for i in range(min(n, self._rows)))
+                for i in range(min(n, self._rows)))
         )
         html_tbody = self._html_tbody(html_tr)
         return self._html_table(html_thead, html_tbody)
-
-    def _repr_html_(self) -> str:
-        """Pretty print tables in a Jupyter Notebook"""
-        return self.to_html()
 
     def _validate_value(self, value: Union[np.ndarray, Iterable[Any], Any]) -> np.ndarray:
         if not isinstance(value, np.ndarray):
@@ -207,27 +253,27 @@ class Tafra:
     @staticmethod
     def _format_type(t: Any) -> str:
         _t = str(t)
+
         if 'int' in _t:
-            _type = 'int'
-        elif 'float' in _t:
-            _type = 'float'
-        elif 'bool' in _t:
-            _type = 'bool'
-        elif 'str' in _t:
-            _type = 'str'
-        elif '<U' in _t:
-            _type = 'str'
-        elif 'date' in _t:
-            _type = 'date'
-        elif '<M' in _t:
-            _type = 'date'
-        elif 'object' in _t:
-            _type = 'object'
-        elif 'O' in _t:
-            _type = 'object'
-        else:
-            return _t
-        return _type
+            return 'int'
+        if 'float' in _t:
+            return 'float'
+        if 'bool' in _t:
+            return 'bool'
+        if 'str' in _t:
+            return 'str'
+        if '<U' in _t:
+            return 'str'
+        if 'date' in _t:
+            return 'date'
+        if '<M' in _t:
+            return 'date'
+        if 'object' in _t:
+            return 'object'
+        if 'O' in _t:
+            return 'object'
+
+        return _t
 
     @staticmethod
     def _apply_type(t: str, array: np.ndarray) -> np.ndarray:
@@ -235,6 +281,9 @@ class Tafra:
 
     @classmethod
     def from_dataframe(cls, df: DataFrame, dtypes: Optional[Dict[str, str]] = None) -> 'Tafra':
+        """
+        Construct a :class:`Tafra` from a :class:`pd.DataFrame`.
+        """
         if dtypes is None:
             dtypes = {c: t for c, t in zip(df.columns, df.dtypes)}
         dtypes = {c: cls._format_type(t) for c, t in dtypes.items()}
@@ -245,44 +294,49 @@ class Tafra:
         )
 
     @classmethod
-    def as_tafra(cls, data: Union['Tafra', DataFrame]) -> Optional['Tafra']:
-        """Returns the unmodified argument if already a `Tafra`, else construct
+    def as_tafra(cls, tafra: Union['Tafra', DataFrame]) -> Optional['Tafra']:
+        """
+        Returns the unmodified `tafra`` if already a `Tafra`, else construct
         a `Tafra` from known types of `pd.DataFrame` or `dict`.
         """
-        if isinstance(data, Tafra):
-            return data
+        if isinstance(tafra, Tafra):
+            return tafra
 
-        elif type(data).__name__ == 'DataFrame':
-            return cls.from_dataframe(data)
+        elif type(tafra).__name__ == 'DataFrame':
+            return cls.from_dataframe(tafra)
 
-        elif isinstance(data, dict):
-            return cls(data)
+        elif isinstance(tafra, dict):
+            return cls(tafra)
 
-        raise TypeError(f'Unknown type `{type(data)}` for conversion to `Tafra`')
+        raise TypeError(f'Unknown type `{type(tafra)}` for conversion to `Tafra`')
 
     @property
     def columns(self) -> Tuple[str, ...]:
-        """Get the names of the columns.
+        """
+        Get the names of the columns.
         Equivalent to `Tafra`.keys().
         """
         return tuple(self._data.keys())
 
     @property
     def rows(self) -> int:
-        """Get the rows of the first item in the data `dict`.
+        """
+        Get the rows of the first item in the data `dict`.
         The `len()` of all values have been previously validated.
         """
         return self._rows
 
     @property
     def data(self) -> Dict[str, np.ndarray]:
-        """Return the data `dict` attribute.
+        """
+        Return the data `dict` attribute.
         """
         return self._data
 
     @property
     def dtypes(self) -> Dict[str, str]:
-        """Return the dtypes `dict`.
+        """
+        Return the dtypes `dict`.
         """
         return self._dtypes
 
@@ -290,7 +344,8 @@ class Tafra:
         return self.to_html(n)
 
     def select(self, columns: Iterable[str]) -> 'Tafra':
-        """Use column name iterable to slice `tafra` columns analogous to SQL SELECT.
+        """
+        Use column name iterable to slice `tafra` columns analogous to SQL SELECT.
         """
         self._validate_columns(columns)
 
@@ -302,7 +357,8 @@ class Tafra:
         )
 
     def _slice(self, _slice: slice) -> 'Tafra':
-        """Use slice object to slice np.ndarray.
+        """
+        Use slice object to slice np.ndarray.
         """
         return Tafra(
             {column: value[_slice]
@@ -312,7 +368,8 @@ class Tafra:
         )
 
     def _index(self, index: np.ndarray) -> 'Tafra':
-        """Use numpy indexing to slice np.ndarray.
+        """
+        Use numpy indexing to slice np.ndarray.
         """
         if index.ndim != 1:
             raise ValueError(f'Indexing np.ndarray must ndim == 1, got ndim == {index.ndim}')
@@ -324,27 +381,32 @@ class Tafra:
         )
 
     def keys(self) -> KeysView[str]:
-        """Return the keys of the data attribute, i.e. like a `dict.keys()`.
+        """
+        Return the keys of the data attribute, i.e. like a `dict.keys()`.
         """
         return self._data.keys()
 
     def values(self) -> ValuesView[np.ndarray]:
-        """Return the values of the data attribute, i.e. like a `dict.values()`.
+        """
+        Return the values of the data attribute, i.e. like a `dict.values()`.
         """
         return self._data.values()
 
     def items(self) -> ItemsView[str, np.ndarray]:
-        """Return the items of the data attribute, i.e. like a `dict.items()`.
+        """
+        Return the items of the data attribute, i.e. like a `dict.items()`.
         """
         return self._data.items()
 
     def get(self, key: str, default: Any = None) -> Any:
-        """Return the get() function of the data attribute, i.e. like a `dict.get()`.
+        """
+        Return the get() function of the data attribute, i.e. like a `dict.get()`.
         """
         return self._data.get(key, default)
 
     def update(self, other: 'Tafra') -> None:
-        """Update the data and dtypes of this `Tafra` with another `Tafra`.
+        """
+        Update the data and dtypes of this `Tafra` with another `Tafra`.
         Length of rows must match, while data of different `dtype` will overwrite.
         """
         rows = self._rows
@@ -359,7 +421,8 @@ class Tafra:
 
     def update_dtypes(self, dtypes: Optional[Dict[str, Any]] = None,
                       inplace: bool = True) -> Optional['Tafra']:
-        """Apply new dtypes or update dtype `dict` for missing keys.
+        """
+        Apply new dtypes or update dtype `dict` for missing keys.
         """
 
         if inplace:
@@ -381,13 +444,14 @@ class Tafra:
         else:
             return tf
 
-    def coalesce_types(self) -> None:
+    def coalesce_dtypes(self) -> None:
         for column in self._data.keys():
             if column not in self._dtypes:
                 self._dtypes[column] = self._format_type(self._data[column].dtype)
 
     def rename(self, renames: Dict[str, str], inplace: bool = True) -> Optional['Tafra']:
-        """Rename columns in the `Tafra` with a `dict` of {current_name: new_name}.
+        """
+        Rename columns in the `Tafra` with a `dict` of {current_name: new_name}.
         """
         self._validate_columns(renames.keys())
 
@@ -404,7 +468,8 @@ class Tafra:
         )
 
     def delete(self, column: str, inplace: bool = True) -> Optional['Tafra']:
-        """Remove a column from the `Tafra` data and dtypes.
+        """
+        Remove a column from the `Tafra` data and dtypes.
         """
         self._validate_columns(column)
 
@@ -421,7 +486,8 @@ class Tafra:
         )
 
     def copy(self, order: str = 'C') -> 'Tafra':
-        """Helper function to create a copy of a `Tafra`s data.
+        """
+        Helper function to create a copy of a :class:`Tafra` 's data.
         """
         return Tafra(
             {column: value.copy(order=order)
@@ -432,8 +498,15 @@ class Tafra:
 
     def coalesce(self, column: str, fills: Iterable[Any]) -> np.ndarray:
         #TODO: handle dtype?
-        value = self._data[column].copy()
-        for fill in fills:
+        iter_fills = iter(fills)
+        head = next(iter_fills)
+
+        if column in self._data:
+            value = self._data[column].copy()
+        else:
+            value = np.empty(self._rows, np.array(head).dtype)
+
+        for fill in chain(head, iter_fills):
             f = np.atleast_1d(fill)
             where_na = np.full(self._rows, False)
             try:
@@ -584,7 +657,7 @@ class Tafra:
 from .groups import (GroupBy, Transform, IterateBy, InnerJoin, LeftJoin, CrossJoin,
                      InitAggregation, GroupDescription)
 
-Tafra.copy.__doc__ += '\n\nnumpy doc string:\n' + np.ndarray.copy.__doc__  # type: ignore
+# Tafra.copy.__doc__ += '\n\nnumpy doc string:\n' + np.ndarray.copy.__doc__  # type: ignore
 Tafra.group_by.__doc__ += GroupBy.__doc__  # type: ignore
 Tafra.transform.__doc__ += Transform.__doc__  # type: ignore
 Tafra.iterate_by.__doc__ += IterateBy.__doc__  # type: ignore
