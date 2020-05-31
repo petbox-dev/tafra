@@ -1,3 +1,17 @@
+"""
+Tafra: the innards of a dataframe
+
+Author
+------
+Derrick W. Turk
+David S. Fulford
+
+Notes
+-----
+Created on April 25, 2020
+"""
+__all__ = ['GroupBy', 'Transform', 'IterateBy', 'InnerJoin', 'LeftJoin']
+
 import operator
 from collections import OrderedDict
 from itertools import chain
@@ -5,7 +19,7 @@ import dataclasses as dc
 
 import numpy as np
 
-from typing import Any, Callable, Dict, List, Iterable, Tuple, Optional, Union
+from typing import Any, Callable, Dict, List, Tuple, Optional, Union, Iterable, Iterator
 from typing import cast
 
 
@@ -39,13 +53,15 @@ GroupDescription = Tuple[
 
 @dc.dataclass
 class GroupSet():
-    """A `GroupSet` is the set of columns by which we construct our groups.
+    """
+    A `GroupSet` is the set of columns by which we construct our groups.
     """
 
     @staticmethod
     def _unique_groups(tafra: 'Tafra', columns: Iterable[str]) -> List[Any]:
-        """Construct a unique set of grouped values.
-        Uses `OrderedDict` rather than `set` to maintain order.
+        """
+        Construct a unique set of grouped values.
+        Uses :class:``OrderedDict`` rather than :class:``set`` to maintain order.
         """
         return list(OrderedDict.fromkeys(zip(*(tafra[col] for col in columns))))
 
@@ -60,7 +76,8 @@ class GroupSet():
 
 @dc.dataclass
 class AggMethod(GroupSet):
-    """Basic methods for aggregations over a data table.
+    """
+    Basic methods for aggregations over a data table.
     """
     _group_by_cols: Iterable[str]
     aggregation: dc.InitVar[InitAggregation]
@@ -83,7 +100,8 @@ class AggMethod(GroupSet):
                 raise ValueError(f'{rename}: {agg} is not a valid aggregation argument')
 
     def result_factory(self, fn: Callable[[str, str], np.ndarray]) -> Dict[str, np.ndarray]:
-        """Factory function to generate the dict for the results set.
+        """
+        Factory function to generate the dict for the results set.
         A function to take the new column name and source column name
         and return an empty `np.ndarray` should be given.
         """
@@ -102,7 +120,11 @@ class AggMethod(GroupSet):
 
 
 class GroupBy(AggMethod):
-    """Analogy to SQL `GROUP BY`, not `pandas.DataFrame.groupby()`. A `reduce` operation.
+    """
+    Aggregation by a set of unique values.
+
+    Analogy to SQL ``GROUP BY``, not :meth:`pandas.DataFrame.groupby()`.
+    A `reduce` operation.
     """
 
     def apply(self, tafra: 'Tafra') -> 'Tafra':
@@ -134,8 +156,11 @@ class GroupBy(AggMethod):
 
 
 class Transform(AggMethod):
-    """Analogy to `pandas.DataFrame.transform()`,
-    i.e. a SQL `GROUP BY` and `LEFT JOIN` back to the original table.
+    """
+    Apply a function to each unique set of values and join to the original table.
+
+    Analogy to :meth:`pandas.DataFrame.groupby().transform()`,
+    i.e. a SQL ``GROUP BY`` and ``LEFT JOIN`` back to the original table.
     """
 
     def apply(self, tafra: 'Tafra') -> 'Tafra':
@@ -169,12 +194,15 @@ class Transform(AggMethod):
 
 @dc.dataclass
 class IterateBy(GroupSet):
-    """Analogy to `pandas.DataFrame.groupby()`, i.e. an Iterable of `Tafra` objects.
+    """
+    A generator that yields a :class:`Tafra` for each set of unique values.
+
+    Analogy to `pandas.DataFrame.groupby()`, i.e. an Iterable of `Tafra` objects.
     Yields tuples of ((unique grouping values, ...), row indices array, subset tafra)
     """
     _group_by_cols: Iterable[str]
 
-    def apply(self, tafra: 'Tafra') -> Iterable[GroupDescription]:
+    def apply(self, tafra: 'Tafra') -> Iterator[GroupDescription]:
         self._validate(tafra, self._group_by_cols)
         unique = self._unique_groups(tafra, self._group_by_cols)
 
@@ -189,10 +217,11 @@ class IterateBy(GroupSet):
 
 @dc.dataclass
 class Join(GroupSet):
-    """Base class for SQL-like JOINs.
     """
-    _on: Iterable[Tuple[str, str, str]]
-    _select: Iterable[str]
+    Base class for SQL-like JOINs.
+    """
+    on: Iterable[Tuple[str, str, str]]
+    select: Iterable[str]
 
     @staticmethod
     def _validate_dtypes(left_t: 'Tafra', right_t: 'Tafra') -> None:
@@ -226,23 +255,26 @@ class Join(GroupSet):
 
 
 class InnerJoin(Join):
-    """Analogy to SQL INNER JOIN, or `pandas.merge(..., how='inner')`,
+    """
+    An inner join.
+
+    Analogy to SQL INNER JOIN, or `pandas.merge(..., how='inner')`,
     """
 
     def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
-        left_cols, right_cols, ops = list(zip(*self._on))
+        left_cols, right_cols, ops = list(zip(*self.on))
         self._validate(left_t, left_cols)
         self._validate(right_t, right_cols)
         self._validate_dtypes(left_t, right_t)
         self._validate_ops(ops)
 
-        _on = tuple((left_col, right_col, JOIN_OPS[op]) for left_col, right_col, op in self._on)
+        _on = tuple((left_col, right_col, JOIN_OPS[op]) for left_col, right_col, op in self.on)
 
         join: Dict[str, List[Any]] = {column: list() for column in chain(
             left_t._data.keys(),
             right_t._data.keys()
-        ) if not self._select
-            or (self._select and column in self._select)}
+        ) if not self.select
+            or (self.select and column in self.select)}
 
         # right-to-left so left dtypes overwrite
         dtypes: Dict[str, str] = {column: dtype for column, dtype in chain(
@@ -281,23 +313,26 @@ class InnerJoin(Join):
 
 
 class LeftJoin(Join):
-    """Analogy to SQL LEFT JOIN, or `pandas.merge(..., how='left')`,
+    """
+    A left join.
+
+    Analogy to SQL LEFT JOIN, or `pandas.merge(..., how='left')`,
     """
 
     def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
-        left_cols, right_cols, ops = list(zip(*self._on))
+        left_cols, right_cols, ops = list(zip(*self.on))
         self._validate(left_t, left_cols)
         self._validate(right_t, right_cols)
         self._validate_dtypes(left_t, right_t)
         self._validate_ops(ops)
 
-        _on = tuple((left_col, right_col, JOIN_OPS[op]) for left_col, right_col, op in self._on)
+        _on = tuple((left_col, right_col, JOIN_OPS[op]) for left_col, right_col, op in self.on)
 
         join: Dict[str, List[Any]] = {column: list() for column in chain(
             left_t._data.keys(),
             right_t._data.keys()
-        ) if not self._select
-            or (self._select and column in self._select)}
+        ) if not self.select
+            or (self.select and column in self.select)}
 
         dtypes: Dict[str, str] = {column: dtype for column, dtype in chain(
             left_t._dtypes.items(),
@@ -332,7 +367,10 @@ class LeftJoin(Join):
 
 @dc.dataclass
 class CrossJoin(Join):
-    """Analogy to SQL CROSS JOIN, or `pandas.merge(..., how='outer')
+    """
+    A cross join.
+
+    Analogy to SQL CROSS JOIN, or `pandas.merge(..., how='outer')
     using temporary columns of static value to intersect all rows`.
     """
 
@@ -342,8 +380,8 @@ class CrossJoin(Join):
         join: Dict[str, List[Any]] = {column: list() for column in chain(
             left_t._data.keys(),
             right_t._data.keys()
-        ) if not self._select
-            or (self._select and column in self._select)}
+        ) if not self.select
+            or (self.select and column in self.select)}
 
         dtypes: Dict[str, str] = {column: dtype for column, dtype in chain(
             left_t._dtypes.items(),
