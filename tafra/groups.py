@@ -69,7 +69,7 @@ class GroupSet():
     def _validate(tafra: 'Tafra', columns: Iterable[str]) -> None:
         rows = tafra.rows
         if rows < 1:
-            raise ValueError(f'No rows exist in `tafra`.')
+            raise ValueError('No rows exist in `tafra`.')
 
         tafra._validate_columns(columns)
 
