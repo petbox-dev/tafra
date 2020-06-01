@@ -12,7 +12,7 @@ install:
 script:
     - 'flake8 tafra'
     - "mypy tafra"
-    - "pytest --cov=tafra --cov-report=term-missing --hypothesis-show-statistics -v test"
+    - "pytest"
     - "sphinx-build -W -b html docs docs/_build/html"
 
 notifications:
