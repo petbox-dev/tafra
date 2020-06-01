@@ -66,11 +66,8 @@ class GroupSet():
         return list(OrderedDict.fromkeys(zip(*(tafra[col] for col in columns))))
 
     @staticmethod
-    def _validate(tafra: 'Tafra', columns: Iterable[str]) -> None:
-        rows = tafra.rows
-        if rows < 1:
-            raise ValueError('No rows exist in `tafra`.')
-
+    def _validate(tafra: 'Tafra', columns: Iterable[str]) -> None:  # pragma: no cover
+        assert tafra.rows >= 1, 'No rows exist in `tafra`.'
         tafra._validate_columns(columns)
 
 
@@ -294,32 +291,30 @@ class Join(GroupSet):
     on: Iterable[Tuple[str, str, str]]
     select: Iterable[str]
 
-    @staticmethod
-    def _validate_dtypes(left_t: 'Tafra', right_t: 'Tafra') -> None:
-        for (data_column, left_value), (dtype_column, left_dtype) \
-                in zip(left_t._data.items(), left_t._dtypes.items()):
-            right_value = right_t._data.get(data_column, None)
-            right_dtype = right_t._dtypes.get(dtype_column, None)
+    def _validate_dtypes(self, l_table: 'Tafra', r_table: 'Tafra') -> None:
+        for l_column, r_column, _ in self.on:
+            l_value = l_table._data[l_column]
+            r_value = r_table._data[r_column]
+            l_dtype = l_table._dtypes[l_column]
+            r_dtype = r_table._dtypes[r_column]
 
-            if right_value is None or right_dtype is None:
-                continue
+            if l_value.dtype != r_value.dtype:
+                raise TypeError(
+                    f'This `Tafra` column `{l_column}` dtype `{l_value.dtype}` '
+                    f'does not match other `Tafra` dtype `{r_value.dtype}`.')
 
-            elif left_value.dtype != right_value.dtype:
-                raise ValueError(
-                    f'This `Tafra` column `{data_column}` dtype `{left_value.dtype}` '
-                    f'does not match other `Tafra` dtype `{right_value.dtype}`.')
-
-            elif left_dtype != right_dtype or left_dtype != right_dtype:
-                raise ValueError(
-                    f'This `Tafra` column `{data_column}` dtype `{left_dtype}` '
-                    f'does not match other `Tafra` dtype `{right_dtype}`.')
+            # should not happen unless dtypes manually changed, but let's check it
+            elif l_dtype != r_dtype:
+                raise TypeError(
+                    f'This `Tafra` column `{l_column}` dtype `{l_dtype}` '
+                    f'does not match other `Tafra` dtype `{r_dtype}`.')
 
     @staticmethod
     def _validate_ops(ops: Iterable[str]) -> None:
         for op in ops:
             _op = JOIN_OPS.get(op, None)
             if _op is None:
-                raise ValueError(f'The operator {op} is not valid.')
+                raise TypeError(f'The operator {op} is not valid.')
 
     def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
         raise NotImplementedError
@@ -407,12 +402,7 @@ class InnerJoin(Join):
                     join[column].extend(max(1, right_count) * [left_t[column][i]])
 
                 elif column in right_t._data:
-                    if right_count <= 0:
-                        join[column].append(None)
-                        if dtypes[column] != 'object':
-                            dtypes[column] = 'object'
-                    else:
-                        join[column].extend(right_t[column][right_rows])
+                    join[column].extend(right_t[column][right_rows])
 
         return Tafra(
             {column: np.array(value)
