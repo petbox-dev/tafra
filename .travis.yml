@@ -5,7 +5,7 @@ python:
     - "3.8"
 
 install:
-    - "pip install -U flake8 mypy numpy scipy typing_extensions pytest pytest-cov \"attrs>=19.2.0\" hypothesis coveralls sphinx sphinx_rtd_theme"
+    - "pip install -U flake8 mypy numpy scipy pandas typing_extensions pytest pytest-cov \"attrs>=19.2.0\" hypothesis coveralls sphinx sphinx_rtd_theme"
     - "pip install -U git+https://github.com/numpy/numpy-stubs.git"
     - "pip install ."
 
