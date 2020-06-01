@@ -1,7 +1,9 @@
 import numpy as np
 from typing import Dict, List
+from typing_extensions import Protocol, runtime_checkable
 
-class DataFrame():
+@runtime_checkable
+class DataFrame(Protocol):
     """A fake class to satisfy typing of a `pandas.DataFrame` without a dependency.
     """
     _data: Dict[str, np.ndarray]

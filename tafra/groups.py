@@ -19,7 +19,8 @@ import dataclasses as dc
 
 import numpy as np
 
-from typing import Any, Callable, Dict, List, Tuple, Optional, Union, Iterable, Iterator
+from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union,
+                    Iterable, Iterator)
 from typing import cast
 
 
@@ -32,9 +33,8 @@ JOIN_OPS: Dict[str, Callable[[Any, Any], Any]] = {
     '>=': operator.ge
 }
 
-
 # for the passed argument to an aggregation
-InitAggregation = Dict[
+InitAggregation = Mapping[
     str,
     Union[
         Callable[[np.ndarray], Any],
@@ -79,10 +79,10 @@ class AggMethod(GroupSet):
     """
     Basic methods for aggregations over a data table.
     """
-    _group_by_cols: Iterable[str]
+    group_by_cols: Iterable[str]
     aggregation: dc.InitVar[InitAggregation]
-    _aggregation: Dict[str, Tuple[Callable[[np.ndarray], Any], str]] = dc.field(init=False)
-    _iter_fn: Dict[str, Callable[[np.ndarray], Any]]
+    _aggregation: Mapping[str, Tuple[Callable[[np.ndarray], Any], str]] = dc.field(init=False)
+    iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
 
     def __post_init__(self, aggregation: InitAggregation) -> None:
         self._aggregation = dict()
@@ -95,7 +95,7 @@ class AggMethod(GroupSet):
             else:
                 raise ValueError(f'{rename}: {agg} is not a valid aggregation argument')
 
-        for rename, agg in self._iter_fn.items():
+        for rename, agg in self.iter_fn.items():
             if not callable(agg):
                 raise ValueError(f'{rename}: {agg} is not a valid aggregation argument')
 
@@ -107,13 +107,13 @@ class AggMethod(GroupSet):
         """
         return {
             rename: fn(rename, col) for rename, col in (
-                *((col, col) for col in self._group_by_cols),
+                *((col, col) for col in self.group_by_cols),
                 *((rename, agg[1]) for rename, agg in self._aggregation.items())
             )
         }
 
     def iter_fn_factory(self, fn: Callable[[], np.ndarray]) -> Dict[str, np.ndarray]:
-        return {rename: fn() for rename in self._iter_fn.keys()}
+        return {rename: fn() for rename in self.iter_fn.keys()}
 
     def apply(self, tafra: 'Tafra') -> 'Tafra':
         raise NotImplementedError
@@ -124,15 +124,40 @@ class GroupBy(AggMethod):
     Aggregation by a set of unique values.
 
     Analogy to SQL ``GROUP BY``, not :meth:`pandas.DataFrame.groupby()`.
-    A `reduce` operation.
+
+    Parameters
+    ----------
+        group_by: Iterable[str]
+            The column names to group by.
+
+        aggregation: Mapping[str,Union[Callable[[np.ndarray], Any],Tuple[Callable[[np.ndarray], Any], str]]] = {}
+            A mapping for columns and aggregation functions. Should be
+            given as {'column': fn} or {'new_column': (fn, 'column')}.
+
+        iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
+            A mapping for new columns names to the function to apply to
+            the enumeration. Should be given as {'new_column': fn}.
     """
 
     def apply(self, tafra: 'Tafra') -> 'Tafra':
+        """
+        Apply the :class:`GroupBy` to the :class:`Tafra`.
+
+        Parameters
+        ----------
+            tafra: Tafra
+                The tafra to apply the operation to.
+
+        Returns
+        -------
+            tafra: Tafra
+                The aggregated :class:`Tafra`.
+        """
         self._validate(tafra, (
-            *self._group_by_cols,
+            *self.group_by_cols,
             *(col for (_, col) in self._aggregation.values())
         ))
-        unique = self._unique_groups(tafra, self._group_by_cols)
+        unique = self._unique_groups(tafra, self.group_by_cols)
         result = self.result_factory(
             lambda rename, col: np.empty(len(unique), dtype=tafra[col].dtype))
         iter_fn = self.iter_fn_factory(lambda: np.ones(len(unique), dtype=int))
@@ -141,14 +166,14 @@ class GroupBy(AggMethod):
         for i, u in enumerate(unique):
             which_rows = np.full(tafra.rows, True)
 
-            for val, col in zip(u, self._group_by_cols):
+            for val, col in zip(u, self.group_by_cols):
                 which_rows &= tafra[col] == val
                 result[col][i] = val
 
             for rename, (fn, col) in self._aggregation.items():
                 result[rename][i] = fn(tafra[col][which_rows])
 
-            for rename, fn in self._iter_fn.items():
+            for rename, fn in self.iter_fn.items():
                 iter_fn[rename][i] = fn(i * ones[which_rows])
 
         result.update(iter_fn)
@@ -161,14 +186,40 @@ class Transform(AggMethod):
 
     Analogy to :meth:`pandas.DataFrame.groupby().transform()`,
     i.e. a SQL ``GROUP BY`` and ``LEFT JOIN`` back to the original table.
+
+    Parameters
+    ----------
+        group_by: Iterable[str]
+            The column names to group by.
+
+        aggregation: Mapping[str,Union[Callable[[np.ndarray], Any],Tuple[Callable[[np.ndarray], Any], str]]] = {}
+            A mapping for columns and aggregation functions. Should be
+            given as {'column': fn} or {'new_column': (fn, 'column')}.
+
+        iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
+            A mapping for new columns names to the function to apply to
+            the enumeration. Should be given as {'new_column': fn}.
     """
 
     def apply(self, tafra: 'Tafra') -> 'Tafra':
+        """
+        Apply the :class:`Transform` to the :class:`Tafra`.
+
+        Parameters
+        ----------
+            tafra: Tafra
+                The tafra to apply the operation to.
+
+        Returns
+        -------
+            tafra: Tafra
+                The transformed :class:`Tafra`.
+        """
         self._validate(tafra, (
-            *self._group_by_cols,
+            *self.group_by_cols,
             *(col for (_, col) in self._aggregation.values())
         ))
-        unique = self._unique_groups(tafra, self._group_by_cols)
+        unique = self._unique_groups(tafra, self.group_by_cols)
         result = self.result_factory(
             lambda rename, col: np.empty_like(tafra[col]))
         iter_fn = self.iter_fn_factory(lambda: np.ones(tafra.rows, dtype=int))
@@ -177,7 +228,7 @@ class Transform(AggMethod):
         for i, u in enumerate(unique):
             which_rows = np.full(tafra.rows, True)
 
-            for val, col in zip(u, self._group_by_cols):
+            for val, col in zip(u, self.group_by_cols):
                 which_rows &= tafra[col] == val
                 result[col][which_rows] = tafra[col][which_rows]
 
@@ -185,7 +236,7 @@ class Transform(AggMethod):
                 fn, col = agg
                 result[rename][which_rows] = fn(tafra[col][which_rows])
 
-            for rename, fn in self._iter_fn.items():
+            for rename, fn in self.iter_fn.items():
                 iter_fn[rename][which_rows] = fn(i * ones[which_rows])
 
         result.update(iter_fn)
@@ -199,17 +250,35 @@ class IterateBy(GroupSet):
 
     Analogy to `pandas.DataFrame.groupby()`, i.e. an Iterable of `Tafra` objects.
     Yields tuples of ((unique grouping values, ...), row indices array, subset tafra)
+
+    Parameters
+    ----------
+        group_by: Iterable[str]
+            The column names to group by.
     """
-    _group_by_cols: Iterable[str]
+    group_by_cols: Iterable[str]
 
     def apply(self, tafra: 'Tafra') -> Iterator[GroupDescription]:
-        self._validate(tafra, self._group_by_cols)
-        unique = self._unique_groups(tafra, self._group_by_cols)
+        """
+        Apply the :class:`IterateBy` to the :class:`Tafra`.
+
+        Parameters
+        ----------
+            tafra: Tafra
+                The tafra to apply the operation to.
+
+        Returns
+        -------
+            tafras: Iterator[GroupDescription]
+                An iterator over the grouped :class:`Tafra`.
+        """
+        self._validate(tafra, self.group_by_cols)
+        unique = self._unique_groups(tafra, self.group_by_cols)
 
         for u in unique:
             which_rows = np.full(tafra.rows, True)
 
-            for val, col in zip(u, self._group_by_cols):
+            for val, col in zip(u, self.group_by_cols):
                 which_rows &= tafra[col] == val
 
             yield (u, which_rows, tafra[which_rows])
@@ -259,9 +328,46 @@ class InnerJoin(Join):
     An inner join.
 
     Analogy to SQL INNER JOIN, or `pandas.merge(..., how='inner')`,
+
+    Parameters
+    ----------
+        right: Tafra
+            The right-side :class:`Tafra` to join.
+
+        on: Iterable[Tuple[str, str, str]]
+            The columns and operator to join on. Should be given as
+            ('left column', 'right column', 'op') Valid ops are:
+
+            '==' : equal to
+            '!=' : not equal to
+            '<'  : less than
+            '<=' : less than or equal to
+            '>'  : greater than
+            '>=' : greater than or equal to
+
+        select: Iterable[str] = []
+            The columns to return. If not given, all unique columns names
+            are returned. If the column exists in both :class`Tafra`,
+            prefers the left over the right.
     """
 
     def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
+        """
+        Apply the :class:`InnerJoin` to the :class:`Tafra`.
+
+        Parameters
+        ----------
+            left_t: Tafra
+                The left tafra to join.
+
+            right_t: Tafra
+                The right tafra to join.
+
+        Returns
+        -------
+            tafra: Tafra
+                An iterator over the grouped :class:`Tafra`.
+        """
         left_cols, right_cols, ops = list(zip(*self.on))
         self._validate(left_t, left_cols)
         self._validate(right_t, right_cols)
@@ -317,9 +423,46 @@ class LeftJoin(Join):
     A left join.
 
     Analogy to SQL LEFT JOIN, or `pandas.merge(..., how='left')`,
+
+    Parameters
+    ----------
+        right: Tafra
+            The right-side :class:`Tafra` to join.
+
+        on: Iterable[Tuple[str, str, str]]
+            The columns and operator to join on. Should be given as
+            ('left column', 'right column', 'op') Valid ops are:
+
+            '==' : equal to
+            '!=' : not equal to
+            '<'  : less than
+            '<=' : less than or equal to
+            '>'  : greater than
+            '>=' : greater than or equal to
+
+        select: Iterable[str] = []
+            The columns to return. If not given, all unique columns names
+            are returned. If the column exists in both :class`Tafra`,
+            prefers the left over the right.
     """
 
     def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
+        """
+        Apply the :class:`LeftJoin` to the :class:`Tafra`.
+
+        Parameters
+        ----------
+            left_t: Tafra
+                The left tafra to join.
+
+            right_t: Tafra
+                The right tafra to join.
+
+        Returns
+        -------
+            tafra: Tafra
+                An iterator over the grouped :class:`Tafra`.
+        """
         left_cols, right_cols, ops = list(zip(*self.on))
         self._validate(left_t, left_cols)
         self._validate(right_t, right_cols)
@@ -372,9 +515,40 @@ class CrossJoin(Join):
 
     Analogy to SQL CROSS JOIN, or `pandas.merge(..., how='outer')
     using temporary columns of static value to intersect all rows`.
+
+    Parameters
+    ----------
+        right: Tafra
+            The right-side :class:`Tafra` to join.
+
+        select: Iterable[str] = []
+            The columns to return. If not given, all unique columns names
+            are returned. If the column exists in both :class`Tafra`,
+            prefers the left over the right.
+
+    Returns
+    -------
+        tafra: Tafra
+            The joined :class:`Tafra`.
     """
 
     def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
+        """
+        Apply the :class:`CrossJoin` to the :class:`Tafra`.
+
+        Parameters
+        ----------
+            left_t: Tafra
+                The left tafra to join.
+
+            right_t: Tafra
+                The right tafra to join.
+
+        Returns
+        -------
+            tafra: Tafra
+                An iterator over the grouped :class:`Tafra`.
+        """
         self._validate_dtypes(left_t, right_t)
 
         join: Dict[str, List[Any]] = {column: list() for column in chain(
