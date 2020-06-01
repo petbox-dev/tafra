@@ -58,6 +58,7 @@ Methods
     union
     select
     pprint
+    pformat
     to_html
 
 
