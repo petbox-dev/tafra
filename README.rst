@@ -5,12 +5,12 @@ Tafra: "typing" with group-by
 .. image:: https://travis-ci.org/petbox-dev/tafra.svg?branch=master
     :target: https://travis-ci.org/github/petbox-dev/tafra
 
-.. image:: https://readthedocs.org/projects/petbox-dca/badge/?version=latest
-    :target: https://petbox-dca.readthedocs.io/en/latest/?badge=latest
+.. image:: https://readthedocs.org/projects/tafra/badge/?version=latest
+    :target: https://tafra.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
 
-.. image:: https://coveralls.io/repos/github/petbox-dev/dca/badge.svg
-    :target: https://coveralls.io/github/petbox-dev/dca
+.. image:: https://coveralls.io/repos/github/petbox-dev/tafra/badge.svg
+    :target: https://coveralls.io/github/petbox-dev/tafra
     :alt: Coverage Status
 
 
