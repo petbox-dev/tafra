@@ -11,7 +11,7 @@ class DataFrame(Protocol):
     dtypes: List[str]
 
     def __getitem__(self, column: str) -> np.ndarray:
-        ...
+        ...  # pragma: no cover
 
     def __setitem__(self, column: str, value: np.ndarray) -> None:
-        ...
+        ...  # pragma: no cover

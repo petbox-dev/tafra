@@ -130,12 +130,13 @@ class GroupBy(AggMethod):
         group_by: Iterable[str]
             The column names to group by.
 
-        aggregation: Mapping[str,Union[Callable[[np.ndarray], Any],Tuple[Callable[[np.ndarray], Any], str]]] = {}
+        aggregation: Mapping[str, Union[Callable[[np.ndarray], Any], \
+            Optional. Tuple[Callable[[np.ndarray], Any], str]]]
             A mapping for columns and aggregation functions. Should be
             given as {'column': fn} or {'new_column': (fn, 'column')}.
 
         iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
-            A mapping for new columns names to the function to apply to
+            Optional. A mapping for new columns names to the function to apply to
             the enumeration. Should be given as {'new_column': fn}.
     """
 
@@ -192,12 +193,13 @@ class Transform(AggMethod):
         group_by: Iterable[str]
             The column names to group by.
 
-        aggregation: Mapping[str,Union[Callable[[np.ndarray], Any],Tuple[Callable[[np.ndarray], Any], str]]] = {}
-            A mapping for columns and aggregation functions. Should be
+        aggregation: Mapping[str, Union[Callable[[np.ndarray], Any], \
+        Tuple[Callable[[np.ndarray], Any], str]]]
+            Optional. A mapping for columns and aggregation functions. Should be
             given as {'column': fn} or {'new_column': (fn, 'column')}.
 
         iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
-            A mapping for new columns names to the function to apply to
+            Optional. A mapping for new columns names to the function to apply to
             the enumeration. Should be given as {'new_column': fn}.
     """
 
@@ -407,7 +409,8 @@ class InnerJoin(Join):
                 elif column in right_t._data:
                     if right_count <= 0:
                         join[column].append(None)
-                        if dtypes[column] != 'object': dtypes[column] = 'object'
+                        if dtypes[column] != 'object':
+                            dtypes[column] = 'object'
                     else:
                         join[column].extend(right_t[column][right_rows])
 
@@ -497,7 +500,8 @@ class LeftJoin(Join):
                 elif column in right_t._data:
                     if right_count <= 0:
                         join[column].append(None)
-                        if dtypes[column] != 'object': dtypes[column] = 'object'
+                        if dtypes[column] != 'object':
+                            dtypes[column] = 'object'
                     else:
                         join[column].extend(right_t[column][right_rows])
 
