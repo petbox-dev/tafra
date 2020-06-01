@@ -30,7 +30,7 @@ def get_long_description() -> str:
         readme = f.read()
 
     replacements = [
-        '.. automodule:: petbox.dca',
+        '.. automodule:: tafra',
         ':noindex:',
     ]
 
