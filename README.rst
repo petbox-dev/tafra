@@ -6,7 +6,7 @@ Tafra: "typing" with group-by
     :target: https://pypi.org/project/tafra/
 
 .. image:: https://travis-ci.org/petbox-dev/tafra.svg?branch=master
-    :target: https://travis-ci.org/github/petbox-dev/tafra
+    :target: https://travis-ci.org/petbox-dev/tafra
 
 .. image:: https://readthedocs.org/projects/tafra/badge/?version=latest
     :target: https://tafra.readthedocs.io/en/latest/?badge=latest
