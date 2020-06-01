@@ -669,7 +669,7 @@ class Tafra:
                 all(isinstance(item, int) for item in index)
                 or all(isinstance(item, bool) for item in index)
         ):
-            raise ValueError(f'Index list of type `list` does not contain all `int` or `bool`.')
+            raise ValueError('Index list of type `list` does not contain all `int` or `bool`.')
 
         elif isinstance(index, np.ndarray):
             if not (index.dtype == np.int or index.dtype == np.bool):
@@ -977,7 +977,7 @@ class Tafra:
         # ensure same number of columns
         if len(self._data) != len(other._data) or len(self._dtypes) != len(other._dtypes):
             raise ValueError(
-                f'This `Tafra` column count does not match other `Tafra` column count.')
+                'This `Tafra` column count does not match other `Tafra` column count.')
 
         # ensure all columns in this `Tafra` exist in other `Tafra`
         # if len() is same AND all columns in this exist in other,
