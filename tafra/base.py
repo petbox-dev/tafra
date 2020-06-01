@@ -157,7 +157,7 @@ class Tafra:
             string: str
                 The formatted string for printing.
         """
-        PATTERN = '(, dtype=[a-z]+)(?=\))'
+        PATTERN = r'(, dtype=[a-z]+)(?=\))'
 
         return '\n'.join([
             'Tafra(data = {',
