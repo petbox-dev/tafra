@@ -244,24 +244,6 @@ Along the way, we'll add a couple of convenience properties to our tafra class.
     rows = 2)
 
 
-If we are in a Jupyter Notebook, we get an HTML representation:
-
-
-    +-------+------+--------+
-    |       | x    | y      |
-    +-------+------+--------+
-    | dtype | int  | object |
-    +-------+------+--------+
-    | 0     | 1    | one    |
-    +-------+------+--------+
-    | 1     | 2    | two    |
-    +-------+------+--------+
-    | 2     | 3    | one    |
-    +-------+------+--------+
-    | 3     | 4    | two    |
-    +-------+------+--------+
-
-
 We use a new data class to represent the structure of a ``group_by`` - we can
 think of it as a very primitive "abstract syntax tree".
 A ``group_by`` is completely defined by the grouping column names (in order) and
