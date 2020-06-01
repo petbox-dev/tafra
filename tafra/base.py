@@ -111,8 +111,7 @@ class Tafra:
         return self.__repr__()
 
     def __repr__(self) -> str:
-      return self._pretty_format(
-            lambda s: ' ' + pprint.pformat(s)[1:].strip())
+      return f'Tafra(data={self._data}, dtypes={self._dtypes}, rows={self._rows})'
 
     def _repr_pretty_(self, p: 'IPython.lib.pretty.RepresentationPrinter',  # type: ignore
                       cycle: bool) -> None:
@@ -604,7 +603,7 @@ class Tafra:
             from IPython.display import display  # type: ignore
             display(self[:min(self._rows, n)])
         else:
-            print(self[:min(self._rows, n)].pformat())
+            self[:min(self._rows, n)].pprint()
 
     def select(self, columns: Iterable[str]) -> 'Tafra':
         """
