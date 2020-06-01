@@ -2,6 +2,9 @@
 Tafra: "typing" with group-by
 =============================
 
+.. image:: https://img.shields.io/pypi/v/tafra.svg
+    :target: https://pypi.org/project/tafra/
+
 .. image:: https://travis-ci.org/petbox-dev/tafra.svg?branch=master
     :target: https://travis-ci.org/github/petbox-dev/tafra
 
