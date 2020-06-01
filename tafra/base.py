@@ -111,9 +111,9 @@ class Tafra:
         return self.__repr__()
 
     def __repr__(self) -> str:
-      return f'Tafra(data={self._data}, dtypes={self._dtypes}, rows={self._rows})'
+        return f'Tafra(data={self._data}, dtypes={self._dtypes}, rows={self._rows})'
 
-    def _repr_pretty_(self, p: 'IPython.lib.pretty.RepresentationPrinter',  # type: ignore
+    def _repr_pretty_(self, p: 'IPython.lib.pretty.RepresentationPrinter',  # type: ignore # noqa
                       cycle: bool) -> None:
         """
         A dunder method for IPython to pretty print.
@@ -168,7 +168,7 @@ class Tafra:
         ])
 
     def pformat(self, indent: int = 1, width: int = 80, depth: Optional[int] = None,
-               compact: bool = False) -> str:
+                compact: bool = False) -> str:
         """
         Format for pretty printing. Parameters are passed to :class:`pprint.PrettyPrinter`.
 
@@ -600,10 +600,14 @@ class Tafra:
             None: None
         """
         if _in_notebook():
-            from IPython.display import display  # type: ignore
-            display(self[:min(self._rows, n)])
-        else:
-            self[:min(self._rows, n)].pprint()
+            try:
+                from IPython.display import display  # type: ignore # noqa
+                display(self[:min(self._rows, n)])
+                return
+            except Exception as e:
+                pass
+
+        print(self[:min(self._rows, n)].pformat())
 
     def select(self, columns: Iterable[str]) -> 'Tafra':
         """
@@ -899,7 +903,7 @@ class Tafra:
         )
 
     def coalesce(self, column: str,
-                 fills: Iterable[Union[str, int, float, bool, np.ndarray]]) -> np.ndarray:
+                 fills: Iterable[Union[None, str, int, float, bool, np.ndarray]]) -> np.ndarray:
         """
         Fill ``None`` values from ``fills``. Analogous to ``SQL COALESCE`` or
         :meth:`pd.fillna`.
@@ -934,7 +938,7 @@ class Tafra:
                 pass
 
             try:
-                where_na |= value == None
+                where_na |= value == np.array([None])
             except:
                 pass
 
@@ -1149,7 +1153,7 @@ def _in_notebook() -> bool:
         from IPython import get_ipython  # type: ignore
         if 'IPKernelApp' in get_ipython().config:  # pragma: no cover
             return True
-    except ImportError as e:
+    except Exception as e:
         pass
     return False
 
