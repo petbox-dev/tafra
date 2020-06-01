@@ -37,6 +37,7 @@ Methods
 .. autosummary::
 
     from_dataframe
+    from_series
     as_tafra
     to_records
     to_list
@@ -49,14 +50,14 @@ Methods
     values
     items
     get
+    select
     update
     update_dtypes
     rename
-    delete
-    copy
     coalesce
+    copy
+    delete
     union
-    select
     pprint
     pformat
     to_html
@@ -91,6 +92,7 @@ Methods
 .. autoclass:: Tafra
 
     .. automethod:: from_dataframe
+    .. automethod:: from_series
     .. automethod:: as_tafra
     .. automethod:: to_records
     .. automethod:: to_list
@@ -103,14 +105,14 @@ Methods
     .. automethod:: values
     .. automethod:: items
     .. automethod:: get
+    .. automethod:: select
     .. automethod:: update
     .. automethod:: update_dtypes
     .. automethod:: rename
-    .. automethod:: delete
-    .. automethod:: copy
     .. automethod:: coalesce
+    .. automethod:: copy
+    .. automethod:: delete
     .. automethod:: union
-    .. automethod:: select
     .. automethod:: pprint
     .. automethod:: pformat
     .. automethod:: to_html

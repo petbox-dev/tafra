@@ -386,7 +386,7 @@ def test_invalid_assignment() -> None:
     o._data['x'] = np.arange(5)
 
     with pytest.raises(Exception) as e:
-        o.__post_init__()
+        o._update_rows()
 
     with pytest.raises(Exception) as e:
         t.update(o)

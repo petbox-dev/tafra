@@ -545,32 +545,42 @@ class CrossJoin(Join):
         """
         self._validate_dtypes(left_t, right_t)
 
-        join: Dict[str, List[Any]] = {column: list() for column in chain(
-            left_t._data.keys(),
-            right_t._data.keys()
-        ) if not self.select
-            or (self.select and column in self.select)}
+        # join: Dict[str, List[Any]] = {column: list() for column in chain(
+        #     left_t._data.keys(),
+        #     right_t._data.keys()
+        # ) if not self.select
+        #     or (self.select and column in self.select)}
 
-        dtypes: Dict[str, str] = {column: dtype for column, dtype in chain(
-            left_t._dtypes.items(),
-            right_t._dtypes.items()
-        ) if column in join.keys()}
+        # dtypes: Dict[str, str] = {column: dtype for column, dtype in chain(
+        #     left_t._dtypes.items(),
+        #     right_t._dtypes.items()
+        # ) if column in join.keys()}
 
-        right_count = right_t.rows
+        # right_rows = right_t.rows
 
-        for i in range(left_t.rows):
-            for column in join.keys():
-                if column in left_t._data:
-                    join[column].extend(max(1, right_count) * [left_t[column][i]])
+        # for i in range(left_t.rows):
+        #     for column in join.keys():
+        #         if column in left_t._data:
+        #             join[column].extend(max(1, right_rows) * [left_t[column][i]])
 
-                elif column in right_t._data:
-                    join[column].extend(right_t[column])
+        #         elif column in right_t._data:
+        #             join[column].extend(right_t[column])
 
-        return Tafra(
-            {column: np.array(value)
-             for column, value in join.items()},
-            dtypes
-        )
+        # return Tafra(
+        #     {column: np.array(value)
+        #      for column, value in join.items()},
+        #     dtypes
+        # )
+
+        left_rows = left_t.rows
+        right_rows = right_t.rows
+
+        left_new = Tafra({column: value for column, value in (left_t.col_map(np.tile, reps=6))})
+        right_new = Tafra({column: value for column, value in (right_t.col_map(np.tile, reps=6))})
+
+        left_new.update(right_new, inplace=True)
+
+        return left_new
 
 
 # Import here to resolve circular dependency
