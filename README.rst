@@ -215,18 +215,51 @@ Along the way, we'll add a couple of convenience properties to our tafra class.
     ..:    'y': np.array(['one', 'two', 'one', 'two'], dtype='object'),
     ..: })
 
-    >>> print('List: ', t.to_list())
-    List:            [array([1, 2, 3, 4]), array(['one', 'two', 'one', 'two'], dtype=object)]
+    >>> t.pformat()
+    Tafra(data = {
+     'x': array([1, 2, 3, 4]),
+     'y': array(['one', 'two', 'one', 'two'])},
+    dtypes = {
+     'x': 'int', 'y': 'object'},
+    rows = 4)
 
-    >>> print('Record: ', t.to_record())
-    Record:          ((1, 'one'), (2, 'two'), (3, 'one'), (4, 'two'))
+    >>> print('List:', '\n', t.to_list())
+    List:
+     [array([1, 2, 3, 4]), array(['one', 'two', 'one', 'two'], dtype=object)]
+
+    >>> print('Records:', '\n', tuple(t.to_records()))
+    Record:
+     ((1, 'one'), (2, 'two'), (3, 'one'), (4, 'two'))
 
     >>> gb = t.group_by(
     ..:     ['y'], {'x': sum}
     ..: )
 
-    >>> print('Group By: ', gb)
-    Group By:        Tafra(_data={'y': array(['two', 'one'], dtype=object), 'x': array([6, 4])})
+    >>> print('Group By:', '\n', gb.pformat())
+    Group By:
+    Tafra(data = {
+     'x': array([4, 6]), 'y': array(['one', 'two'])},
+    dtypes = {
+     'x': 'int', 'y': 'object'},
+    rows = 2)
+
+
+If we are in a Jupyter Notebook, we get an HTML representation:
+
+
+    +-------+------+--------+
+    |       | x    | y      |
+    +-------+------+--------+
+    | dtype | int  | object |
+    +-------+------+--------+
+    | 0     | 1    | one    |
+    +-------+------+--------+
+    | 1     | 2    | two    |
+    +-------+------+--------+
+    | 2     | 3    | one    |
+    +-------+------+--------+
+    | 3     | 4    | two    |
+    +-------+------+--------+
 
 
 We use a new data class to represent the structure of a ``group_by`` - we can

@@ -5,7 +5,6 @@ API Reference
 Summary
 =======
 
-
 Tafra
 -----
 
@@ -36,6 +35,7 @@ Methods
 .. currentmodule:: tafra.base.Tafra
 
 .. autosummary::
+
     from_dataframe
     as_tafra
     to_records
@@ -51,7 +51,6 @@ Methods
     get
     update
     update_dtypes
-    coalesce_dtypes
     rename
     delete
     copy
@@ -62,14 +61,31 @@ Methods
     to_html
 
 
+Helper Methods
+--------------
+
+.. currentmodule:: tafra.base.Tafra
+
+.. autosummary::
+
+    group_by
+    transform
+    iterate_by
+    inner_join
+    left_join
+    cross_join
+
+
 Detailed Reference
 ==================
-
 
 Tafra
 -----
 
 .. currentmodule:: tafra.base
+
+Methods
+~~~~~~~
 
 .. autoclass:: Tafra
 
@@ -88,7 +104,6 @@ Tafra
     .. automethod:: get
     .. automethod:: update
     .. automethod:: update_dtypes
-    .. automethod:: coalesce_dtypes
     .. automethod:: rename
     .. automethod:: delete
     .. automethod:: copy
@@ -96,13 +111,13 @@ Tafra
     .. automethod:: union
     .. automethod:: select
     .. automethod:: pprint
+    .. automethod:: pformat
     .. automethod:: to_html
 
+Helper Methods
+~~~~~~~~~~~~~~
 
-Wrapped Aggregations
-~~~~~~~~~~~~~~~~~~~~
-
-.. autoclass:: Tafra
+.. class:: tafra.base.Tafra
     :noindex:
 
     .. automethod:: group_by
