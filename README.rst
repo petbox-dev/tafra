@@ -40,7 +40,7 @@ and SQL-style "group by" and join operations.
 
 A short example:
 
-.. code-block:: shell
+.. code-block:: python
 
     >>> t = Tafra({
     ..:    'x': np.array([1, 2, 3, 4]),
