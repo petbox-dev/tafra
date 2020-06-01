@@ -11,4 +11,5 @@ pytest-cov>=2.9.0
 scipy>=1.4.1
 Sphinx>=3.0.4
 sphinx-rtd-theme>=0.4.3
+typing_extensions>=3.7.4.1
 wheel>=0.34.2
