@@ -2,6 +2,18 @@
 Tafra: "typing" with group-by
 =============================
 
+.. image:: https://travis-ci.org/petbox-dev/tafra.svg?branch=master
+    :target: https://travis-ci.org/github/petbox-dev/tafra
+
+.. image:: https://readthedocs.org/projects/petbox-dca/badge/?version=latest
+    :target: https://petbox-dca.readthedocs.io/en/latest/?badge=latest
+    :alt: Documentation Status
+
+.. image:: https://coveralls.io/repos/github/petbox-dev/dca/badge.svg
+    :target: https://coveralls.io/github/petbox-dev/dca
+    :alt: Coverage Status
+
+
 Let's discuss an interesting data structure we shall call a ``tafra``, because
 it's just the innards of a dataframe. A ``tafra`` (plural: ``tafrae``) consists of
 an ordered list of homogeneous vectors, all of the same length.
