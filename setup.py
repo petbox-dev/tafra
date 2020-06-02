@@ -60,6 +60,8 @@ def get_long_description() -> str:
     return readme + '\n\n' + version_history
 
 if sys.argv[-1] == 'build':
+    print(f'\nBuilding version {__version__}...\n')
+    os.system('rm -r dist\\')  # clean out dist/
     os.system('python setup.py sdist bdist_wheel')
     sys.exit()
 
