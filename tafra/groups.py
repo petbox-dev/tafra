@@ -50,9 +50,96 @@ GroupDescription = Tuple[
     'Tafra'  # sub-tafra for the group
 ]
 
+class Union_:
+    """
+    Union two :class:`Tafra` together. Analogy to SQL UNION or
+    `pandas.append`. All column names and dtypes must match.
+    """
+    @staticmethod
+    def _validate(left: 'Tafra', right: 'Tafra') -> None:
+        # These should be unreachable unless attributes were directly modified
+        if len(left._data) != len(left._dtypes):
+            assert 0, 'This `Tafra` length of data and dtypes do not match'
+        if len(right._data) != len(right._dtypes):
+            assert 0, 'right `Tafra` length of data and dtypes do not match'
+
+        # ensure same number of columns
+        if len(left._data) != len(right._data) or len(left._dtypes) != len(right._dtypes):
+            raise ValueError(
+                'This `Tafra` column count does not match right `Tafra` column count.')
+
+        # ensure all columns in this `Tafra` exist in right `Tafra`
+        # if len() is same AND all columns in this exist in right,
+        # do not need to check right `Tafra` columns in this `Tafra`.
+        for (data_column, value), (dtype_column, dtype) \
+                in zip(left._data.items(), left._dtypes.items()):
+
+            if data_column not in right._data or dtype_column not in right._dtypes:
+                raise TypeError(
+                    f'This `Tafra` column `{data_column}` does not exist in right `Tafra`.')
+
+            elif value.dtype != right._data[data_column].dtype:
+                raise TypeError(
+                    f'This `Tafra` column `{data_column}` dtype `{value.dtype}` '
+                    f'does not match right `Tafra` dtype `{right._data[data_column].dtype}`.')
+
+            # should not happen unless dtypes manually changed, but let's check it
+            elif dtype != right._dtypes[dtype_column]:
+                raise TypeError(
+                    f'This `Tafra` column `{data_column}` dtype `{dtype}` '
+                    f'does not match right `Tafra` dtype `{right._dtypes[dtype_column]}`.')
+
+    def apply(self, left: 'Tafra', right: 'Tafra') -> 'Tafra':
+        """
+        Apply the :class:`Union_` to the :class:`Tafra`.
+
+        Parameters
+        ----------
+            left: Tafra
+                The left :class:`Tafra` to union.
+
+            right: Tafra
+                The right :class:`Tafra` to union.
+
+        Returns
+        -------
+            tafra: Tafra
+                The unioned :class`Tafra`.
+        """
+        self._validate(left, right)
+
+        return Tafra(
+            {column: np.append(value, right._data[column]) for column, value in left._data.items()},
+            left._dtypes
+        )
+
+    def apply_inplace(self, left: 'Tafra', right: 'Tafra') -> None:
+        """
+        In-place version.
+
+        Apply the :class:`Union_` to the :class:`Tafra`.
+
+        Parameters
+        ----------
+            left: Tafra
+                The left :class:`Tafra` to union.
+
+            right: Tafra
+                The right :class:`Tafra` to union.
+
+        Returns
+        -------
+            tafra: Tafra
+                The unioned :class`Tafra`.
+        """
+        self._validate(left, right)
+
+        for column, value in left._data.items():
+            left._data[column] = np.append(value, right._data[column])
+        left._update_rows()
 
 @dc.dataclass
-class GroupSet():
+class GroupSet:
     """
     A `GroupSet` is the set of columns by which we construct our groups.
     """

@@ -1324,86 +1324,17 @@ class Tafra:
         for column, value in self.itercols():
             yield fn(value, *args, **kwargs)
 
-    def _union(self, other: 'Tafra') -> bool:
-        # These should be unreachable unless attributes were directly modified
-        if len(self._data) != len(self._dtypes):
-            assert 0, 'This `Tafra` length of data and dtypes do not match'
-        if len(other._data) != len(other._dtypes):
-            assert 0, 'Other `Tafra` length of data and dtypes do not match'
-
-        # ensure same number of columns
-        if len(self._data) != len(other._data) or len(self._dtypes) != len(other._dtypes):
-            raise ValueError(
-                'This `Tafra` column count does not match other `Tafra` column count.')
-
-        # ensure all columns in this `Tafra` exist in other `Tafra`
-        # if len() is same AND all columns in this exist in other,
-        # do not need to check other `Tafra` columns in this `Tafra`.
-        for (data_column, value), (dtype_column, dtype) \
-                in zip(self._data.items(), self._dtypes.items()):
-
-            if data_column not in other._data or dtype_column not in other._dtypes:
-                raise TypeError(
-                    f'This `Tafra` column `{data_column}` does not exist in other `Tafra`.')
-
-            elif value.dtype != other._data[data_column].dtype:
-                raise TypeError(
-                    f'This `Tafra` column `{data_column}` dtype `{value.dtype}` '
-                    f'does not match other `Tafra` dtype `{other._data[data_column].dtype}`.')
-
-            # should not happen unless dtypes manually changed, but let's check it
-            elif dtype != other._dtypes[dtype_column]:
-                raise TypeError(
-                    f'This `Tafra` column `{data_column}` dtype `{dtype}` '
-                    f'does not match other `Tafra` dtype `{other._dtypes[dtype_column]}`.')
-
-        return True
-
     def union(self, other: 'Tafra') -> 'Tafra':
         """
-        Union two :class:`Tafra` together. Analogy to SQL UNION or
-        `pandas.append`. All column names and dtypes must match.
-
-        Parameters
-        ----------
-            other: Tafra
-                The other :class:`Tafra` to union.
-
-        Returns
-        -------
-            tafra: Tafra
-                The unioned :class`Tafra`.
+        Helper function to implement :class:`tafra.groups.LeftJoin`.
         """
-        assert self._union(other), 'Error in validation for `union()`.'
-
-        # np.append is not done inplace
-        return Tafra(
-            {column: np.append(value, other._data[column]) for column, value in self._data.items()},
-            self._dtypes
-        )
+        return Union_().apply(self, other)
 
     def union_inplace(self, other: 'Tafra') -> None:
         """
-        In-place version
-
-        Union two :class:`Tafra` together. Analogy to SQL UNION or
-        `pandas.append`. All column names and dtypes must match.
-
-        Parameters
-        ----------
-            other: Tafra
-                The other :class:`Tafra` to union.
-
-        Returns
-        -------
-            tafra: Tafra
-                The unioned :class`Tafra`.
+        Helper function to implement :class:`tafra.groups.LeftJoin`.
         """
-        assert self._union(other), 'Error in validation for `union()`.'
-
-        for column, value in self._data.items():
-            self._data[column] = np.append(value, other._data[column])
-        self._update_rows()
+        Union_().apply_inplace(self, other)
 
     @staticmethod
     def _cast_record(dtype: str, data: np.ndarray, cast_null: bool) -> Optional[float]:
@@ -1577,7 +1508,7 @@ def _in_notebook() -> bool:  # pragma: no cover
     return False
 
 # Import here to resolve circular dependency
-from .groups import (GroupBy, Transform, IterateBy, InnerJoin, LeftJoin, CrossJoin,
+from .groups import (GroupBy, Transform, IterateBy, InnerJoin, LeftJoin, CrossJoin, Union_,
                      InitAggregation, GroupDescription)
 
 Tafra.group_by.__doc__ += GroupBy.__doc__  # type: ignore

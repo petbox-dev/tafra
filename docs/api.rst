@@ -18,15 +18,17 @@ Tafra
 Aggregations
 ------------
 
-.. currentmodule:: tafra.groups
+.. currentmodule:: tafra
 
 .. autosummary::
 
-    GroupBy
-    Transform
-    IterateBy
-    InnerJoin
-    LeftJoin
+    base.union
+    groups.GroupBy
+    groups.Transform
+    groups.IterateBy
+    groups.InnerJoin
+    groups.LeftJoin
+    groups.CrossJoin
 
 
 Methods
