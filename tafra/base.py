@@ -901,7 +901,6 @@ class Tafra:
     def shape(self, value: Any) -> None:
         raise ValueError('Assignment to `shape` is forbidden.')
 
-
     def row_map(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Iterator[Any]:
         """
         Map a function over rows. To apply to specific columns, use
@@ -958,7 +957,6 @@ class Tafra:
 
         for column, value in self.itercols():
             yield fn(value, *args, **kwargs)
-
 
     def head(self, n: int = 5) -> None:  # pragma: no cover
         """
