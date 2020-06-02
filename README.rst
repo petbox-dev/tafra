@@ -38,28 +38,67 @@ support for managing data types, iterators for rows and sub-frames,
 `pandas`-like "transform" support and conversion from `pandas` Dataframes,
 and SQL-style "group by" and join operations.
 
-+------------------------+---------------------------------------------------------------------------------------------------------------------------------+
-| Tafra                  | `Tafra <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra>`_,                                                    |
-+------------------------+---------------------------------------------------------------------------------------------------------------------------------+
-| Aggregations           | `Union <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.Union>`_,                                                  |
-|                        | `GroupBy <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.GroupBy>`_,                                              |
-|                        | `Transform <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.Transform>`_,                                          |
-|                        | `IterateBy <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.Iteratebt>`_,                                          |
-|                        | `InnerJoin <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.InnerJoin>`_,                                          |
-|                        | `LeftJoin <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.LeftJoin>`_                                             |
-+------------------------+---------------------------------------------------------------------------------------------------------------------------------+
-| Primary Phase          | `add_secondary <https://tafra.readthedocs.io/en/latest/api.html#tafra.PrimaryPhase.add_secondary>`_,                       |
-|                        | `add_water <https://tafra.readthedocs.io/en/latest/api.html#tafra.PrimaryPhase.add_water>`_                                |
-+------------------------+---------------------------------------------------------------------------------------------------------------------------------+
-| Secondary Phase        | `gor <https://tafra.readthedocs.io/en/latest/api.html#tafra.SecondaryPhase.gor>`_,                                      |
-|                        | `cgr <https://tafra.readthedocs.io/en/latest/api.html#tafra.SecondaryPhase.cgr>`_                                       |
-+------------------------+---------------------------------------------------------------------------------------------------------------------------------+
-| Water Phase            | `wor <https://tafra.readthedocs.io/en/latest/api.html#tafra.WaterPhase.wor>`_                                           |
-+------------------------+---------------------------------------------------------------------------------------------------------------------------------+
-| Utility                | `bourdet <https://tafra.readthedocs.io/en/latest/api.html#tafra.bourdet>`_,                                                |
-|                        | `get_time <https://tafra.readthedocs.io/en/latest/api.html#tafra.get_time>`_,                                              |
-|                        | `get_time_monthly_vol <https://tafra.readthedocs.io/en/latest/api.html#tafra.get_time_monthly_vol>`_                       |
-+------------------------+---------------------------------------------------------------------------------------------------------------------------------+
++----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
+| Tafra                      | `Tafra <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra>`_                                                 |
++----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
+| Aggregations               | `Union <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.Union>`_,                                              |
+|                            | `GroupBy <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.GroupBy>`_,                                          |
+|                            | `Transform <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.Transform>`_,                                      |
+|                            | `IterateBy <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.IterateBy>`_,                                      |
+|                            | `InnerJoin <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.InnerJoin>`_,                                      |
+|                            | `LeftJoin <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.LeftJoin>`_,                                        |
+|                            | `CrossJoin <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.CrossJoin>`_                                       |
++----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
+| Aggregation Helpers        | `union <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.union>`__,                                         |
+|                            | `union_inplace <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.union_inplace>`_,                          |
+|                            | `group_by <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.group_by>`_,                                    |
+|                            | `transform <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.transform>`__,                                 |
+|                            | `iterate_by <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.iterate_by>`_,                                |
+|                            | `inner_join <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.inner_join>`_,                                |
+|                            | `left_join <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.left_join>`_,                                  |
+|                            | `cross_join <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.cross_join>`_                                 |
++----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
+| Constructors               | `as_tafra <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.as_tafra>`_,                                    |
+|                            | `from_dataframe <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.from_dataframe>`_,                        |
+|                            | `from_series <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.from_series>`_                               |
++----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
+| Destructors                | `to_records <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.to_records>`_,                                |
+|                            | `to_list <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.to_list>`_,                                      |
+|                            | `to_array <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.to_array>`_                                     |
++----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
+| Properties                 | `rows <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.rows>`_,                                            |
+|                            | `columns <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.columns>`_,                                      |
+|                            | `data <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.data>`_,                                            |
+|                            | `dtypes <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.dtypes>`_,                                        |
+|                            | `size <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.size>`_,                                            |
+|                            | `ndim <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.ndim>`_,                                            |
+|                            | `shape <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.shape>`_                                           |
++----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
+| Iter Methods               | `iterrows <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.iterrows>`_,                                    |
+|                            | `itertuples <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.itertuples>`_,                                |
+|                            | `itercols <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.itercols>`_                                     |
++----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
+| Dict-like Methods          | `keys <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.keys>`_,                                            |
+|                            | `values <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.values>`_,                                        |
+|                            | `items <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.items>`_,                                          |
+|                            | `get <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.get>`_,                                              |
+|                            | `update <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.update>`_,                                        |
+|                            | `update_inplace <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.update_inplace>`_,                        |
+|                            | `update_dtypes <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.update_dtypes>`_,                          |
+|                            | `update_dtypes_inplace <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.update_dtypes_inplace>`_           |
++----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
+| Other Helper Methods       | `rename <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.rename>`_,                                        |
+|                            | `rename_inplace <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.rename_inplace>`_,                        |
+|                            | `coalesce <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.coalesce>`_,                                    |
+|                            | `coalesce_inplace <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.coalesce_inplace>`_,                    |
+|                            | `_coalesce_dtypes <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra._coalesce_dtypes>`_,                    |
+|                            | `delete <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.delete>`_,                                        |
+|                            | `delete_inplace <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.delete_inplace>`_                         |
++----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
+| Printer Methods            | `pprint <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.pprint>`_,                                        |
+|                            | `pformat <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.pformat>`_,                                      |
+|                            | `to_html <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.to_html>`_                                       |
++----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
 
 Getting Started
 ===============
@@ -145,9 +184,9 @@ most important aspects is fast access to the data itself. By minizing
 abstraction to access the underlying ``numpy`` arrays, ``tafra`` provides
 over an order of magnitude increase in performance.
 
-Import note: if you assign directly to the ``Tafra.data`` or ``Tafra._data``
-attributes, you *must* call ``Tafra._coalesce_dtypes`` afterwards in order
-to ensure the typing is consistent.
+-   **Import note** If you assign directly to the ``Tafra.data`` or
+    ``Tafra._data`` attributes, you *must* call ``Tafra._coalesce_dtypes``
+    afterwards in order to ensure the typing is consistent.
 
 Construct a ``Tafra`` and a ``DataFrame``:
 
