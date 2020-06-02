@@ -74,12 +74,17 @@ class Tafra:
     """
 
     Scalar = Union[str, int, float, bool]
-
+    _Mapping = Union[
+        Mapping[str, Any],
+        Mapping[int, Any],
+        Mapping[float, Any],
+        Mapping[bool, Any],
+    ]
     InitVar = Union[
         Tuple[Scalar, Any],
-        Mapping[Scalar, Any],
+        _Mapping,
         Iterator[Tuple[Scalar, Any]],
-        Iterator[Mapping[Scalar, Any]]
+        Iterator[_Mapping]
     ]
 
     data: dc.InitVar[InitVar]
@@ -122,31 +127,34 @@ class Tafra:
 
         self._update_rows()
         self._coalesce_dtypes()
-        self.update_dtypes(self._dtypes)
+        self.update_dtypes_inplace(self._dtypes)
 
     def _check_initvar(self, values: InitVar) -> Dict[str, Union[str, np.ndarray]]:
         if isinstance(values, Iterator):
             head = next(values)
-            if isinstance(head, Mapping):
-                values = {column: values for column, values in chain(
-                    [head],
-                    cast(Iterator[Tuple[str, Any]], values))}
+            if isinstance(head, Dict):
+                for _dict in values:
+                    head.update(cast(Mapping[Any, Any], _dict))
+                _values = head
             elif isinstance(head, Sequence) and len(head) == 2:
                 # maybe an iterator of mapping? Cast and try it.
-                values = dict(chain(
+                _values = dict(chain(
                     cast(Iterable[Tuple[str, Any]], [head]),
                     cast(Iterator[Tuple[str, Any]], values)))
+        else:
+            _values = cast(Dict[str, Union[str, np.ndarray]], values)
 
-        if not isinstance(values, Mapping):
-            raise TypeError(f'Must supply a `Dict` or `Mapping`, got `{type(values)}`')
+        if not isinstance(_values, Dict):
+            raise TypeError(f'Must supply a `Dict` or `Mapping`, got `{type(_values)}`')
 
-        for column in values.keys():
+        for column in _values.keys():
             if not isinstance(column, str):
-                values[str(column)] = values.pop(column)  # type: ignore
+                _values[str(column)] = _values.pop(column)
 
-        return cast(Dict[str, Union[str, np.ndarray]], values)
+        return _values
 
-    def __getitem__(self, item: Union[str, int, slice, List[int], List[bool], np.ndarray]) -> Any:
+    def __getitem__(self, item: Union[str, int, slice, Sequence[Union[str, int, bool]],
+                                      np.ndarray]) -> Any:
         # return type is actually Union[np.ndarray, 'Tafra'] but mypy goes insane
         if isinstance(item, str):
             return self._data[item]
@@ -157,8 +165,11 @@ class Tafra:
         elif isinstance(item, slice):
             return self._slice(item)
 
-        elif isinstance(item, Iterable) or isinstance(item, np.ndarray):
+        elif isinstance(item, Sequence):
             return self._index(item)
+
+        elif isinstance(item, np.ndarray):
+            return self._ndindex(item)
 
         else:
             raise TypeError(f'Type {type(item)} not supported.')
@@ -169,8 +180,7 @@ class Tafra:
         self._dtypes[item] = self._format_type(_value.dtype)
 
     def __len__(self) -> int:
-        if not self._data:
-            return 0
+        assert self._data is not None, 'Cannot construct a Tafra with no data.'
         return self._rows
 
     def __iter__(self) -> Iterator['Tafra']:
@@ -224,34 +234,53 @@ class Tafra:
                 for column, value in self._dtypes.items()}
         )
 
-    def _index(self, index: Union[Iterable[Union[str, int, bool]], np.ndarray]) -> 'Tafra':
+    def _index(self, index: Sequence[Union[str, int, bool]]) -> 'Tafra':
         """
         Use numpy indexing to slice the data :class:`np.ndarray`.
 
         Parameters
         ----------
-            index: Union[Sequence[int], np.ndarray]
+            index: Sequence[Union[str, int, bool]]
 
         """
-        if isinstance(index, Iterable):
+        head = index[0]
+
+        if isinstance(head, str):
             if all(isinstance(item, str) for item in index):
-                return self.select(cast(Iterable[str], index))
+                return self.select(cast(Sequence[str], index))
+            else:
+                raise IndexError('Index `Sequence` does not contain all `str`.')
 
-            if not(all(isinstance(item, int) for item in index)
-                    or all(isinstance(item, bool) for item in index)):
-                raise IndexError('Index list of type `list` does not contain all `int` or `bool`.')
+        elif (isinstance(head, bool)
+                and not(all(isinstance(item, bool) for item in index))):
+            raise IndexError('Index `Sequence` does not contain all `bool`.')
 
-        elif isinstance(index, np.ndarray):
-            index = cast(np.ndarray, index)
-            if not (index.dtype == np.int or index.dtype == np.bool):
-                raise IndexError(
-                    f'Index array is of dtype={index.dtype}, '
-                    'must subtype of `np.int` or `np.bool`.')
-            elif index.ndim != 1:
-                raise IndexError(f'Indexing np.ndarray must ndim == 1, got ndim == {index.ndim}')
+        elif (isinstance(head, int)   # type: ignore
+                and not(all(isinstance(item, int) for item in index))):
+            raise IndexError('Index `Sequence` does not contain all `int`.')
 
-        else:
-            raise TypeError(f'Unsupported index type `{type(index).__name__}`.')
+        return Tafra(
+            {column: value[index]
+                for column, value in self._data.items()},
+            {column: value
+                for column, value in self._dtypes.items()}
+        )
+
+    def _ndindex(self, index: np.ndarray) -> 'Tafra':
+        """
+        Use :class:`numpy.ndarray` indexing to slice the data :class:`np.ndarray`.
+
+        Parameters
+        ----------
+            index: np.ndarray
+
+        """
+        if not (index.dtype == np.int or index.dtype == np.bool):
+            raise IndexError(
+                f'Index array is of dtype={index.dtype}, '
+                'must subtype of `np.int` or `np.bool`.')
+        elif index.ndim != 1:
+            raise IndexError(f'Indexing np.ndarray must ndim == 1, got ndim == {index.ndim}')
 
         return Tafra(
             {column: value[index]
@@ -944,7 +973,35 @@ class Tafra:
         """
         return self._data.get(key, default)
 
-    def update(self, other: 'Tafra') -> None:
+    def update(self, other: 'Tafra') -> 'Tafra':
+        """
+        Update the data and dtypes of this :class:`Tafra` with another
+        :class:`Tafra`. Length of rows must match, while data of different
+        ``dtype`` will overwrite.
+
+        Parameters
+        ----------
+            other: Tafra
+                The other :class:`Tafra` from which to update.
+
+        Returns
+        -------
+            None: None
+        """
+        tafra = self.copy()
+        rows = tafra._rows
+
+        for column, value in other._data.items():
+            if len(value) != rows:
+                raise ValueError(
+                    'Other `Tafra` must have consistent row count. '
+                    f'This `Tafra` has {rows} rows, other `Tafra` has {len(value)} rows.')
+            tafra._data[column] = value
+
+        tafra.update_dtypes_inplace(other._dtypes)
+        return tafra
+
+    def update_inplace(self, other: 'Tafra') -> None:
         """
         Update the data and dtypes of this :class:`Tafra` with another
         :class:`Tafra`. Length of rows must match, while data of different
@@ -960,6 +1017,7 @@ class Tafra:
             None: None
         """
         rows = self._rows
+
         for column, value in other._data.items():
             if len(value) != rows:
                 raise ValueError(
@@ -967,7 +1025,7 @@ class Tafra:
                     f'This `Tafra` has {rows} rows, other `Tafra` has {len(value)} rows.')
             self._data[column] = value
 
-        self.update_dtypes(other._dtypes)
+        self.update_dtypes_inplace(other._dtypes)
 
     def _coalesce_dtypes(self) -> None:
         """
@@ -981,7 +1039,7 @@ class Tafra:
             if column not in self._dtypes:
                 self._dtypes[column] = self._format_type(self._data[column].dtype)
 
-    def update_dtypes(self, dtypes: Dict[str, Any], inplace: bool = True) -> Optional['Tafra']:
+    def update_dtypes(self, dtypes: Dict[str, Any]) -> 'Tafra':
         """
         Apply new dtypes.
 
@@ -991,33 +1049,47 @@ class Tafra:
                 The dtypes to update. If ``None``, create from entries in
                 :attr:`data`.
 
-            inplace: bool = True
-                Perform the operation in place. Otherwise, return a copy.
+        Returns
+        -------
+            tafra: Optional[Tafra]
+                The updated :class:`Tafra`.
+        """
+        tafra = self.copy()
+
+        tafra._validate_columns(dtypes.keys())
+        dtypes = tafra._validate_dtypes(dtypes)
+        tafra._dtypes.update(dtypes)
+
+        for column in tafra._dtypes.keys():
+            if tafra._format_type(tafra._data[column].dtype) != tafra._dtypes[column]:
+                tafra._data[column] = tafra._apply_type(tafra._dtypes[column], tafra._data[column])
+
+        return tafra
+
+    def update_dtypes_inplace(self, dtypes: Dict[str, Any]) -> None:
+        """
+        Apply new dtypes.
+
+        Parameters
+        ----------
+            dtypes: Dict[str, Any]
+                The dtypes to update. If ``None``, create from entries in
+                :attr:`data`.
 
         Returns
         -------
             tafra: Optional[Tafra]
                 The updated :class:`Tafra`.
         """
-        if inplace:
-            tf = self
-        else:
-            tf = self.copy()
+        self._validate_columns(dtypes.keys())
+        dtypes = self._validate_dtypes(dtypes)
+        self._dtypes.update(dtypes)
 
-        tf._validate_columns(dtypes.keys())
-        dtypes = tf._validate_dtypes(dtypes)
-        tf._dtypes.update(dtypes)
+        for column in self._dtypes.keys():
+            if self._format_type(self._data[column].dtype) != self._dtypes[column]:
+                self._data[column] = self._apply_type(self._dtypes[column], self._data[column])
 
-        for column in tf._dtypes.keys():
-            if tf._format_type(tf._data[column].dtype) != tf._dtypes[column]:
-                tf._data[column] = tf._apply_type(tf._dtypes[column], tf._data[column])
-
-        if inplace:
-            return None
-        else:
-            return tf
-
-    def rename(self, renames: Dict[str, str], inplace: bool = True) -> Optional['Tafra']:
+    def rename(self, renames: Dict[str, str]) -> 'Tafra':
         """
         Rename columns in the :class:`Tafra` from a :class:`dict`.
 
@@ -1026,8 +1098,27 @@ class Tafra:
             renames: Dict[str, str]
                 The map from current names to new names.
 
-            inplace: bool = True
-                Perform the operation in place.
+        Returns
+        -------
+            tafra: Optional[Tafra]
+                The :class:`Tafra` with update names.
+        """
+
+        tafra = self.copy()
+        for cur, new in renames.items():
+            tafra._data[new] = tafra._data.pop(cur)
+        return tafra
+
+    def rename_inplace(self, renames: Dict[str, str]) -> None:
+        """
+        In-place version.
+
+        Rename columns in the :class:`Tafra` from a :class:`dict`.
+
+        Parameters
+        ----------
+            renames: Dict[str, str]
+                The map from current names to new names.
 
         Returns
         -------
@@ -1036,17 +1127,11 @@ class Tafra:
         """
         self._validate_columns(renames.keys())
 
-        if inplace:
-            for cur, new in renames.items():
-                self._data[new] = self._data.pop(cur)
-            return None
-        else:
-            tafra = self.copy()
-            for cur, new in renames.items():
-                tafra._data[new] = tafra._data.pop(cur)
-            return tafra
+        for cur, new in renames.items():
+            self._data[new] = self._data.pop(cur)
+        return None
 
-    def delete(self, columns: Iterable[str], inplace: bool = True) -> Optional['Tafra']:
+    def delete(self, columns: Iterable[str]) -> 'Tafra':
         """
         Remove a column from :attr:`data` and :attr:`dtypes`.
 
@@ -1054,9 +1139,6 @@ class Tafra:
         ----------
             column: str
                 The column to remove.
-
-            inplace: bool = True
-                Perform the operation in place.
 
         Returns
         -------
@@ -1068,18 +1150,37 @@ class Tafra:
 
         self._validate_columns(columns)
 
-        if inplace:
-            for column in columns:
-                _ = self._data.pop(column, None)
-                _ = self._dtypes.pop(column, None)
-            return None
-
         return Tafra(
             {column: value.copy()
                 for column, value in self._data.items() if column not in columns},
             {column: value
                 for column, value in self._dtypes.items() if column not in columns}
         )
+
+    def delete_inplace(self, columns: Iterable[str]) -> None:
+        """
+        In-place version.
+
+        Remove a column from :attr:`data` and :attr:`dtypes`.
+
+        Parameters
+        ----------
+            column: str
+                The column to remove.
+
+        Returns
+        -------
+            tafra: Optional[Tafra]
+                The :class:`Tafra` with the deleted column.
+        """
+        if isinstance(columns, str):
+            columns = [columns]
+
+        self._validate_columns(columns)
+
+        for column in columns:
+            _ = self._data.pop(column, None)
+            _ = self._dtypes.pop(column, None)
 
     def copy(self, order: str = 'C') -> 'Tafra':
         """
@@ -1106,8 +1207,7 @@ class Tafra:
         )
 
     def coalesce(self, column: str,
-                 fills: Iterable[Union[None, str, int, float, bool, np.ndarray]],
-                 inplace: bool = False) -> Optional[np.ndarray]:
+                 fills: Iterable[Union[None, str, int, float, bool, np.ndarray]]) -> np.ndarray:
         """
         Fill ``None`` values from ``fills``. Analogous to ``SQL COALESCE`` or
         :meth:`pd.fillna`.
@@ -1149,11 +1249,29 @@ class Tafra:
                 else:
                     value[where_na] = f[where_na]
 
-        if inplace:
-            self._data[column] = value
-            return None
-
         return value
+
+    def coalesce_inplace(self, column: str,
+                         fills: Iterable[Union[None, str, int, float, bool, np.ndarray]]) -> None:
+        """
+        In-place version.
+
+        Fill ``None`` values from ``fills``. Analogous to ``SQL COALESCE`` or
+        :meth:`pd.fillna`.
+
+        Parameters
+        ----------
+            column: str
+                The column to coalesce.
+
+            fills: Iterable[Union[str, int, float, bool, np.ndarray]:
+
+        Returns
+        -------
+            data: np.ndarray
+                The coalesced data.
+        """
+        self._data[column] = self.coalesce(column, fills)
 
     def row_map(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Iterator[Any]:
         """
@@ -1206,24 +1324,7 @@ class Tafra:
         for column, value in self.itercols():
             yield fn(value, *args, **kwargs)
 
-    def union(self, other: 'Tafra', inplace: bool = False) -> Optional['Tafra']:
-        """
-        Union two :class:`Tafra` together. Analogy to SQL UNION or
-        `pandas.append`. All column names and dtypes must match.
-
-        Parameters
-        ----------
-            other: Tafra
-                The other :class:`Tafra` to union.
-
-            inplace: bool = False
-                Perform the operation in place.
-
-        Returns
-        -------
-            tafra: Tafra
-                The unioned :class`Tafra`.
-        """
+    def _union(self, other: 'Tafra') -> bool:
         # These should be unreachable unless attributes were directly modified
         if len(self._data) != len(self._dtypes):
             assert 0, 'This `Tafra` length of data and dtypes do not match'
@@ -1256,17 +1357,53 @@ class Tafra:
                     f'This `Tafra` column `{data_column}` dtype `{dtype}` '
                     f'does not match other `Tafra` dtype `{other._dtypes[dtype_column]}`.')
 
-        if inplace:
-            for column, value in self._data.items():
-                self._data[column] = np.append(value, other._data[column])
-            self._update_rows()
-            return None
+        return True
+
+    def union(self, other: 'Tafra') -> 'Tafra':
+        """
+        Union two :class:`Tafra` together. Analogy to SQL UNION or
+        `pandas.append`. All column names and dtypes must match.
+
+        Parameters
+        ----------
+            other: Tafra
+                The other :class:`Tafra` to union.
+
+        Returns
+        -------
+            tafra: Tafra
+                The unioned :class`Tafra`.
+        """
+        assert self._union(other), 'Error in validation for `union()`.'
 
         # np.append is not done inplace
         return Tafra(
             {column: np.append(value, other._data[column]) for column, value in self._data.items()},
             self._dtypes
         )
+
+    def union_inplace(self, other: 'Tafra') -> None:
+        """
+        In-place version
+
+        Union two :class:`Tafra` together. Analogy to SQL UNION or
+        `pandas.append`. All column names and dtypes must match.
+
+        Parameters
+        ----------
+            other: Tafra
+                The other :class:`Tafra` to union.
+
+        Returns
+        -------
+            tafra: Tafra
+                The unioned :class`Tafra`.
+        """
+        assert self._union(other), 'Error in validation for `union()`.'
+
+        for column, value in self._data.items():
+            self._data[column] = np.append(value, other._data[column])
+        self._update_rows()
 
     @staticmethod
     def _cast_record(dtype: str, data: np.ndarray, cast_null: bool) -> Optional[float]:
@@ -1382,70 +1519,46 @@ class Tafra:
                 columns = [columns]
             return np.array(list(self._data[c] for c in columns)).T
 
-    def group_by(self, group_by: Iterable[str], aggregation: 'InitAggregation' = {},
+    def group_by(self, group_by: Sequence[str], aggregation: 'InitAggregation' = {},
                  iter_fn: Mapping[str, Callable[[np.ndarray], Any]] = dict()) -> 'Tafra':
         """
         Helper function to implement :class:`tafra.groups.GroupBy`.
         """
         return GroupBy(group_by, aggregation, iter_fn).apply(self)
 
-    def transform(self, group_by: Iterable[str], aggregation: 'InitAggregation' = {},
+    def transform(self, group_by: Sequence[str], aggregation: 'InitAggregation' = {},
                   iter_fn: Dict[str, Callable[[np.ndarray], Any]] = dict()) -> 'Tafra':
         """
         Helper function to implement :class:`tafra.groups.Transform`.
         """
         return Transform(group_by, aggregation, iter_fn).apply(self)
 
-    def iterate_by(self, group_by: Iterable[str]) -> Iterator['GroupDescription']:
+    def iterate_by(self, group_by: Sequence[str]) -> Iterator['GroupDescription']:
         """
         Helper function to implement :class:`tafra.groups.IterateBy`.
         """
         yield from IterateBy(group_by).apply(self)
 
-    def inner_join(self, right: 'Tafra', on: Iterable[Tuple[str, str, str]],
-                   select: Iterable[str] = list()) -> 'Tafra':
+    def inner_join(self, right: 'Tafra', on: Sequence[Tuple[str, str, str]],
+                   select: Sequence[str] = list()) -> 'Tafra':
         """
         Helper function to implement :class:`tafra.groups.InnerJoin`.
         """
         return InnerJoin(on, select).apply(self, right)
 
-    def left_join(self, right: 'Tafra', on: Iterable[Tuple[str, str, str]],
-                  select: Iterable[str] = list()) -> 'Tafra':
+    def left_join(self, right: 'Tafra', on: Sequence[Tuple[str, str, str]],
+                  select: Sequence[str] = list()) -> 'Tafra':
         """
         Helper function to implement :class:`tafra.groups.LeftJoin`.
         """
         return LeftJoin(on, select).apply(self, right)
 
     def cross_join(self, right: 'Tafra',
-                   select: Iterable[str] = list()) -> 'Tafra':
+                   select: Sequence[str] = list()) -> 'Tafra':
         """
         Helper function to implement :class:`tafra.groups.CrossJoin`.
         """
         return CrossJoin([], select).apply(self, right)
-
-
-def union(left: Tafra, right: Tafra) -> Tafra:
-    """
-    Union two :class:`Tafra` together. Analogy to SQL UNION or
-    `pandas.append`. All column names and dtypes must match.
-
-    Functional wrapper around :meth:`Tafra.union`
-
-    Parameters
-    ----------
-        left: Tafra
-            The left :class:`Tafra` to union.
-
-        right: Tafra
-            The right :class:`Tafra` to union.
-
-    Returns
-    -------
-        tafra: Tafra
-            The unioned :class`Tafra`.
-    """
-    return cast(Tafra, left.union(right))
-
 
 def _in_notebook() -> bool:  # pragma: no cover
     """

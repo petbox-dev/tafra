@@ -51,13 +51,19 @@ Methods
     items
     get
     select
-    update
-    update_dtypes
-    rename
-    coalesce
     copy
+    update
+    update_inplace
+    update_dtypes
+    update_dtypes_inplace
+    rename
+    rename_inplace
+    coalesce
+    coalesce_inplace
     delete
+    delete_inplace
     union
+    union_inplace
     pprint
     pformat
     to_html
@@ -106,13 +112,19 @@ Methods
     .. automethod:: items
     .. automethod:: get
     .. automethod:: select
-    .. automethod:: update
-    .. automethod:: update_dtypes
-    .. automethod:: rename
-    .. automethod:: coalesce
     .. automethod:: copy
+    .. automethod:: update
+    .. automethod:: update_inplace
+    .. automethod:: update_dtypes
+    .. automethod:: update_dtypes_inplace
+    .. automethod:: rename
+    .. automethod:: rename_inplace
+    .. automethod:: coalesce
+    .. automethod:: coalesce_inplace
     .. automethod:: delete
+    .. automethod:: delete_inplace
     .. automethod:: union
+    .. automethod:: union_inplace
     .. automethod:: pprint
     .. automethod:: pformat
     .. automethod:: to_html
