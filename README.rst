@@ -23,7 +23,7 @@ like R) to its useful essence, while carving away the cruft?
 The `original proof of concept <https://usethe.computer/posts/12-typing-groupby.html>`_
 stopped at "group by".
 
-.. `original proof of concept`_ 
+.. `original proof of concept`_
 
 This library expands on the proof of concept to produce a practically
 useful ``tafra``, which we hope you may find to be a helpful lightweight
@@ -37,6 +37,7 @@ The library provides lightweight syntax for manipulating rows and columns,
 support for managing data types, iterators for rows and sub-frames,
 `pandas`-like "transform" support and conversion from `pandas` Dataframes,
 and SQL-style "group by" and join operations.
+
 
 A short example:
 
@@ -74,3 +75,50 @@ A short example:
     dtypes = {
      'x': 'int', 'y': 'object'},
     rows = 2)
+
+
+In this case, lightweight also means performant. Beyond any additional
+features added to the library, ``tafra`` should provide the necessary
+base for organizing data structures for numerical processing. One of the
+most important aspects is fast access to the data itself. By minizing
+abstraction to access the underlying ``numpy`` arrays, ``tafra`` provides
+over an order of magnitude increase in performance.
+
+.. code-block:: python
+
+    >>> t = Tafra({
+    ..:    'x': np.array([1, 2, 3, 4]),
+    ..:    'y': np.array(['one', 'two', 'one', 'two'], dtype='object'),
+    ..: })
+
+    >>> df = pd.DataFrame(t.data)
+
+    # read operations
+    # direct access
+    >>> %timemit x = t._data['x']
+    55.3 ns ± 5.64 ns per loop (mean ± std. dev. of 7 runs, 10000000 loops each)
+
+    # indirect with some penalty to support ``numpy``'s advanced indexing
+    >>> %timemit x = t['x']
+    219 ns ± 71.6 ns per loop (mean ± std. dev. of 7 runs, 1000000 loops each)
+
+    >>> %timemit x = df['x']
+    1.55 µs ± 105 ns per loop (mean ± std. dev. of 7 runs, 1000000 loops each)
+
+    # as fast as ``pandas`` gets
+    >>> where_col = list(df.columns).index('x')
+    >>> %timeit x = df.values[:, where_col]
+    48 µs ± 7.77 µs per loop (mean ± std. dev. of 7 runs, 10000 loops each)
+
+
+    # assignment operations
+    >>> x = np.arange(4)
+
+    >>> %timeit tf._data['x'] = x
+    65 ns ± 5.55 ns per loop (mean ± std. dev. of 7 runs, 10000000 loops each)
+
+    >>> %timeit tf['x'] = x
+    7.39 µs ± 950 ns per loop (mean ± std. dev. of 7 runs, 100000 loops each)
+
+    >>> %timeit df['x'] = x
+    47.8 µs ± 3.53 µs per loop (mean ± std. dev. of 7 runs, 10000 loops each)
