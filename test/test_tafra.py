@@ -4,7 +4,7 @@ import numpy as np
 from tafra import Tafra
 import pandas as pd  # type: ignore
 
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Iterator
 
 import pytest  # type: ignore
 from unittest.mock import MagicMock
@@ -23,19 +23,30 @@ def test_constructions() -> None:
         t = Tafra()  # type: ignore # noqa
 
     with pytest.raises(ValueError) as e:
-        t = Tafra({})
+        t = Tafra({})  # type: ignore
 
     with pytest.raises(ValueError) as e:
-        t = Tafra({'x': None})  # type: ignore
+        t = Tafra({'x': None})
 
     t = Tafra({'x': np.array(1)})
     t = Tafra({'x': np.array([1])})
-    t = Tafra({'x': [True, False]})  # type: ignore
-    t = Tafra({'x': 'test'})  # type: ignore
-    t.update_dtypes({'x': 'O'})
+    t = Tafra({'x': [True, False]})
+    t = Tafra({'x': 'test'})
+    t.update_dtypes_inplace({'x': 'O'})
+
+    with pytest.raises(ValueError) as e:
+        t = Tafra({'x': np.array([1, 2]), 'y': np.array([3., 4., 5.])})
+
+    t = Tafra(enumerate(np.arange(6)))
+
+    def gen_values() -> Iterator[Dict[str, np.ndarray]]:
+        yield {'x': np.arange(6)}
+        yield {'y': np.arange(6)}
+
+    t = Tafra(gen_values())
 
     t = build_tafra()
-    t.update_dtypes({'x': 'float'})
+    t = t.update_dtypes({'x': 'float'})
     t.data['x'][2] = np.nan
     _ = tuple(t.to_records())
     _ = tuple(t.to_records(columns='x'))
@@ -50,9 +61,13 @@ def test_constructions() -> None:
     _ = t.to_list(columns='x')
     _ = t.to_list(columns='x', inner=True)
     _ = t.to_list(columns=['x'])
-    _ = t.to_list(columns=['x'], inner=True)
+    _ = t.to_list(columns=['x'])
     _ = t.to_list(columns=['x', 'y'])
-    _ = t.to_list(columns=['x', 'y'], inner=True)
+    _ = t.to_list(columns=['x', 'y'])
+    _ = t.to_array()
+    _ = t.to_array(columns='x')
+    _ = t.to_array(columns=['x'])
+    _ = t.to_array(columns=['x', 'y'])
 
     t = build_tafra()
     df = pd.DataFrame(t.data)
@@ -94,6 +109,9 @@ def test_properties() -> None:
     _ = t.rows
     _ = t.data
     _ = t.dtypes
+    _ = t.size
+    _ = t.ndim
+    _ = t.shape
 
     with pytest.raises(ValueError) as e:
         t.columns = ['x', 'a']  # type: ignore
@@ -106,6 +124,15 @@ def test_properties() -> None:
 
     with pytest.raises(ValueError) as e:
         t.dtypes = {'x': 'int'}
+
+    with pytest.raises(ValueError) as e:
+        t.size = 3
+
+    with pytest.raises(ValueError) as e:
+        t.ndim = 3
+
+    with pytest.raises(ValueError) as e:
+        t.shape = (10, 2)
 
 def test_views() -> None:
     t = build_tafra()
@@ -154,61 +181,76 @@ def test_dunder() -> None:
 def test_update() -> None:
     t = build_tafra()
     t2 = build_tafra()
-    t2.union(t, inplace=True)
+    _ = t2.union(t)
+    t2.union_inplace(t)
     assert len(t2) == 2 * len(t)
 
     t2 = build_tafra()
-    _ = t2.union(t, inplace=False)
+    _ = t2.union(t)
     assert len(_) == len(t) + len(t2)
 
 def test_update_dtypes() -> None:
     t = build_tafra()
-    t.update_dtypes({'x': float})
+    t.update_dtypes_inplace({'x': float})
     assert t['x'].dtype == 'float'
     assert isinstance(t['x'][0], np.float)
 
     t = build_tafra()
-    _ = t.update_dtypes({'x': float}, inplace=False)
+    _ = t.update_dtypes({'x': float})
     assert _['x'].dtype == 'float'
     assert isinstance(_['x'][0], np.float)
 
 def test_rename() -> None:
     t = build_tafra()
-    t.rename({'x': 'a'})
+    t.rename_inplace({'x': 'a'})
     assert 'a' in t.data
     assert 'x' not in t.data
 
     t = build_tafra()
-    _ = t.rename({'x': 'a'}, inplace=False)
+    _ = t.rename({'x': 'a'})
     assert 'a' in _.data
     assert 'x' not in _.data
 
 def test_delete() -> None:
     t = build_tafra()
-    t.delete('x')
+    t.delete_inplace('x')
     assert 'x' not in t.data
 
     t = build_tafra()
-    t.delete(['x'])
+    t.delete_inplace(['x'])
     assert 'x' not in t.data
 
     t = build_tafra()
-    t.delete(['x', 'y'])
+    t.delete_inplace(['x', 'y'])
     assert 'x' not in t.data
     assert 'y' not in t.data
 
     t = build_tafra()
-    _ = t.delete('x', inplace=False)
+    _ = t.delete('x')
     assert 'x' not in _.data
 
     t = build_tafra()
-    _ = t.delete(['x'], inplace=False)
+    _ = t.delete(['x'])
     assert 'x' not in _.data
 
     t = build_tafra()
-    _ = t.delete(['x', 'y'], inplace=False)
+    _ = t.delete(['x', 'y'])
     assert 'x' not in _.data
     assert 'y' not in _.data
+
+def test_iter_methods() -> None:
+    t = build_tafra()
+    for _ in t:
+        pass
+
+    for _ in t.iterrows():
+        pass
+
+    for _ in t.itercols():
+        pass
+
+    for _ in t.itertuples():
+        pass
 
 def test_groupby() -> None:
     t = build_tafra()
@@ -274,79 +316,90 @@ def test_invalid_agg() -> None:
             ['y', 'z'], {}, {len: 'count'}  # type: ignore
         )
 
+def test_map() -> None:
+    t = build_tafra()
+    _ = list(t.row_map(np.repeat, 6))
+    _ = Tafra(t.col_map(np.repeat, name=True, repeats=6))
+    _ = list(t.col_map(np.repeat, name=False, repeats=6))
+
 def test_union() -> None:
     t = build_tafra()
     t2 = build_tafra()
-    t.union(t2)
+    t.union_inplace(t2)
 
     t = build_tafra()
     t2 = build_tafra()
     t._dtypes['a'] = 'int'
     with pytest.raises(Exception) as e:
-        t.union(t2)
+        t.union_inplace(t2)
 
     t = build_tafra()
     t2._dtypes['a'] = 'int'
     with pytest.raises(Exception) as e:
-        t.union(t2)
+        t.union_inplace(t2)
 
     t = build_tafra()
     t2 = build_tafra()
     t['a'] = np.arange(6)
     with pytest.raises(ValueError) as e:
-        t.union(t2)
+        t.union_inplace(t2)
 
     t = build_tafra()
     t2 = build_tafra()
     t2['a'] = np.arange(6)
     with pytest.raises(ValueError) as e:
-        t.union(t2)
+        t.union_inplace(t2)
 
     t = build_tafra()
     t2 = build_tafra()
-    t.rename({'x': 'a'})
+    t.rename_inplace({'x': 'a'})
     with pytest.raises(TypeError) as e:
-        t.union(t2)
+        t.union_inplace(t2)
 
     t = build_tafra()
     t2 = build_tafra()
-    t2.rename({'x': 'a'})
+    t2.rename_inplace({'x': 'a'})
     with pytest.raises(TypeError) as e:
-        t.union(t2)
+        t.union_inplace(t2)
 
     t = build_tafra()
     t2 = build_tafra()
-    t.update_dtypes({'x': float}, inplace=True)
+    t.update_dtypes_inplace({'x': float})
     with pytest.raises(TypeError) as e:
-        t.union(t2)
+        t.union_inplace(t2)
 
     t = build_tafra()
     t2 = build_tafra()
     t2._dtypes['x'] = 'float'
     with pytest.raises(TypeError) as e:
-        t.union(t2)
+        t.union_inplace(t2)
 
 def test_slice() -> None:
     t = build_tafra()
-
     _ = t[:3]
     _['x'][0] = 0
 
+    t = build_tafra()
     _ = t[slice(0, 3)]
     _['x'][0] = 7
 
+    t = build_tafra()
     _ = t[:3].copy()
     _['x'][0] = 9
     t['x']
 
+    t = build_tafra()
     _ = t[t['x'] <= 4]
     _['x'][1] = 15
 
+    t = build_tafra()
     _ = t[2]
     _ = t[[1, 3]]
     _ = t[np.array([2, 4])]
     _ = t[[True, False, True, True, False, True]]
     _ = t[np.array([True, False, True, True, False, True])]
+    _ = t[['x', 'y']]
+    _ = t[('x', 'y')]
 
     with pytest.raises(IndexError) as e:
         _ = t[[True, False]]
@@ -354,11 +407,20 @@ def test_slice() -> None:
     with pytest.raises(IndexError) as e:
         _ = t[np.array([True, False])]
 
-    with pytest.raises(TypeError) as e:
-        _ = t[(1, 2)]  # type: ignore # noqa
+    with pytest.raises(IndexError) as e:
+        _ = t[(1, 2)]  # noqa
+
+    with pytest.raises(IndexError) as e:
+        _ = t[(1, 2.)]  # type: ignore # noqa
+
+    with pytest.raises(IndexError) as e:
+        _ = t[['x', 2]]
+
+    with pytest.raises(IndexError) as e:
+        _ = t[[True, 2]]
 
     with pytest.raises(TypeError) as e:
-        _ = t[{'x': [1, 2]}]  # type: ignore # noqa
+        _ = t[{'x': [1, 2]}]  # type: ignore
 
     class TestClass:
         ...
@@ -386,10 +448,13 @@ def test_invalid_assignment() -> None:
     o._data['x'] = np.arange(5)
 
     with pytest.raises(Exception) as e:
-        o.__post_init__()
+        o._update_rows()
 
     with pytest.raises(Exception) as e:
-        t.update(o)
+        _ = t.update(o)
+
+    with pytest.raises(Exception) as e:
+        t.update_inplace(o)
 
     with warnings.catch_warnings(record=True) as w:
         t['x'] = list(range(6))
@@ -418,8 +483,8 @@ def test_coalesce() -> None:
     assert t['y'][3] == np.array(None)
 
     t = Tafra({'x': np.array([1, 2, None, 4, None])})
-    t.coalesce('x', [[1, 2, 3, None, 5], [None, None, None, None, 'five']], inplace=True)  # type: ignore
-    t.coalesce('y', [[1, 2, 3, None, 5], [None, None, None, None, 'five']], inplace=True)  # type: ignore
+    t.coalesce_inplace('x', [[1, 2, 3, None, 5], [None, None, None, None, 'five']])  # type: ignore
+    t.coalesce_inplace('y', [[1, 2, 3, None, 5], [None, None, None, None, 'five']])  # type: ignore
     assert np.all(t['x'] != np.array(None))
     assert t['y'][3] == np.array(None)
 
@@ -568,4 +633,10 @@ def test_cross_join() -> None:
         'c': np.array([0, 0, 0, 1, 1, 1])
     })
 
-    t = l.cross_join(r)
+    t = l.cross_join(r, select=['x', 'z', 'a', 'c'])
+
+    with pytest.raises(IndexError) as e:
+        t = l.cross_join(r, select=['x', 'z'])
+
+    with pytest.raises(IndexError) as e:
+        t = l.cross_join(r, select=['a', 'c'])
