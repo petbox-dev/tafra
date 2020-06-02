@@ -189,9 +189,30 @@ class Tafra:
             yield self[i]
 
     def iterrows(self) -> Iterator['Tafra']:
+        """
+        Yield rows as :class:`Tafra`.
+
+        Returns
+        -------
+            tafras: Iterator[Tafra]
+                An iterator of :class:`Tafra`.
+        """
         yield from self.__iter__()
 
     def itertuples(self, name: str = 'Tafra') -> Iterator[Tuple[Any, ...]]:
+        """
+        Yield rows as :class:`NamedTuple`.
+
+        Parameters
+        ----------
+            name: str = 'Tafra'
+                The name for the :class:`NamedTuple`.
+
+        Returns
+        -------
+            tuples: Iterator[NamedTuple[Any, ...]]
+                An iterator of :class:`NamedTuple`.
+        """
         TafraNT = NamedTuple(name, **{  # type: ignore
             column: NAMEDTUPLE_TYPE[dtype] for column, dtype in self._dtypes.items()})
 
@@ -199,6 +220,14 @@ class Tafra:
             yield TafraNT(*(value.item() for value in tf._data.values()))
 
     def itercols(self) -> Iterator[Tuple[str, np.ndarray]]:
+        """
+        Yield columns as :class:`Tuple[str, np.ndarray]` .
+
+        Returns
+        -------
+            tuples: Iterator[Tuple[str, np.ndarray]]
+                An iterator of :class:`Tafra`.
+        """
         for column, value in self._data.items():
             yield column, value
 
@@ -724,8 +753,9 @@ class Tafra:
         """
         Returns the unmodified `tafra`` if already a `Tafra`, else construct
         a `Tafra` from known types or subtypes of :class:`DataFrame` or `dict`.
-        Structural subtypes of :class:`DataFrame` are also valid, as are
-        classes that have ``cls.__name__ == 'DataFrame'``.
+        Structural subtypes of :class:`DataFrame` or :class:`Series` are also
+        valid, as are classes that have ``cls.__name__ == 'DataFrame'`` or
+        ``cls.__name__ == 'Series'``.
 
         Parameters
         ----------
@@ -870,6 +900,65 @@ class Tafra:
     @shape.setter
     def shape(self, value: Any) -> None:
         raise ValueError('Assignment to `shape` is forbidden.')
+
+
+    def row_map(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Iterator[Any]:
+        """
+        Map a function over rows. To apply to specific columns, use
+        :meth:`select` first. The function must operate on :class:`Tafra`.
+
+        Parameters
+        ----------
+            fn: Callable[..., Any]
+                The function to map.
+
+            *args: Any
+                Additional positional arguments to ``fn``.
+
+            **kwargs: Any
+                Additional keyword arguments to ``fn``.
+
+        Returns
+        -------
+            iter_tf: Iterator[Any]
+                An iterator to map the function.
+        """
+        for tf in self.__iter__():
+            yield fn(tf, *args, **kwargs)
+
+    def col_map(self, fn: Callable[..., Any], name: bool = True,
+                *args: Any, **kwargs: Any) -> Iterator[_Union[Any, Tuple[str, Any]]]:
+        """
+        Map a function over columns. To apply to specific columns, use
+        :meth:`select` first. The function must operate on :class:`Tuple[str, np.ndarray]`.
+
+        Parameters
+        ----------
+            fn: Callable[..., Any]
+                The function to map.
+
+            name: bool
+                Return the column name.
+
+            *args: Any
+                Additional positional arguments to ``fn``.
+
+            **kwargs: Any
+                Additional keyword arguments to ``fn``.
+
+        Returns
+        -------
+            iter_tf: Iterator[Any]
+                An iterator to map the function.
+        """
+        if name:
+            for column, value in self.itercols():
+                yield column, fn(value, *args, **kwargs)
+            return
+
+        for column, value in self.itercols():
+            yield fn(value, *args, **kwargs)
+
 
     def head(self, n: int = 5) -> None:  # pragma: no cover
         """
@@ -1031,6 +1120,8 @@ class Tafra:
     def _coalesce_dtypes(self) -> None:
         """
         Update :attr:`_dtypes` with missing keys that exist in :attr:`_data`.
+        **Must be called if :attr:`data` or :attr`:_data` is directly
+        modified!**
 
         Returns
         -------
@@ -1273,57 +1364,6 @@ class Tafra:
                 The coalesced data.
         """
         self._data[column] = self.coalesce(column, fills)
-
-    def row_map(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Iterator[Any]:
-        """
-        Map a function over rows. To apply to specific columns, use
-        :meth:`select` first. The function must operate on :class:`Tafra`.
-
-        Parameters
-        ----------
-            fn: Callable[..., Any]
-                The function to map.
-
-        Returns
-        -------
-            iter_tf: Iterator[Any]
-                An iterator to map the function.
-        """
-        for tf in self.__iter__():
-            yield fn(tf, *args, **kwargs)
-
-    def col_map(self, fn: Callable[..., Any], name: bool = True,
-                *args: Any, **kwargs: Any) -> Iterator[_Union[Any, Tuple[str, Any]]]:
-        """
-        Map a function over columns. To apply to specific columns, use
-        :meth:`select` first. The function must operate on :class:`Tuple[str, np.ndarray]`.
-
-        Parameters
-        ----------
-            fn: Callable[..., Any]
-                The function to map.
-
-            name: bool
-                Return the column name.
-
-            *args: Any
-                Additional positional arguments to ``fn``.
-
-            **kwargs: Any
-                Additional keyword arguments to ``fn``.
-
-        Returns
-        -------
-            iter_tf: Iterator[Any]
-                An iterator to map the function.
-        """
-        if name:
-            for column, value in self.itercols():
-                yield column, fn(value, *args, **kwargs)
-            return
-
-        for column, value in self.itercols():
-            yield fn(value, *args, **kwargs)
 
     def union(self, other: 'Tafra') -> 'Tafra':
         """
