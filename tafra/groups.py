@@ -19,7 +19,7 @@ import dataclasses as dc
 
 import numpy as np
 
-from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union, Sequence,
+from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union as _Union, Sequence,
                     Iterable, Iterator)
 from typing import cast
 
@@ -36,7 +36,7 @@ JOIN_OPS: Dict[str, Callable[[Any, Any], Any]] = {
 # for the passed argument to an aggregation
 InitAggregation = Mapping[
     str,
-    Union[
+    _Union[
         Callable[[np.ndarray], Any],
         Tuple[Callable[[np.ndarray], Any], str]
     ]
@@ -50,7 +50,7 @@ GroupDescription = Tuple[
     'Tafra'  # sub-tafra for the group
 ]
 
-class Union_:
+class Union:
     """
     Union two :class:`Tafra` together. Analogy to SQL UNION or
     `pandas.append`. All column names and dtypes must match.
