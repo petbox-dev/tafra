@@ -41,23 +41,24 @@ and SQL-style "group by" and join operations.
 +------------------------+---------------------------------------------------------------------------------------------------------------------------------+
 | Tafra                  | `Tafra <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra>`_,                                                    |
 +------------------------+---------------------------------------------------------------------------------------------------------------------------------+
-| Aggregations           | `transient_rate(t) <https://tafra.readthedocs.io/en/latest/api.html#petbox.dca.THM.transient_rate>`_,                           |
-|                        | `transient_cum(t) <https://tafra.readthedocs.io/en/latest/api.html#petbox.dca.THM.transient_cum>`_,                             |
-|                        | `transient_D(t) <https://tafra.readthedocs.io/en/latest/api.html#petbox.dca.THM.transient_D>`_,                                 |
-|                        | `transient_beta(t) <https://tafra.readthedocs.io/en/latest/api.html#petbox.dca.THM.transient_beta>`_,                           |
-|                        | `transient_b(t) <https://tafra.readthedocs.io/en/latest/api.html#petbox.dca.THM.transient_b>`_                                  |
+| Aggregations           | `Union <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.Union>`_,                                                  |
+|                        | `GroupBy <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.GroupBy>`_,                                              |
+|                        | `Transform <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.Transform>`_,                                          |
+|                        | `IterateBy <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.Iteratebt>`_,                                          |
+|                        | `InnerJoin <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.InnerJoin>`_,                                          |
+|                        | `LeftJoin <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.LeftJoin>`_                                             |
 +------------------------+---------------------------------------------------------------------------------------------------------------------------------+
-| Primary Phase          | `add_secondary <https://tafra.readthedocs.io/en/latest/api.html#petbox.dca.PrimaryPhase.add_secondary>`_,                       |
-|                        | `add_water <https://tafra.readthedocs.io/en/latest/api.html#petbox.dca.PrimaryPhase.add_water>`_                                |
+| Primary Phase          | `add_secondary <https://tafra.readthedocs.io/en/latest/api.html#tafra.PrimaryPhase.add_secondary>`_,                       |
+|                        | `add_water <https://tafra.readthedocs.io/en/latest/api.html#tafra.PrimaryPhase.add_water>`_                                |
 +------------------------+---------------------------------------------------------------------------------------------------------------------------------+
-| Secondary Phase        | `gor(t) <https://tafra.readthedocs.io/en/latest/api.html#petbox.dca.SecondaryPhase.gor>`_,                                      |
-|                        | `cgr(t) <https://tafra.readthedocs.io/en/latest/api.html#petbox.dca.SecondaryPhase.cgr>`_                                       |
+| Secondary Phase        | `gor <https://tafra.readthedocs.io/en/latest/api.html#tafra.SecondaryPhase.gor>`_,                                      |
+|                        | `cgr <https://tafra.readthedocs.io/en/latest/api.html#tafra.SecondaryPhase.cgr>`_                                       |
 +------------------------+---------------------------------------------------------------------------------------------------------------------------------+
-| Water Phase            | `wor(t) <https://tafra.readthedocs.io/en/latest/api.html#petbox.dca.WaterPhase.wor>`_                                           |
+| Water Phase            | `wor <https://tafra.readthedocs.io/en/latest/api.html#tafra.WaterPhase.wor>`_                                           |
 +------------------------+---------------------------------------------------------------------------------------------------------------------------------+
-| Utility                | `bourdet <https://tafra.readthedocs.io/en/latest/api.html#petbox.dca.bourdet>`_,                                                |
-|                        | `get_time <https://tafra.readthedocs.io/en/latest/api.html#petbox.dca.get_time>`_,                                              |
-|                        | `get_time_monthly_vol <https://tafra.readthedocs.io/en/latest/api.html#petbox.dca.get_time_monthly_vol>`_                       |
+| Utility                | `bourdet <https://tafra.readthedocs.io/en/latest/api.html#tafra.bourdet>`_,                                                |
+|                        | `get_time <https://tafra.readthedocs.io/en/latest/api.html#tafra.get_time>`_,                                              |
+|                        | `get_time_monthly_vol <https://tafra.readthedocs.io/en/latest/api.html#tafra.get_time_monthly_vol>`_                       |
 +------------------------+---------------------------------------------------------------------------------------------------------------------------------+
 
 Getting Started
@@ -143,6 +144,10 @@ base for organizing data structures for numerical processing. One of the
 most important aspects is fast access to the data itself. By minizing
 abstraction to access the underlying ``numpy`` arrays, ``tafra`` provides
 over an order of magnitude increase in performance.
+
+Import note: if you assign directly to the ``Tafra.data`` or ``Tafra._data``
+attributes, you *must* call ``Tafra._coalesce_dtypes`` afterwards in order
+to ensure the typing is consistent.
 
 Construct a ``Tafra`` and a ``DataFrame``:
 
