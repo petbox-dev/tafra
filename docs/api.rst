@@ -18,17 +18,17 @@ Tafra
 Aggregations
 ------------
 
-.. currentmodule:: tafra
+.. currentmodule:: tafra.groups
 
 .. autosummary::
 
-    base.union
-    groups.GroupBy
-    groups.Transform
-    groups.IterateBy
-    groups.InnerJoin
-    groups.LeftJoin
-    groups.CrossJoin
+    Union
+    GroupBy
+    Transform
+    IterateBy
+    InnerJoin
+    LeftJoin
+    CrossJoin
 
 
 Methods
@@ -148,6 +148,11 @@ Aggregations
 ------------
 
 .. currentmodule:: tafra.groups
+
+.. autoclass:: Union
+
+    .. automethod:: apply
+    .. automethod:: apply_inplace
 
 .. autoclass:: GroupBy
 
