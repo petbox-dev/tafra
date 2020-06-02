@@ -19,7 +19,7 @@ import dataclasses as dc
 
 import numpy as np
 
-from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union,
+from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union, Sequence,
                     Iterable, Iterator)
 from typing import cast
 
@@ -58,7 +58,7 @@ class GroupSet():
     """
 
     @staticmethod
-    def _unique_groups(tafra: 'Tafra', columns: Iterable[str]) -> List[Any]:
+    def _unique_groups(tafra: 'Tafra', columns: Sequence[str]) -> List[Any]:
         """
         Construct a unique set of grouped values.
         Uses :class:``OrderedDict`` rather than :class:``set`` to maintain order.
@@ -66,7 +66,7 @@ class GroupSet():
         return list(OrderedDict.fromkeys(zip(*(tafra[col] for col in columns))))
 
     @staticmethod
-    def _validate(tafra: 'Tafra', columns: Iterable[str]) -> None:  # pragma: no cover
+    def _validate(tafra: 'Tafra', columns: Sequence[str]) -> None:  # pragma: no cover
         assert tafra.rows >= 1, 'No rows exist in `tafra`.'
         tafra._validate_columns(columns)
 
@@ -76,7 +76,7 @@ class AggMethod(GroupSet):
     """
     Basic methods for aggregations over a data table.
     """
-    group_by_cols: Iterable[str]
+    group_by_cols: Sequence[str]
     aggregation: dc.InitVar[InitAggregation]
     _aggregation: Mapping[str, Tuple[Callable[[np.ndarray], Any], str]] = dc.field(init=False)
     iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
@@ -86,7 +86,7 @@ class AggMethod(GroupSet):
         for rename, agg in aggregation.items():
             if callable(agg):
                 self._aggregation[rename] = (agg, rename)
-            elif (isinstance(agg, Iterable) and len(agg) == 2
+            elif (isinstance(agg, Sequence) and len(agg) == 2
                   and callable(cast(Tuple[Callable[[np.ndarray], Any], str], agg)[0])):
                 self._aggregation[rename] = agg
             else:
@@ -124,7 +124,7 @@ class GroupBy(AggMethod):
 
     Parameters
     ----------
-        group_by: Iterable[str]
+        group_by: Sequence[str]
             The column names to group by.
 
         aggregation: Mapping[str, Union[Callable[[np.ndarray], Any], \
@@ -187,7 +187,7 @@ class Transform(AggMethod):
 
     Parameters
     ----------
-        group_by: Iterable[str]
+        group_by: Sequence[str]
             The column names to group by.
 
         aggregation: Mapping[str, Union[Callable[[np.ndarray], Any], \
@@ -247,15 +247,15 @@ class IterateBy(GroupSet):
     """
     A generator that yields a :class:`Tafra` for each set of unique values.
 
-    Analogy to `pandas.DataFrame.groupby()`, i.e. an Iterable of `Tafra` objects.
+    Analogy to `pandas.DataFrame.groupby()`, i.e. an Sequence of `Tafra` objects.
     Yields tuples of ((unique grouping values, ...), row indices array, subset tafra)
 
     Parameters
     ----------
-        group_by: Iterable[str]
+        group_by: Sequence[str]
             The column names to group by.
     """
-    group_by_cols: Iterable[str]
+    group_by_cols: Sequence[str]
 
     def apply(self, tafra: 'Tafra') -> Iterator[GroupDescription]:
         """
@@ -288,8 +288,8 @@ class Join(GroupSet):
     """
     Base class for SQL-like JOINs.
     """
-    on: Iterable[Tuple[str, str, str]]
-    select: Iterable[str]
+    on: Sequence[Tuple[str, str, str]]
+    select: Sequence[str]
 
     def _validate_dtypes(self, l_table: 'Tafra', r_table: 'Tafra') -> None:
         for l_column, r_column, _ in self.on:
@@ -310,7 +310,7 @@ class Join(GroupSet):
                     f'does not match other `Tafra` dtype `{r_dtype}`.')
 
     @staticmethod
-    def _validate_ops(ops: Iterable[str]) -> None:
+    def _validate_ops(ops: Sequence[str]) -> None:
         for op in ops:
             _op = JOIN_OPS.get(op, None)
             if _op is None:
@@ -331,7 +331,7 @@ class InnerJoin(Join):
         right: Tafra
             The right-side :class:`Tafra` to join.
 
-        on: Iterable[Tuple[str, str, str]]
+        on: Sequence[Tuple[str, str, str]]
             The columns and operator to join on. Should be given as
             ('left column', 'right column', 'op') Valid ops are:
 
@@ -342,7 +342,7 @@ class InnerJoin(Join):
             '>'  : greater than
             '>=' : greater than or equal to
 
-        select: Iterable[str] = []
+        select: Sequence[str] = []
             The columns to return. If not given, all unique columns names
             are returned. If the column exists in both :class`Tafra`,
             prefers the left over the right.
@@ -422,7 +422,7 @@ class LeftJoin(Join):
         right: Tafra
             The right-side :class:`Tafra` to join.
 
-        on: Iterable[Tuple[str, str, str]]
+        on: Sequence[Tuple[str, str, str]]
             The columns and operator to join on. Should be given as
             ('left column', 'right column', 'op') Valid ops are:
 
@@ -433,7 +433,7 @@ class LeftJoin(Join):
             '>'  : greater than
             '>=' : greater than or equal to
 
-        select: Iterable[str] = []
+        select: Sequence[str] = []
             The columns to return. If not given, all unique columns names
             are returned. If the column exists in both :class`Tafra`,
             prefers the left over the right.
@@ -515,7 +515,7 @@ class CrossJoin(Join):
         right: Tafra
             The right-side :class:`Tafra` to join.
 
-        select: Iterable[str] = []
+        select: Sequence[str] = []
             The columns to return. If not given, all unique columns names
             are returned. If the column exists in both :class`Tafra`,
             prefers the left over the right.
@@ -541,36 +541,33 @@ class CrossJoin(Join):
         Returns
         -------
             tafra: Tafra
-                An iterator over the grouped :class:`Tafra`.
+                The joined :class:`Tafra`.
         """
         self._validate_dtypes(left_t, right_t)
 
-        join: Dict[str, List[Any]] = {column: list() for column in chain(
-            left_t._data.keys(),
-            right_t._data.keys()
-        ) if not self.select
-            or (self.select and column in self.select)}
+        left_rows = left_t.rows
+        right_rows = right_t.rows
 
-        dtypes: Dict[str, str] = {column: dtype for column, dtype in chain(
-            left_t._dtypes.items(),
-            right_t._dtypes.items()
-        ) if column in join.keys()}
+        if len(self.select) > 0:
+            select = set(self.select)
+            left_cols = list(select.intersection(list(left_t._data.keys())))
+            right_cols = list(select.intersection(list(right_t._data.keys())))
 
-        right_count = right_t.rows
+            if len(left_cols) == 0:
+                raise IndexError('No columns given to select from left `Tafra`.')
+            if len(right_cols) == 0:
+                raise IndexError('No columns given to select from right `Tafra`.')
 
-        for i in range(left_t.rows):
-            for column in join.keys():
-                if column in left_t._data:
-                    join[column].extend(max(1, right_count) * [left_t[column][i]])
+        else:
+            left_cols = list(left_t._data.keys())
+            right_cols = list(right_t._data.keys())
 
-                elif column in right_t._data:
-                    join[column].extend(right_t[column])
+        left_new = Tafra(left_t[left_cols].col_map(np.tile, reps=right_rows))
+        right_new = Tafra(right_t[right_cols].col_map(np.tile, reps=left_rows))
 
-        return Tafra(
-            {column: np.array(value)
-             for column, value in join.items()},
-            dtypes
-        )
+        left_new.update_inplace(right_new)
+
+        return left_new
 
 
 # Import here to resolve circular dependency
