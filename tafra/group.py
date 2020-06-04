@@ -370,7 +370,7 @@ class IterateBy(GroupSet):
             if len(u) == 1:
                 u = u[0]
 
-            yield (u, which_rows, tafra._slice(which_rows))
+            yield (u, which_rows, tafra._ndindex(which_rows))
 
 
 @dc.dataclass
