@@ -291,5 +291,5 @@ preserve immutability.
 
     >>> %%timeit
     >>> tdf = df.copy()
-    >>> df.groupby(['y', 'z'])[['x']].transform(sum)
+    >>> tdf['x'] = df.groupby(['y', 'z'])[['x']].transform(sum)
     2.81 ms ± 143 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
