@@ -18,7 +18,7 @@ Tafra
 Aggregations
 ------------
 
-.. currentmodule:: tafra.groups
+.. currentmodule:: tafra.group
 
 .. autosummary::
 
@@ -44,8 +44,8 @@ Methods
     to_records
     to_list
     to_array
-    columns
     rows
+    columns
     data
     dtypes
     size
@@ -96,6 +96,18 @@ Helper Methods
     cross_join
 
 
+Object Formatter
+----------------
+
+.. currentmodule:: tafra.formatter
+
+.. autoclass:: ObjectFormatter
+
+    .. automethod:: __getitem__
+    .. automethod:: __setitem__
+    .. automethod:: __delitem__
+
+
 Detailed Reference
 ==================
 
@@ -115,8 +127,8 @@ Methods
     .. automethod:: to_records
     .. automethod:: to_list
     .. automethod:: to_array
-    .. autoattribute:: columns
     .. autoattribute:: rows
+    .. autoattribute:: columns
     .. autoattribute:: data
     .. autoattribute:: dtypes
     .. autoattribute:: size
@@ -167,7 +179,7 @@ Helper Methods
 Aggregations
 ------------
 
-.. currentmodule:: tafra.groups
+.. currentmodule:: tafra.group
 
 .. autoclass:: Union
 

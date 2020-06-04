@@ -50,6 +50,7 @@ GroupDescription = Tuple[
     'Tafra'  # sub-tafra for the group
 ]
 
+
 class Union:
     """
     Union two :class:`Tafra` together. Analogy to SQL UNION or
@@ -110,7 +111,7 @@ class Union:
 
         return Tafra(
             {column: np.append(value, right._data[column]) for column, value in left._data.items()},
-            left._dtypes
+            left._dtypes.copy()
         )
 
     def apply_inplace(self, left: 'Tafra', right: 'Tafra') -> None:
@@ -150,11 +151,11 @@ class GroupSet:
         Construct a unique set of grouped values.
         Uses :class:``OrderedDict`` rather than :class:``set`` to maintain order.
         """
-        return list(OrderedDict.fromkeys(zip(*(tafra[col] for col in columns))))
+        return list(OrderedDict.fromkeys(zip(*(tafra._data[col] for col in columns))))
 
     @staticmethod
     def _validate(tafra: 'Tafra', columns: Sequence[str]) -> None:  # pragma: no cover
-        assert tafra.rows >= 1, 'No rows exist in `tafra`.'
+        assert tafra._rows >= 1, 'No rows exist in `tafra`.'
         tafra._validate_columns(columns)
 
 
@@ -244,19 +245,19 @@ class GroupBy(AggMethod):
         ))
         unique = self._unique_groups(tafra, self.group_by_cols)
         result = self.result_factory(
-            lambda rename, col: np.empty(len(unique), dtype=tafra[col].dtype))
+            lambda rename, col: np.empty(len(unique), dtype=tafra._data[col].dtype))
         iter_fn = self.iter_fn_factory(lambda: np.ones(len(unique), dtype=int))
-        ones = np.ones(tafra.rows, dtype=int)
+        ones = np.ones(tafra._rows, dtype=int)
 
         for i, u in enumerate(unique):
-            which_rows = np.full(tafra.rows, True)
+            which_rows = np.full(tafra._rows, True)
 
             for val, col in zip(u, self.group_by_cols):
-                which_rows &= tafra[col] == val
+                which_rows &= tafra._data[col] == val
                 result[col][i] = val
 
             for rename, (fn, col) in self._aggregation.items():
-                result[rename][i] = fn(tafra[col][which_rows])
+                result[rename][i] = fn(tafra._data[col][which_rows])
 
             for rename, fn in self.iter_fn.items():
                 iter_fn[rename][i] = fn(i * ones[which_rows])
@@ -307,20 +308,20 @@ class Transform(AggMethod):
         ))
         unique = self._unique_groups(tafra, self.group_by_cols)
         result = self.result_factory(
-            lambda rename, col: np.empty_like(tafra[col]))
-        iter_fn = self.iter_fn_factory(lambda: np.ones(tafra.rows, dtype=int))
-        ones = np.ones(tafra.rows, dtype=int)
+            lambda rename, col: np.empty_like(tafra._data[col]))
+        iter_fn = self.iter_fn_factory(lambda: np.ones(tafra._rows, dtype=int))
+        ones = np.ones(tafra._rows, dtype=int)
 
         for i, u in enumerate(unique):
-            which_rows = np.full(tafra.rows, True)
+            which_rows = np.full(tafra._rows, True)
 
             for val, col in zip(u, self.group_by_cols):
-                which_rows &= tafra[col] == val
-                result[col][which_rows] = tafra[col][which_rows]
+                which_rows &= tafra._data[col] == val
+                result[col][which_rows] = tafra._data[col][which_rows]
 
             for rename, agg in self._aggregation.items():
                 fn, col = agg
-                result[rename][which_rows] = fn(tafra[col][which_rows])
+                result[rename][which_rows] = fn(tafra._data[col][which_rows])
 
             for rename, fn in self.iter_fn.items():
                 iter_fn[rename][which_rows] = fn(i * ones[which_rows])
@@ -362,12 +363,12 @@ class IterateBy(GroupSet):
         unique = self._unique_groups(tafra, self.group_by_cols)
 
         for u in unique:
-            which_rows = np.full(tafra.rows, True)
+            which_rows = np.full(tafra._rows, True)
 
             for val, col in zip(u, self.group_by_cols):
-                which_rows &= tafra[col] == val
+                which_rows &= tafra._data[col] == val
 
-            yield (u, which_rows, tafra[which_rows])
+            yield (u, which_rows, tafra._slice(which_rows))
 
 
 @dc.dataclass
@@ -472,8 +473,8 @@ class InnerJoin(Join):
             left_t._dtypes.items()
         ) if column in join.keys()}
 
-        for i in range(left_t.rows):
-            right_rows = np.full(right_t.rows, True)
+        for i in range(left_t._rows):
+            right_rows = np.full(right_t._rows, True)
 
             for left_col, right_col, op in _on:
                 right_rows &= op(left_t[left_col][i], right_t[right_col])
@@ -562,8 +563,8 @@ class LeftJoin(Join):
             right_t._dtypes.items()
         ) if column in join.keys()}
 
-        for i in range(left_t.rows):
-            right_rows = np.full(right_t.rows, True)
+        for i in range(left_t._rows):
+            right_rows = np.full(right_t._rows, True)
 
             for left_col, right_col, op in _on:
                 right_rows &= op(left_t[left_col][i], right_t[right_col])
@@ -632,8 +633,8 @@ class CrossJoin(Join):
         """
         self._validate_dtypes(left_t, right_t)
 
-        left_rows = left_t.rows
-        right_rows = right_t.rows
+        left_rows = left_t._rows
+        right_rows = right_t._rows
 
         if len(self.select) > 0:
             select = set(self.select)
