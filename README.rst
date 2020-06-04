@@ -284,6 +284,8 @@ of several object methods to perform the same role, and the transform requires
 a copy operation and assignment into the copied ``DataFrame`` in order to
 preserve immutability.
 
+.. code-block:: python
+
     >>> %timeit gdf = df.groupby(['y', 'z'])[['x']].apply(sum).reset_index()
     3.79 ms ± 99.9 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
 
