@@ -364,9 +364,11 @@ class IterateBy(GroupSet):
 
         for u in unique:
             which_rows = np.full(tafra._rows, True)
-
             for val, col in zip(u, self.group_by_cols):
                 which_rows &= tafra._data[col] == val
+
+            if len(u) == 1:
+                u = u[0]
 
             yield (u, which_rows, tafra._slice(which_rows))
 
