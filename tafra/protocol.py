@@ -12,7 +12,8 @@ class Series(Protocol):
 
 @runtime_checkable
 class DataFrame(Protocol):
-    """A fake class to satisfy typing of a `pandas.DataFrame` without a dependency.
+    """
+    A fake class to satisfy typing of a `pandas.DataFrame` without a dependency.
     """
     _data: Dict[str, Series]
     columns: List[str]

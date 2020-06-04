@@ -21,17 +21,24 @@ from itertools import chain
 import dataclasses as dc
 
 import numpy as np
-from .pandas import Series, DataFrame  # just for mypy...
+from .protocol import Series, DataFrame  # just for mypy...
 
 from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union as _Union, Sequence,
                     NamedTuple, Sized, Iterable, Iterator, Type, KeysView, ValuesView, ItemsView)
 from typing import cast
 from typing_extensions import Protocol
 
+from .formatter import ObjectFormatter
+
+
+object_formatter = ObjectFormatter()
+object_formatter['Decimal'] = lambda x: x.astype(float)
+
 
 TAFRA_TYPE: Dict[str, Callable[[np.ndarray], np.ndarray]] = {
     'int': lambda x: x.astype(int),
     'float': lambda x: x.astype(float),
+    'decimal': lambda x: x.astype(float),
     'bool': lambda x: x.astype(bool),
     'str': lambda x: x.astype(str),
     'date': lambda x: x.astype('datetime64'),
@@ -41,6 +48,7 @@ TAFRA_TYPE: Dict[str, Callable[[np.ndarray], np.ndarray]] = {
 NAMEDTUPLE_TYPE: Dict[str, Type[Any]] = {
     'int': int,
     'float': float,
+    'decimal': float,
     'bool': bool,
     'str': str,
     'date': datetime,
@@ -110,9 +118,6 @@ class Tafra:
             self._dtypes = cast(Dict[str, str], self._check_initvar(dtypes))
 
         for column, value in self._data.items():
-            if value is None:
-                raise ValueError('Cannot pass `None` as data.')
-
             value, modified = self._validate_value(value, check_rows=False)
             if modified:
                 self._data[column] = value
@@ -147,9 +152,10 @@ class Tafra:
         if not isinstance(_values, Dict):
             raise TypeError(f'Must supply a `Dict` or `Mapping`, got `{type(_values)}`')
 
-        for column in _values.keys():
-            if not isinstance(column, str):
-                _values[str(column)] = _values.pop(column)
+        # must copy first as mutating the dict changes next(iterator)
+        columns = [c for c in _values.keys() if not isinstance(c, str)]
+        for column in columns:
+            _values[str(column)] = _values.pop(column)
 
         return _values
 
@@ -161,16 +167,19 @@ class Tafra:
             return self._data[item]
 
         elif isinstance(item, int):
-            return self._slice(slice(item, item + 1))
+            return self._slice(item)
 
         elif isinstance(item, slice):
             return self._slice(item)
 
-        elif isinstance(item, Sequence):
-            return self._index(item)
-
         elif isinstance(item, np.ndarray):
             return self._ndindex(item)
+
+        elif isinstance(item, Sequence):
+            if isinstance(item[0], str):
+                return self.select(cast(Sequence[str], item))
+            else:
+                return self._index(item)
 
         else:
             raise TypeError(f'Type {type(item)} not supported.')
@@ -243,13 +252,13 @@ class Tafra:
         if not all(len(v) == self._rows for v in iter_values):
             raise TypeError('Uneven length of data.')
 
-    def _slice(self, _slice: slice) -> 'Tafra':
+    def _slice(self, _slice: _Union[int, slice]) -> 'Tafra':
         """
         Use slice object to slice np.ndarray.
 
         Parameters
         ----------
-            _slice: slice
+            _slice: Union[int, slice]
                 The ``slice`` object.
 
         Returns
@@ -260,8 +269,7 @@ class Tafra:
         return Tafra(
             {column: value[_slice]
                 for column, value in self._data.items()},
-            {column: value
-                for column, value in self._dtypes.items()}
+            self._dtypes
         )
 
     def _index(self, index: Sequence[_Union[str, int, bool]]) -> 'Tafra':
@@ -273,27 +281,27 @@ class Tafra:
             index: Sequence[Union[str, int, bool]]
 
         """
-        head = index[0]
+        # TODO: just let numpy handle errors?
+        # head = index[0]
 
-        if isinstance(head, str):
-            if all(isinstance(item, str) for item in index):
-                return self.select(cast(Sequence[str], index))
-            else:
-                raise IndexError('Index `Sequence` does not contain all `str`.')
+        # if isinstance(index[0], str):
+        #     if all(isinstance(item, str) for item in index):
+                # return self.select(cast(Sequence[str], index))
+        #     else:
+        #         raise IndexError('Index `Sequence` does not contain all `str`.')
 
-        elif (isinstance(head, bool)
-                and not(all(isinstance(item, bool) for item in index))):
-            raise IndexError('Index `Sequence` does not contain all `bool`.')
+        # elif (isinstance(head, bool)
+        #         and not(all(isinstance(item, bool) for item in index))):
+        #     raise IndexError('Index `Sequence` does not contain all `bool`.')
 
-        elif (isinstance(head, int)   # type: ignore
-                and not(all(isinstance(item, int) for item in index))):
-            raise IndexError('Index `Sequence` does not contain all `int`.')
+        # elif (isinstance(head, int)   # type: ignore
+        #         and not(all(isinstance(item, int) for item in index))):
+        #     raise IndexError('Index `Sequence` does not contain all `int`.')
 
         return Tafra(
             {column: value[index]
                 for column, value in self._data.items()},
-            {column: value
-                for column, value in self._dtypes.items()}
+            self._dtypes
         )
 
     def _ndindex(self, index: np.ndarray) -> 'Tafra':
@@ -305,18 +313,18 @@ class Tafra:
             index: np.ndarray
 
         """
-        if not (index.dtype == np.int or index.dtype == np.bool):
-            raise IndexError(
-                f'Index array is of dtype={index.dtype}, '
-                'must subtype of `np.int` or `np.bool`.')
-        elif index.ndim != 1:
+        # TODO: just let numpy handle errors?
+        # if not (index.dtype == np.int or index.dtype == np.bool):
+        #     raise IndexError(
+        #         f'Index array is of dtype={index.dtype}, '
+        #         'must subtype of `np.int` or `np.bool`.')
+        if index.ndim != 1:
             raise IndexError(f'Indexing np.ndarray must ndim == 1, got ndim == {index.ndim}')
 
         return Tafra(
             {column: value[index]
                 for column, value in self._data.items()},
-            {column: value
-                for column, value in self._dtypes.items()}
+            self._dtypes
         )
 
     def _repr_pretty_(self, p: 'IPython.lib.pretty.RepresentationPrinter',  # type: ignore # noqa
@@ -578,6 +586,13 @@ class Tafra:
 
             modified = True
 
+        # special parsing of various object types
+        if value.dtype == np.dtype(object):
+            type_name = type(value[0]).__name__
+            if type_name in object_formatter:
+                value = object_formatter[type_name](value)
+                modified = True
+
         assert value.ndim >= 1, '`Tafra` only supports assigning ndim >= 1.'
 
         if check_rows and len(value) != rows:
@@ -772,13 +787,13 @@ class Tafra:
             return maybe_tafra
 
         elif isinstance(maybe_tafra, Series):
-            return cls.from_series(maybe_tafra)
+            return cls.from_series(maybe_tafra)  # pragma: no cover
 
         elif type(maybe_tafra).__name__ == 'Series':
             return cls.from_series(cast(Series, maybe_tafra))  # pragma: no cover
 
         elif isinstance(maybe_tafra, DataFrame):
-            return cls.from_dataframe(maybe_tafra)
+            return cls.from_dataframe(maybe_tafra)  # pragma: no cover
 
         elif type(maybe_tafra).__name__ == 'DataFrame':
             return cls.from_dataframe(cast(DataFrame, maybe_tafra))  # pragma: no cover
@@ -981,7 +996,7 @@ class Tafra:
 
         print(self[:min(self._rows, n)].pformat())
 
-    def select(self, columns: Iterable[str]) -> 'Tafra':
+    def select(self, columns: Sequence[str]) -> 'Tafra':
         """
         Use column names to slice the :class:`Tafra` columns analogous to
         SQL SELECT.
@@ -990,7 +1005,7 @@ class Tafra:
 
         Parameters
         ----------
-            columns: Iterable[str]
+            columns: Sequence[str]
                 The column names to slice from the :class:`Tafra`.
 
         Returns
@@ -1001,10 +1016,10 @@ class Tafra:
         self._validate_columns(columns)
 
         return Tafra(
-            {column: value
-             for column, value in self._data.items() if column in columns},
-            {column: value
-             for column, value in self._dtypes.items() if column in columns}
+            {column: value for column, value in self._data.items()
+             if column in columns},
+            {column: value for column, value in self._dtypes.items()
+             if column in columns},
         )
 
     def keys(self) -> KeysView[str]:
@@ -1197,6 +1212,7 @@ class Tafra:
         tafra = self.copy()
         for cur, new in renames.items():
             tafra._data[new] = tafra._data.pop(cur)
+            tafra._dtypes[new] = tafra._dtypes.pop(cur)
         return tafra
 
     def rename_inplace(self, renames: Dict[str, str]) -> None:
@@ -1219,6 +1235,7 @@ class Tafra:
 
         for cur, new in renames.items():
             self._data[new] = self._data.pop(cur)
+            self._dtypes[new] = self._dtypes.pop(cur)
         return None
 
     def delete(self, columns: Iterable[str]) -> 'Tafra':
@@ -1241,10 +1258,10 @@ class Tafra:
         self._validate_columns(columns)
 
         return Tafra(
-            {column: value.copy()
-                for column, value in self._data.items() if column not in columns},
-            {column: value
-                for column, value in self._dtypes.items() if column not in columns}
+            {column: value.copy() for column, value in self._data.items()
+             if column not in columns},
+            {column: value for column, value in self._dtypes.items()
+             if column not in columns}
         )
 
     def delete_inplace(self, columns: Iterable[str]) -> None:
@@ -1292,8 +1309,7 @@ class Tafra:
         return Tafra(
             {column: value.copy(order=order)
                 for column, value in self._data.items()},
-            {column: value
-                for column, value in self._dtypes.items()}
+            self._dtypes.copy()
         )
 
     def coalesce(self, column: str,
@@ -1362,6 +1378,7 @@ class Tafra:
                 The coalesced data.
         """
         self._data[column] = self.coalesce(column, fills)
+        self.update_dtypes_inplace({column: self._data[column].dtype})
 
     def union(self, other: 'Tafra') -> 'Tafra':
         """
@@ -1547,8 +1564,8 @@ def _in_notebook() -> bool:  # pragma: no cover
     return False
 
 # Import here to resolve circular dependency
-from .groups import (GroupBy, Transform, IterateBy, InnerJoin, LeftJoin, CrossJoin, Union,
-                     InitAggregation, GroupDescription)
+from .group import (GroupBy, Transform, IterateBy, InnerJoin, LeftJoin, CrossJoin, Union,
+                    InitAggregation, GroupDescription)
 
 Tafra.group_by.__doc__ += GroupBy.__doc__  # type: ignore
 Tafra.transform.__doc__ += Transform.__doc__  # type: ignore
