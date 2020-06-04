@@ -65,7 +65,7 @@ RECORD_TYPE: Dict[str, Callable[[Any], Any]] = {
 }
 
 
-@dc.dataclass
+@dc.dataclass(repr=False, eq=False)
 class Tafra:
     """
     The innards of a dataframe.
