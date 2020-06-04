@@ -1212,6 +1212,7 @@ class Tafra:
         tafra = self.copy()
         for cur, new in renames.items():
             tafra._data[new] = tafra._data.pop(cur)
+            tafra._dtypes[new] = tafra._dtypes.pop(cur)
         return tafra
 
     def rename_inplace(self, renames: Dict[str, str]) -> None:
@@ -1234,6 +1235,7 @@ class Tafra:
 
         for cur, new in renames.items():
             self._data[new] = self._data.pop(cur)
+            self._dtypes[new] = self._dtypes.pop(cur)
         return None
 
     def delete(self, columns: Iterable[str]) -> 'Tafra':
@@ -1376,6 +1378,7 @@ class Tafra:
                 The coalesced data.
         """
         self._data[column] = self.coalesce(column, fills)
+        self.update_dtypes_inplace({column: self._data[column].dtype})
 
     def union(self, other: 'Tafra') -> 'Tafra':
         """
