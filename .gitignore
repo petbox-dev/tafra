@@ -119,3 +119,4 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+*._py 

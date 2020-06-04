@@ -1,13 +1,37 @@
 import warnings
+from decimal import Decimal
 
 import numpy as np
-from tafra import Tafra
+from tafra import Tafra, object_formatter
 import pandas as pd  # type: ignore
 
 from typing import Dict, List, Any, Iterator
 
 import pytest  # type: ignore
 from unittest.mock import MagicMock
+
+
+class TestClass:
+    ...
+
+
+class Series:
+    name: str = 'x'
+    values: np.ndarray = np.arange(5)
+    dtype: str = 'int'
+
+
+class DataFrame:
+    _data: Dict[str, Series] = {'x': Series(), 'y': Series()}
+    columns: List[str] = ['x', 'y']
+    dtypes: List[str] = ['int', 'int']
+
+    def __getitem__(self, column: str) -> Series:
+        return self._data[column]
+
+    def __setitem__(self, column: str, value: np.ndarray) -> None:
+        self._data[column].values = value
+
 
 print = MagicMock()
 
@@ -18,6 +42,17 @@ def build_tafra() -> Tafra:
         'z': np.array([0, 0, 0, 1, 1, 1])
     })
 
+
+def check_tafra(t: Tafra) -> bool:
+    for c in t.columns:
+        assert isinstance(t[c], np.ndarray)
+        assert isinstance(t.data[c], np.ndarray)
+        assert isinstance(t._data[c], np.ndarray)
+        assert isinstance(t.dtypes[c], str)
+        assert isinstance(t._dtypes[c], str)
+
+    return True
+
 def test_constructions() -> None:
     with pytest.raises(TypeError) as e:
         t = Tafra()  # type: ignore # noqa
@@ -25,29 +60,45 @@ def test_constructions() -> None:
     with pytest.raises(ValueError) as e:
         t = Tafra({})  # type: ignore
 
-    with pytest.raises(ValueError) as e:
-        t = Tafra({'x': None})
+    t = Tafra({'x': None})
+    check_tafra(t)
+
+    t = Tafra({'x': Decimal('1.23456')})
+    check_tafra(t)
 
     t = Tafra({'x': np.array(1)})
+    check_tafra(t)
+
     t = Tafra({'x': np.array([1])})
+    check_tafra(t)
+
     t = Tafra({'x': [True, False]})
+    check_tafra(t)
+
     t = Tafra({'x': 'test'})
+    check_tafra(t)
+
     t.update_dtypes_inplace({'x': 'O'})
+    check_tafra(t)
+
+    t = Tafra(enumerate(np.arange(6)))
+    check_tafra(t)
 
     with pytest.raises(ValueError) as e:
         t = Tafra({'x': np.array([1, 2]), 'y': np.array([3., 4., 5.])})
-
-    t = Tafra(enumerate(np.arange(6)))
 
     def gen_values() -> Iterator[Dict[str, np.ndarray]]:
         yield {'x': np.arange(6)}
         yield {'y': np.arange(6)}
 
     t = Tafra(gen_values())
+    check_tafra(t)
 
     t = build_tafra()
     t = t.update_dtypes({'x': 'float'})
     t.data['x'][2] = np.nan
+    check_tafra(t)
+
     _ = tuple(t.to_records())
     _ = tuple(t.to_records(columns='x'))
     _ = tuple(t.to_records(columns=['x']))
@@ -56,14 +107,17 @@ def test_constructions() -> None:
     _ = tuple(t.to_records(columns='x', cast_null=False))
     _ = tuple(t.to_records(columns=['x'], cast_null=False))
     _ = tuple(t.to_records(columns=['x', 'y'], cast_null=False))
+
     _ = t.to_list()
-    _ = t.to_list(inner=True)
     _ = t.to_list(columns='x')
+    _ = t.to_list(columns=['x'])
+    _ = t.to_list(columns=['x', 'y'])
+
+    _ = t.to_list(inner=True)
     _ = t.to_list(columns='x', inner=True)
-    _ = t.to_list(columns=['x'])
-    _ = t.to_list(columns=['x'])
-    _ = t.to_list(columns=['x', 'y'])
-    _ = t.to_list(columns=['x', 'y'])
+    _ = t.to_list(columns=['x'], inner=True)
+    _ = t.to_list(columns=['x', 'y'], inner=True)
+
     _ = t.to_array()
     _ = t.to_array(columns='x')
     _ = t.to_array(columns=['x'])
@@ -72,30 +126,34 @@ def test_constructions() -> None:
     t = build_tafra()
     df = pd.DataFrame(t.data)
     _ = Tafra.from_series(df['x'])
+    check_tafra(_)
+
     _ = Tafra.from_dataframe(df)
-    # _ = Tafra.as_tafra(df['x'])
+    check_tafra(_)
+
     _ = Tafra.as_tafra(df)
+    check_tafra(_)
+
+    _ = Tafra.as_tafra(df['x'])
+    check_tafra(_)
+
     _ = Tafra.as_tafra(t)
+    check_tafra(_)
+
     _ = Tafra.as_tafra({'x': np.array(1)})
+    check_tafra(_)
 
-    class Series:
-        name: str = 'x'
-        values: np.ndarray = np.arange(5)
-        dtype: str = 'int'
-
-    class DataFrame:
-        _data: Dict[str, Series] = {'x': Series(), 'y': Series()}
-        columns: List[str] = ['x', 'y']
-        dtypes: List[str] = ['int', 'int']
-
-        def __getitem__(self, column: str) -> Series:
-            return self._data[column]
-
-        def __setitem__(self, column: str, value: np.ndarray) -> None:
-            self._data[column].values = value
+    _ = Tafra.from_series(Series())
+    check_tafra(_)
 
     _ = Tafra.as_tafra(Series())
+    check_tafra(_)
+
+    _ = Tafra.from_dataframe(DataFrame())  # type: ignore
+    check_tafra(_)
+
     _ = Tafra.as_tafra(DataFrame())
+    check_tafra(_)
 
     with pytest.raises(TypeError) as e:
         _ = Tafra(np.arange(6))
@@ -147,6 +205,7 @@ def test_assignment() -> None:
     t['x'] = 3
     t['x'] = 6
     t['x'] = 'test'
+    t['x'] = list(range(6))
 
     with pytest.raises(ValueError) as e:
         t['x'] = np.arange(3)
@@ -159,6 +218,32 @@ def test_select() -> None:
 
     with pytest.raises(ValueError) as e:
         _ = t.select('a')
+
+def test_formatter() -> None:
+    _ = str(object_formatter)
+
+    t = Tafra({'x': Decimal(1.2345)})
+    assert t._dtypes['x'] == 'float'
+    assert t['x'].dtype == np.dtype(float)
+
+    object_formatter['Decimal'] = lambda x: x.astype(int)
+    t = Tafra({'x': Decimal(1.2345)})
+    assert t._dtypes['x'] == 'int'
+    assert t['x'].dtype == np.dtype(int)
+
+    _ = str(object_formatter)
+
+    for fmt in object_formatter:
+        pass
+
+    _ = object_formatter.copy()
+
+    del object_formatter['Decimal']
+
+    with pytest.raises(ValueError) as e:
+        object_formatter['Decimal'] = lambda x: 'int'  # type: ignore
+
+    _ = str(object_formatter)
 
 def test_prints() -> None:
     t = build_tafra()
@@ -400,6 +485,11 @@ def test_slice() -> None:
     _ = t[np.array([True, False, True, True, False, True])]
     _ = t[['x', 'y']]
     _ = t[('x', 'y')]
+    _ = t[[True, 2]]
+
+
+    with pytest.raises(IndexError) as e:
+        _ = t[np.array([[1, 2]])]
 
     with pytest.raises(IndexError) as e:
         _ = t[[True, False]]
@@ -413,17 +503,11 @@ def test_slice() -> None:
     with pytest.raises(IndexError) as e:
         _ = t[(1, 2.)]  # type: ignore # noqa
 
-    with pytest.raises(IndexError) as e:
+    with pytest.raises(ValueError) as e:
         _ = t[['x', 2]]
-
-    with pytest.raises(IndexError) as e:
-        _ = t[[True, 2]]
 
     with pytest.raises(TypeError) as e:
         _ = t[{'x': [1, 2]}]  # type: ignore
-
-    class TestClass:
-        ...
 
     with pytest.raises(TypeError) as e:
         _ = t[TestClass()]  # type: ignore # noqa
@@ -434,8 +518,6 @@ def test_slice() -> None:
     with pytest.raises(IndexError) as e:
         _ = t[np.array([1, 2.])]
 
-    with pytest.raises(IndexError) as e:
-        _ = t[np.array([[1, 2]])]
 
 def test_invalid_dtypes() -> None:
     t = build_tafra()
@@ -457,14 +539,24 @@ def test_invalid_assignment() -> None:
         t.update_inplace(o)
 
     with warnings.catch_warnings(record=True) as w:
-        t['x'] = list(range(6))
         t['x'] = np.arange(6)[:, None]
-        t['x'] = np.atleast_2d(np.arange(6))
-        t['x'] = np.atleast_2d(np.arange(6)).T
-        t['x'] = np.atleast_2d(np.arange(6))
+        assert str(w[0].message) == '`np.squeeze(ndarray)` applied to set ndim == 1.'
 
-        with pytest.raises(Exception) as e:
-            t['x'] = np.repeat(np.arange(6)[:, None], repeats=2, axis=1)
+    # with warnings.catch_warnings(record=True) as w:
+    with warnings.catch_warnings(record=True) as w:
+        t['x'] = np.atleast_2d(np.arange(6))
+        assert str(w[0].message) == '`np.squeeze(ndarray)` applied to set ndim == 1.'
+
+    with warnings.catch_warnings(record=True) as w:
+        t['x'] = np.atleast_2d(np.arange(6)).T
+        assert str(w[0].message) == '`np.squeeze(ndarray)` applied to set ndim == 1.'
+
+    with warnings.catch_warnings(record=True) as w:
+        t['x'] = np.atleast_2d(np.arange(6))
+        assert str(w[0].message) == '`np.squeeze(ndarray)` applied to set ndim == 1.'
+
+    with pytest.raises(Exception) as e:
+        t['x'] = np.repeat(np.arange(6)[:, None], repeats=2, axis=1)
 
 def test_datetime() -> None:
     t = build_tafra()

@@ -192,9 +192,10 @@ Construct a ``Tafra`` and a ``DataFrame``:
 
 .. code-block:: python
 
-    >>> t = Tafra({
-    ...    'x': np.array([1, 2, 3, 4]),
-    ...    'y': np.array(['one', 'two', 'one', 'two'], dtype='object'),
+    >>> tf = Tafra({
+    ...     'x': np.array([1., 2., 3., 4., 5., 6.]),
+    ...     'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
+    ...     'z': np.array([0, 0, 0, 1, 1, 1])
     ... })
 
     >>> df = pd.DataFrame(t.data)
@@ -227,35 +228,33 @@ advanced indexing:
     1.55 µs ± 105 ns per loop (mean ± std. dev. of 7 runs, 1000000 loops each)
 
 
-As fast as ``pandas`` gets:
-
-.. code-block:: python
-
-    >>> where_col = list(df.columns).index('x')
-    >>> %timeit x = df.values[:, where_col]
-    48 µs ± 7.77 µs per loop (mean ± std. dev. of 7 runs, 10000 loops each)
+This is the fastest methed for accessing the numpy array among alternatives of
+``df.values()``, ``df.to_numpy()``, and ``df.loc[]``.
 
 
 Assignment Operations
 ---------------------
 
-Direct access:
+Direct access is not recommended as it avoids the validation steps, but it
+does provide fast access to the data attribute:
 
 .. code-block:: python
 
-    >>> x = np.arange(4)
+    >>> x = np.arange(6)
 
     >>> %timeit tf._data['x'] = x
     65 ns ± 5.55 ns per loop (mean ± std. dev. of 7 runs, 10000000 loops each)
 
 
-Indidrect:
+Indidrect access has a performance penalty due to the validation checks to
+ensure consistency of the ``tafra``:
 
 .. code-block:: python
 
     >>> %timeit tf['x'] = x
     7.39 µs ± 950 ns per loop (mean ± std. dev. of 7 runs, 100000 loops each)
 
+Even so, there is considerable performance improvement over ``pandas``.
 
 ``pandas`` timing:
 
@@ -263,3 +262,32 @@ Indidrect:
 
     >>> %timeit df['x'] = x
     47.8 µs ± 3.53 µs per loop (mean ± std. dev. of 7 runs, 10000 loops each)
+
+
+Grouping Operations
+-------------------
+
+``tafra`` also excels at aggregation methods, the primary of which are a
+SQL-like ``GROUP BY`` and the split-apply-combine equivalent to a SQL-like
+``GROUP BY`` following by a ``LEFT JOIN`` back to the original table.
+
+.. code-block:: python
+
+    >>> %timeit tf.group_by(['y', 'z'], {'x': sum})
+    138 µs ± 4.03 µs per loop (mean ± std. dev. of 7 runs, 10000 loops each)
+
+    >>> %timeit tf.transform(['y', 'z'], {'sum_x': (sum, 'x')})
+    161 µs ± 2.31 µs per loop (mean ± std. dev. of 7 runs, 10000 loops each)
+
+The equivalent ``pandas`` functions are given below. They require a chain
+of several object methods to perform the same role, and the transform requires
+a copy operation and assignment into the copied ``DataFrame`` in order to
+preserve immutability.
+
+    >>> %timeit gdf = df.groupby(['y', 'z'])[['x']].apply(sum).reset_index()
+    3.79 ms ± 99.9 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
+
+    >>> %%timeit
+    >>> tdf = df.copy()
+    >>> df.groupby(['y', 'z'])[['x']].transform(sum)
+    2.81 ms ± 143 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
