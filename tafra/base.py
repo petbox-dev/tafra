@@ -1439,7 +1439,6 @@ class Tafra:
         -------
             records: Iterator[Tuple[Any, ...]]
         """
-
         if columns is None:
             columns = self.columns
         else:
@@ -1463,9 +1462,6 @@ class Tafra:
 
         Parameters
         ----------
-            columns: Optional[Sequence[str]] = None
-                The columns to extract. If ``None``, extract all columns.
-
             inner: bool = False
                 Cast all :class:`np.ndarray` to :class`List`.
 
@@ -1474,16 +1470,46 @@ class Tafra:
             list: Union[List[np.ndarray], List[List[Any]]]
         """
         if columns is None:
-            if inner:
-                return [list(v) for v in self._data.values()]
-            return list(self._data.values())
-
+            columns = self.columns
         else:
             if isinstance(columns, str):
                 columns = [columns]
-            if inner:
-                return [list(self._data[c]) for c in columns]
-            return list(self._data[c] for c in columns)
+            self._validate_columns(columns)
+
+        if inner:
+            return [list(self._data[c]) for c in columns]
+        return [self._data[c] for c in columns]
+
+    def to_tuple(self, columns: Optional[Sequence[str]] = None, name: str = 'Tafra',
+                 inner: bool = False) -> _Union[Tuple[np.ndarray], Tuple[Tuple[Any, ...]]]:
+        """
+        Return a list of homogeneously typed columns (as np.ndarrays). If a
+        generator is needed, use `Tafra.to_records()`. If `inner == True`
+        each column will be cast from :class:`np.ndarray` to a :class:`List`.
+
+        Parameters
+        ----------
+            inner: bool = False
+                Cast all :class:`np.ndarray` to :class`List`.
+
+        Returns
+        -------
+            list: Union[Tuple[np.ndarray], Tuple[Tuple[Any, ...]]]
+        """
+        if columns is None:
+            columns = self.columns
+        else:
+            if isinstance(columns, str):
+                columns = [columns]
+            self._validate_columns(columns)
+
+        # note: mypy does not support dynamically constructed NamedTuple as return type
+        TafraNT = NamedTuple(name, **{  # type: ignore
+            c: NAMEDTUPLE_TYPE[self._dtypes[c]] for c in columns})
+
+        if inner:
+            return TafraNT(*(tuple(self._data[c]) for c in columns))  # type: ignore
+        return TafraNT(*(self._data[c] for c in columns))  # type: ignore
 
     def to_array(self, columns: Optional[Sequence[str]] = None) -> np.ndarray:
         """
@@ -1499,12 +1525,13 @@ class Tafra:
             array: np.ndarray
         """
         if columns is None:
-            return np.array(list(self._data.values())).T
-
+            columns = self.columns
         else:
             if isinstance(columns, str):
                 columns = [columns]
-            return np.array(list(self._data[c] for c in columns)).T
+            self._validate_columns(columns)
+
+        return np.array(list(self._data[c] for c in columns)).T
 
     def group_by(self, group_by: Sequence[str], aggregation: 'InitAggregation' = {},
                  iter_fn: Mapping[str, Callable[[np.ndarray], Any]] = dict()) -> 'Tafra':

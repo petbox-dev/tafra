@@ -43,6 +43,7 @@ Methods
     as_tafra
     to_records
     to_list
+    to_tuple
     to_array
     rows
     columns
@@ -126,6 +127,7 @@ Methods
     .. automethod:: as_tafra
     .. automethod:: to_records
     .. automethod:: to_list
+    .. automethod:: to_tuple
     .. automethod:: to_array
     .. autoattribute:: rows
     .. autoattribute:: columns
