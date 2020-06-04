@@ -33,8 +33,6 @@ class DataFrame:
         self._data[column].values = value
 
 
-print = MagicMock()
-
 def build_tafra() -> Tafra:
     return Tafra({
         'x': np.array([1, 2, 3, 4, 5, 6]),
@@ -54,9 +52,22 @@ def check_tafra(t: Tafra) -> bool:
         assert t._rows == len(t._data[c])
         pd.Series(t._data[c])
 
+    columns = [c for c in t.columns][:-1]
+
     _ = t.to_records()
+    _ = t.to_records(columns=columns)
     _ = t.to_list()
-    _ = t.to_list()
+    _ = t.to_list(columns=columns)
+    _ = t.to_list(inner=True)
+    _ = t.to_list(columns=columns, inner=True)
+    _ = t.to_tuple()
+    _ = t.to_tuple(columns=columns)
+    _ = t.to_tuple(name='tf')
+    _ = t.to_tuple(columns=columns, name='tf')
+    _ = t.to_tuple(inner=True)
+    _ = t.to_tuple(columns=columns, inner=True)
+    _ = t.to_array()
+    _ = t.to_array(columns=columns)
     pd.DataFrame(t._data)
 
     return True
@@ -90,7 +101,29 @@ def test_constructions() -> None:
     check_tafra(t)
 
     t = Tafra(enumerate(np.arange(6)))
-    check_tafra(t)
+    # to_tuple will not work with field names like '0', do custom test
+    assert len(t._data) == len(t._dtypes)
+    for c in t.columns:
+        assert isinstance(t[c], np.ndarray)
+        assert isinstance(t.data[c], np.ndarray)
+        assert isinstance(t._data[c], np.ndarray)
+        assert isinstance(t.dtypes[c], str)
+        assert isinstance(t._dtypes[c], str)
+        assert t._rows == len(t._data[c])
+        pd.Series(t._data[c])
+
+        columns = [c for c in t.columns][:-1]
+
+    _ = t.to_records()
+    _ = t.to_records(columns=columns)
+    _ = t.to_list()
+    _ = t.to_list(columns=columns)
+    _ = t.to_list(inner=True)
+    _ = t.to_list(columns=columns, inner=True)
+    _ = t.to_array()
+    _ = t.to_array(columns=columns)
+    pd.DataFrame(t._data)
+
 
     with pytest.raises(ValueError) as e:
         t = Tafra({'x': np.array([1, 2]), 'y': np.array([3., 4., 5.])})
@@ -125,6 +158,16 @@ def test_constructions() -> None:
     _ = t.to_list(columns='x', inner=True)
     _ = t.to_list(columns=['x'], inner=True)
     _ = t.to_list(columns=['x', 'y'], inner=True)
+
+    _ = t.to_tuple()
+    _ = t.to_tuple(columns='x')
+    _ = t.to_tuple(columns=['x'])
+    _ = t.to_tuple(columns=['x', 'y'])
+
+    _ = t.to_tuple(inner=True)
+    _ = t.to_tuple(columns='x', inner=True)
+    _ = t.to_tuple(columns=['x'], inner=True)
+    _ = t.to_tuple(columns=['x', 'y'], inner=True)
 
     _ = t.to_array()
     _ = t.to_array(columns='x')
@@ -624,6 +667,9 @@ def test_datetime() -> None:
     _ = tuple(t.to_records())
 
     _ = t.to_list()
+    _ = t.to_list(inner=True)
+    _ = t.to_tuple()
+    _ = t.to_tuple(inner=True)
 
 def test_coalesce() -> None:
     t = Tafra({'x': np.array([1, 2, None, 4, None])})
