@@ -44,12 +44,20 @@ def build_tafra() -> Tafra:
 
 
 def check_tafra(t: Tafra) -> bool:
+    assert len(t._data) == len(t._dtypes)
     for c in t.columns:
         assert isinstance(t[c], np.ndarray)
         assert isinstance(t.data[c], np.ndarray)
         assert isinstance(t._data[c], np.ndarray)
         assert isinstance(t.dtypes[c], str)
         assert isinstance(t._dtypes[c], str)
+        assert t._rows == len(t._data[c])
+        pd.Series(t._data[c])
+
+    _ = t.to_records()
+    _ = t.to_list()
+    _ = t.to_list()
+    pd.DataFrame(t._data)
 
     return True
 
@@ -206,6 +214,7 @@ def test_assignment() -> None:
     t['x'] = 6
     t['x'] = 'test'
     t['x'] = list(range(6))
+    check_tafra(t)
 
     with pytest.raises(ValueError) as e:
         t['x'] = np.arange(3)
@@ -267,21 +276,27 @@ def test_update() -> None:
     t = build_tafra()
     t2 = build_tafra()
     _ = t2.union(t)
+    check_tafra(_)
+
     t2.union_inplace(t)
+    check_tafra(t2)
     assert len(t2) == 2 * len(t)
 
     t2 = build_tafra()
     _ = t2.union(t)
+    check_tafra(_)
     assert len(_) == len(t) + len(t2)
 
 def test_update_dtypes() -> None:
     t = build_tafra()
     t.update_dtypes_inplace({'x': float})
+    check_tafra(t)
     assert t['x'].dtype == 'float'
     assert isinstance(t['x'][0], np.float)
 
     t = build_tafra()
     _ = t.update_dtypes({'x': float})
+    check_tafra(_)
     assert _['x'].dtype == 'float'
     assert isinstance(_['x'][0], np.float)
 
@@ -289,39 +304,62 @@ def test_rename() -> None:
     t = build_tafra()
     t.rename_inplace({'x': 'a'})
     assert 'a' in t.data
+    assert 'a' in t.dtypes
     assert 'x' not in t.data
+    assert 'x' not in t.dtypes
+    check_tafra(t)
 
     t = build_tafra()
     _ = t.rename({'x': 'a'})
     assert 'a' in _.data
+    assert 'a' in _.dtypes
     assert 'x' not in _.data
+    assert 'x' not in _.dtypes
+    check_tafra(_)
 
 def test_delete() -> None:
     t = build_tafra()
     t.delete_inplace('x')
     assert 'x' not in t.data
+    assert 'x' not in t.dtypes
+    check_tafra(t)
 
     t = build_tafra()
     t.delete_inplace(['x'])
     assert 'x' not in t.data
+    assert 'x' not in t.dtypes
+    check_tafra(t)
 
     t = build_tafra()
     t.delete_inplace(['x', 'y'])
     assert 'x' not in t.data
-    assert 'y' not in t.data
+    assert 'y' not in t.dtypes
+    assert 'x' not in t.data
+    assert 'y' not in t.dtypes
+    check_tafra(t)
 
     t = build_tafra()
     _ = t.delete('x')
     assert 'x' not in _.data
+    assert 'x' not in _.dtypes
+    check_tafra(t)
+    check_tafra(_)
 
     t = build_tafra()
     _ = t.delete(['x'])
     assert 'x' not in _.data
+    assert 'x' not in _.dtypes
+    check_tafra(t)
+    check_tafra(_)
 
     t = build_tafra()
     _ = t.delete(['x', 'y'])
     assert 'x' not in _.data
-    assert 'y' not in _.data
+    assert 'y' not in _.dtypes
+    assert 'x' not in _.data
+    assert 'y' not in _.dtypes
+    check_tafra(t)
+    check_tafra(_)
 
 def test_iter_methods() -> None:
     t = build_tafra()
@@ -337,11 +375,15 @@ def test_iter_methods() -> None:
     for _ in t.itertuples():
         pass
 
+    for _ in t.itertuples(name='test'):
+        pass
+
 def test_groupby() -> None:
     t = build_tafra()
     gb = t.group_by(
         ['y', 'z'], {'x': sum}, {'count': len}
     )
+    check_tafra(gb)
 
 def test_groupby_iter_fn() -> None:
     t = build_tafra()
@@ -351,12 +393,14 @@ def test_groupby_iter_fn() -> None:
             'new_x': (sum, 'x')
         }, {'count': len}
     )
+    check_tafra(gb)
 
 def test_transform() -> None:
     t = build_tafra()
     tr = t.transform(
         ['y', 'z'], {'x': sum}, {'id': max}
     )
+    check_tafra(tr)
 
 def test_iterate_by_attr() -> None:
     t = build_tafra()
@@ -366,6 +410,7 @@ def test_iterate_by_attr() -> None:
         t['x'][ix] = sum(grouped['x'])
         t.id[ix] = len(grouped['x'])  # type: ignore
         t['id'][ix] = max(grouped['x'])
+    check_tafra(t)
 
 def test_iterate_by() -> None:
     t = build_tafra()
@@ -383,11 +428,14 @@ def test_update_transform() -> None:
 
     for u, ix, it in t.iterate_by(['y']):
         t['x'][ix] = it['x'] - np.mean(it['x'])
+    check_tafra(t)
 
 def test_transform_assignment() -> None:
     t = build_tafra()
     for u, ix, it in t.iterate_by(['y']):
         it['x'][0] = 9
+    check_tafra(t)
+    check_tafra(it)
 
 def test_invalid_agg() -> None:
     t = build_tafra()
@@ -411,6 +459,7 @@ def test_union() -> None:
     t = build_tafra()
     t2 = build_tafra()
     t.union_inplace(t2)
+    check_tafra(t)
 
     t = build_tafra()
     t2 = build_tafra()
@@ -463,19 +512,25 @@ def test_slice() -> None:
     t = build_tafra()
     _ = t[:3]
     _['x'][0] = 0
+    check_tafra(_)
 
     t = build_tafra()
     _ = t[slice(0, 3)]
     _['x'][0] = 7
+    check_tafra(_)
+    check_tafra(t)
 
     t = build_tafra()
     _ = t[:3].copy()
     _['x'][0] = 9
-    t['x']
+    check_tafra(_)
+    check_tafra(t)
 
     t = build_tafra()
     _ = t[t['x'] <= 4]
     _['x'][1] = 15
+    check_tafra(_)
+    check_tafra(t)
 
     t = build_tafra()
     _ = t[2]
@@ -486,6 +541,8 @@ def test_slice() -> None:
     _ = t[['x', 'y']]
     _ = t[('x', 'y')]
     _ = t[[True, 2]]
+    check_tafra(_)
+    check_tafra(t)
 
 
     with pytest.raises(IndexError) as e:
@@ -526,17 +583,17 @@ def test_invalid_dtypes() -> None:
 
 def test_invalid_assignment() -> None:
     t = build_tafra()
-    o = build_tafra()
-    o._data['x'] = np.arange(5)
+    _ = build_tafra()
+    _._data['x'] = np.arange(5)
 
     with pytest.raises(Exception) as e:
-        o._update_rows()
+        _._update_rows()
 
     with pytest.raises(Exception) as e:
-        _ = t.update(o)
+        _ = t.update(_)
 
     with pytest.raises(Exception) as e:
-        t.update_inplace(o)
+        t.update_inplace(_)
 
     with warnings.catch_warnings(record=True) as w:
         t['x'] = np.arange(6)[:, None]
@@ -562,6 +619,7 @@ def test_datetime() -> None:
     t = build_tafra()
     t['d'] = np.array([np.datetime64(_, 'D') for _ in range(6)])
     t.update_dtypes({'d': '<M8[D]'})
+    check_tafra(t)
 
     _ = tuple(t.to_records())
 
@@ -573,15 +631,145 @@ def test_coalesce() -> None:
     t['y'] = t.coalesce('y', [[1, 2, 3, None, 5], [None, None, None, None, 'five']])  # type: ignore
     assert np.all(t['x'] != np.array(None))
     assert t['y'][3] == np.array(None)
+    check_tafra(t)
 
     t = Tafra({'x': np.array([1, 2, None, 4, None])})
     t.coalesce_inplace('x', [[1, 2, 3, None, 5], [None, None, None, None, 'five']])  # type: ignore
     t.coalesce_inplace('y', [[1, 2, 3, None, 5], [None, None, None, None, 'five']])  # type: ignore
     assert np.all(t['x'] != np.array(None))
     assert t['y'][3] == np.array(None)
+    check_tafra(t)
 
     t = Tafra({'x': np.array([None])})
     t.coalesce('x', [[1], [None]])  # type: ignore
+    check_tafra(t)
+
+def test_left_join_equi() -> None:
+    l = Tafra({
+        'x': np.array([1, 2, 3, 4, 5, 6]),
+        'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
+        'z': np.array([0, 0, 0, 1, 1, 1])
+    })
+
+    r = Tafra({
+        'a': np.array([1, 2, 3, 4, 5, 6]),
+        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
+        'c': np.array([0, 0, 0, 1, 1, 1])
+    })
+    t = l.left_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
+    check_tafra(t)
+
+    r = Tafra({
+        'a': np.array([1, 1, 1, 2, 2, 2]),
+        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
+        'c': np.array([2, 2, 2, 3, 3, 3])
+    })
+    t = l.left_join(r, [('x', 'a', '=='), ('z', 'c', '==')], ['x', 'y', 'a', 'b'])
+    check_tafra(t)
+
+    r = Tafra({
+        'a': np.array([1, 1, 1, 2, 2, 2]),
+        '_a': np.array([1, 1, 2, 2, 3, 3]),
+        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
+        'c': np.array([0, 0, 0, 1, 1, 1])
+    })
+    t = l.left_join(r, [('x', 'a', '=='), ('x', '_a', '==')], ['x', 'y', 'a', 'b'])
+    check_tafra(t)
+
+    r = Tafra({
+        'a': np.array([1, 1, 2, 2, 3, 3]),
+        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
+        'c': np.array([0, 0, 0, 1, 1, 1])
+    })
+    t = l.left_join(r, [('x', 'a', '<')], ['x', 'y', 'a', 'b'])
+    check_tafra(t)
+
+def test_inner_join() -> None:
+    l = Tafra({
+        'x': np.array([1, 2, 3, 4, 5, 6]),
+        'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
+        'z': np.array([0, 0, 0, 1, 1, 1])
+    })
+
+    r = Tafra({
+        'a': np.array([1, 2, 3, 4, 5, 6]),
+        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
+        'c': np.array([0, 0, 0, 1, 1, 1])
+    })
+    t = l.inner_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
+    check_tafra(t)
+
+    r = Tafra({
+        'a': np.array([1, 1, 2, 2, 3, 3]),
+        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
+        'c': np.array([0, 0, 0, 1, 1, 1])
+    })
+    t = l.inner_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
+    check_tafra(t)
+
+    r = Tafra({
+        'a': np.array([1, 1, 1, 2, 2, 2]),
+        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
+        'c': np.array([0, 0, 0, 1, 1, 1])
+    })
+    t = l.inner_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
+    check_tafra(t)
+
+    r = Tafra({
+        'a': np.array([1, 1, 1, 2, 2, 2]),
+        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
+        'c': np.array([0, 0, 0, 1, 1, 1])
+    })
+
+    t = l.inner_join(r, [('x', 'a', '<=')], ['x', 'y', 'a', 'b'])
+    check_tafra(t)
+
+
+def test_cross_join() -> None:
+    l = Tafra({
+        'x': np.array([1, 2, 3, 4, 5, 6]),
+        'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
+        'z': np.array([0, 0, 0, 1, 1, 1])
+    })
+
+    r = Tafra({
+        'a': np.array([1, 2, 3, 4, 5, 6]),
+        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
+        'c': np.array([0, 0, 0, 1, 1, 1])
+    })
+    t = l.cross_join(r)
+    check_tafra(t)
+
+    r = Tafra({
+        'a': np.array([1, 1, 2, 2, 3, 3]),
+        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
+        'c': np.array([0, 0, 0, 1, 1, 1])
+    })
+    t = l.cross_join(r)
+    check_tafra(t)
+
+    r = Tafra({
+        'a': np.array([1, 1, 1, 2, 2, 2]),
+        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
+        'c': np.array([0, 0, 0, 1, 1, 1])
+    })
+    t = l.cross_join(r)
+    check_tafra(t)
+
+    r = Tafra({
+        'a': np.array([1, 1, 1, 2, 2, 2]),
+        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
+        'c': np.array([0, 0, 0, 1, 1, 1])
+    })
+
+    t = l.cross_join(r, select=['x', 'z', 'a', 'c'])
+    check_tafra(t)
+
+    with pytest.raises(IndexError) as e:
+        t = l.cross_join(r, select=['x', 'z'])
+
+    with pytest.raises(IndexError) as e:
+        t = l.cross_join(r, select=['a', 'c'])
 
 def test_left_join_invalid() -> None:
     l = Tafra({
@@ -617,118 +805,3 @@ def test_left_join_invalid() -> None:
     l._dtypes['x'] = 'float'
     with pytest.raises(TypeError) as e:
         t = l.left_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
-
-def test_left_join_equi() -> None:
-    l = Tafra({
-        'x': np.array([1, 2, 3, 4, 5, 6]),
-        'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
-        'z': np.array([0, 0, 0, 1, 1, 1])
-    })
-
-    r = Tafra({
-        'a': np.array([1, 2, 3, 4, 5, 6]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
-        'c': np.array([0, 0, 0, 1, 1, 1])
-    })
-    t = l.left_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
-
-    r = Tafra({
-        'a': np.array([1, 1, 1, 2, 2, 2]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
-        'c': np.array([2, 2, 2, 3, 3, 3])
-    })
-    t = l.left_join(r, [('x', 'a', '=='), ('z', 'c', '==')], ['x', 'y', 'a', 'b'])
-
-    r = Tafra({
-        'a': np.array([1, 1, 1, 2, 2, 2]),
-        '_a': np.array([1, 1, 2, 2, 3, 3]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
-        'c': np.array([0, 0, 0, 1, 1, 1])
-    })
-    t = l.left_join(r, [('x', 'a', '=='), ('x', '_a', '==')], ['x', 'y', 'a', 'b'])
-
-    r = Tafra({
-        'a': np.array([1, 1, 2, 2, 3, 3]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
-        'c': np.array([0, 0, 0, 1, 1, 1])
-    })
-    t = l.left_join(r, [('x', 'a', '<')], ['x', 'y', 'a', 'b'])
-
-def test_inner_join() -> None:
-    l = Tafra({
-        'x': np.array([1, 2, 3, 4, 5, 6]),
-        'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
-        'z': np.array([0, 0, 0, 1, 1, 1])
-    })
-
-    r = Tafra({
-        'a': np.array([1, 2, 3, 4, 5, 6]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
-        'c': np.array([0, 0, 0, 1, 1, 1])
-    })
-    t = l.inner_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
-
-    r = Tafra({
-        'a': np.array([1, 1, 2, 2, 3, 3]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
-        'c': np.array([0, 0, 0, 1, 1, 1])
-    })
-    t = l.inner_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
-
-    r = Tafra({
-        'a': np.array([1, 1, 1, 2, 2, 2]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
-        'c': np.array([0, 0, 0, 1, 1, 1])
-    })
-    t = l.inner_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
-
-    r = Tafra({
-        'a': np.array([1, 1, 1, 2, 2, 2]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
-        'c': np.array([0, 0, 0, 1, 1, 1])
-    })
-
-    t = l.inner_join(r, [('x', 'a', '<=')], ['x', 'y', 'a', 'b'])
-
-
-def test_cross_join() -> None:
-    l = Tafra({
-        'x': np.array([1, 2, 3, 4, 5, 6]),
-        'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
-        'z': np.array([0, 0, 0, 1, 1, 1])
-    })
-
-    r = Tafra({
-        'a': np.array([1, 2, 3, 4, 5, 6]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
-        'c': np.array([0, 0, 0, 1, 1, 1])
-    })
-    t = l.cross_join(r)
-
-    r = Tafra({
-        'a': np.array([1, 1, 2, 2, 3, 3]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
-        'c': np.array([0, 0, 0, 1, 1, 1])
-    })
-    t = l.cross_join(r)
-
-    r = Tafra({
-        'a': np.array([1, 1, 1, 2, 2, 2]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
-        'c': np.array([0, 0, 0, 1, 1, 1])
-    })
-    t = l.cross_join(r)
-
-    r = Tafra({
-        'a': np.array([1, 1, 1, 2, 2, 2]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
-        'c': np.array([0, 0, 0, 1, 1, 1])
-    })
-
-    t = l.cross_join(r, select=['x', 'z', 'a', 'c'])
-
-    with pytest.raises(IndexError) as e:
-        t = l.cross_join(r, select=['x', 'z'])
-
-    with pytest.raises(IndexError) as e:
-        t = l.cross_join(r, select=['a', 'c'])
