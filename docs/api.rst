@@ -73,6 +73,7 @@ Methods
     rename_inplace
     coalesce
     coalesce_inplace
+    _coalesce_dtypes
     delete
     delete_inplace
     pprint
@@ -157,6 +158,7 @@ Methods
     .. automethod:: rename_inplace
     .. automethod:: coalesce
     .. automethod:: coalesce_inplace
+    .. automethod:: _coalesce_dtypes
     .. automethod:: delete
     .. automethod:: delete_inplace
     .. automethod:: union
