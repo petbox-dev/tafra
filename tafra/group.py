@@ -638,8 +638,8 @@ class CrossJoin(Join):
         left_rows = left_t._rows
         right_rows = right_t._rows
 
-        if len(self.select) > 0:
-            select = set(self.select)
+        select = set(self.select)
+        if len(select) > 0:
             left_cols = list(select.intersection(list(left_t._data.keys())))
             right_cols = list(select.intersection(list(right_t._data.keys())))
 
