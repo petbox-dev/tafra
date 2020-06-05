@@ -167,8 +167,6 @@ Methods
     .. automethod:: _coalesce_dtypes
     .. automethod:: delete
     .. automethod:: delete_inplace
-    .. automethod:: union
-    .. automethod:: union_inplace
     .. automethod:: pprint
     .. automethod:: pformat
     .. automethod:: to_html
@@ -179,6 +177,8 @@ Helper Methods
 .. class:: tafra.base.Tafra
     :noindex:
 
+    .. automethod:: union
+    .. automethod:: union_inplace
     .. automethod:: group_by
     .. automethod:: transform
     .. automethod:: iterate_by

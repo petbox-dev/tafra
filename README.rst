@@ -41,13 +41,13 @@ and SQL-style "group by" and join operations.
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
 | Tafra                      | `Tafra <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra>`_                                                 |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Aggregations               | `Union <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.Union>`_,                                              |
-|                            | `GroupBy <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.GroupBy>`_,                                          |
-|                            | `Transform <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.Transform>`_,                                      |
-|                            | `IterateBy <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.IterateBy>`_,                                      |
-|                            | `InnerJoin <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.InnerJoin>`_,                                      |
-|                            | `LeftJoin <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.LeftJoin>`_,                                        |
-|                            | `CrossJoin <https://tafra.readthedocs.io/en/latest/api.html#tafra.groups.CrossJoin>`_                                       |
+| Aggregations               | `Union <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.Union>`_,                                               |
+|                            | `GroupBy <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.GroupBy>`_,                                           |
+|                            | `Transform <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.Transform>`_,                                       |
+|                            | `IterateBy <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.IterateBy>`_,                                       |
+|                            | `InnerJoin <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.InnerJoin>`_,                                       |
+|                            | `LeftJoin <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.LeftJoin>`_,                                         |
+|                            | `CrossJoin <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.CrossJoin>`_                                        |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
 | Aggregation Helpers        | `union <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.union>`__,                                         |
 |                            | `union_inplace <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.union_inplace>`_,                          |
