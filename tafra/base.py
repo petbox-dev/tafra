@@ -129,6 +129,7 @@ class Tafra:
             value, modified = self._validate_value(value, check_rows=False)
             if modified:
                 self._data[column] = value
+                self._dtypes[column] = self._format_type(value.dtype)
 
             if rows is None:
                 rows = len(value)
@@ -630,9 +631,12 @@ class Tafra:
         modified = False
         rows = self._rows if check_rows else 1
 
-        if isinstance(value, np.ndarray) and len(value.shape) == 0:
-            value = np.full(rows, value.item())
-            modified = True
+        if isinstance(value, np.ndarray):
+            if len(value.shape) == 0:
+                value = np.full(rows, value.item())
+                modified = True
+            else:
+                pass
 
         elif isinstance(value, str) or not isinstance(value, Sized):
             value = np.full(rows, value)
