@@ -869,6 +869,19 @@ class Tafra:
         """
         Execute a SQL SELECT statement using a :class:`pyodbc.Cursor` and
         return a Tuple of column names and an Iterator of records.
+
+        Parameters
+        ----------
+            query: str
+                The SQL query.
+
+            cur: pyodbc.Cursor
+                The SQL cursor.
+
+        Returns
+        -------
+            tafra: Tafra
+                The constructed :class:`Tafra`.
         """
         columns: Tuple[str]
         dtypes: Tuple[Type[Any]]
@@ -888,6 +901,19 @@ class Tafra:
         """
         Execute a SQL SELECT statement using a :class:`pyodbc.Cursor` and
         return a Tuple of column names and an Iterator of records.
+
+        Parameters
+        ----------
+            query: str
+                The SQL query.
+
+            cur: pyodbc.Cursor
+                The SQL cursor.
+
+        Returns
+        -------
+            tafra: Tafra
+                The constructed :class:`Tafra`.
         """
         columns: Tuple[str]
         dtypes: Tuple[Type[Any]]
@@ -1520,13 +1546,13 @@ class Tafra:
 
     def union(self, other: 'Tafra') -> 'Tafra':
         """
-        Helper function to implement :class:`tafra.groups.LeftJoin`.
+        Helper function to implement :meth:`tafra.group.Union.apply`.
         """
         return Union().apply(self, other)
 
     def union_inplace(self, other: 'Tafra') -> None:
         """
-        Helper function to implement :class:`tafra.groups.LeftJoin`.
+        Helper function to implement :meth:`tafra.group.Union.apply_inplace`.
         """
         Union().apply_inplace(self, other)
 
@@ -1695,41 +1721,41 @@ class Tafra:
     def group_by(self, columns: Iterable[str], aggregation: 'InitAggregation' = {},
                  iter_fn: Mapping[str, Callable[[np.ndarray], Any]] = dict()) -> 'Tafra':
         """
-        Helper function to implement :class:`tafra.groups.GroupBy`.
+        Helper function to implement :meth:`tafra.group.GroupBy.apply`.
         """
         return GroupBy(columns, aggregation, iter_fn).apply(self)
 
     def transform(self, columns: Iterable[str], aggregation: 'InitAggregation' = {},
                   iter_fn: Dict[str, Callable[[np.ndarray], Any]] = dict()) -> 'Tafra':
         """
-        Helper function to implement :class:`tafra.groups.Transform`.
+        Helper function to implement :meth:`tafra.group.Transform.apply`.
         """
         return Transform(columns, aggregation, iter_fn).apply(self)
 
     def iterate_by(self, columns: Iterable[str]) -> Iterator['GroupDescription']:
         """
-        Helper function to implement :class:`tafra.groups.IterateBy`.
+        Helper function to implement :meth:`tafra.group.IterateBy.apply`.
         """
         yield from IterateBy(columns).apply(self)
 
     def inner_join(self, right: 'Tafra', on: Iterable[Tuple[str, str, str]],
                    select: Iterable[str] = list()) -> 'Tafra':
         """
-        Helper function to implement :class:`tafra.groups.InnerJoin`.
+        Helper function to implement :meth:`tafra.group.InnerJoin.apply`.
         """
         return InnerJoin(on, select).apply(self, right)
 
     def left_join(self, right: 'Tafra', on: Iterable[Tuple[str, str, str]],
                   select: Iterable[str] = list()) -> 'Tafra':
         """
-        Helper function to implement :class:`tafra.groups.LeftJoin`.
+        Helper function to implement :meth:`tafra.group.LeftJoin.apply`.
         """
         return LeftJoin(on, select).apply(self, right)
 
     def cross_join(self, right: 'Tafra',
                    select: Iterable[str] = list()) -> 'Tafra':
         """
-        Helper function to implement :class:`tafra.groups.CrossJoin`.
+        Helper function to implement :meth:`tafra.group.CrossJoin.apply`.
         """
         return CrossJoin([], select).apply(self, right)
 
