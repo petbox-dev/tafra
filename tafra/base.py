@@ -129,7 +129,6 @@ class Tafra:
             value, modified = self._validate_value(value, check_rows=False)
             if modified:
                 self._data[column] = value
-                self._dtypes[column] = self._format_type(value.dtype)
 
             if rows is None:
                 rows = len(value)
@@ -139,8 +138,8 @@ class Tafra:
         if rows is None:
             raise ValueError('No data provided in constructor statement.')
 
-        self._update_rows()
         self._coalesce_dtypes()
+        self._update_rows()
         self.update_dtypes_inplace(self._dtypes)
 
     def _check_initvar(self, values: InitVar) -> Dict[str, Any]:
