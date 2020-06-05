@@ -72,7 +72,6 @@ Methods
     update_inplace
     update_dtypes
     update_dtypes_inplace
-    _coalesce_dtypes
     rename
     rename_inplace
     coalesce
@@ -161,7 +160,6 @@ Methods
     .. automethod:: update_inplace
     .. automethod:: update_dtypes
     .. automethod:: update_dtypes_inplace
-    .. automethod:: _coalesce_dtypes
     .. automethod:: rename
     .. automethod:: rename_inplace
     .. automethod:: coalesce
