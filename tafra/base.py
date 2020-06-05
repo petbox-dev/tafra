@@ -170,7 +170,7 @@ class Tafra:
 
         return _values
 
-    def _parse_sequence(self, values: Sequence[_Element]) -> Dict[str, Any]:
+    def _parse_sequence(self, values: Sequence[_Element]) -> Dict[Any, Any]:
         head = values[0]
         if isinstance(head, Dict):
             for _dict in values:
@@ -178,9 +178,9 @@ class Tafra:
             _values = head
 
         elif isinstance(head, Sequence) and len(head) == 2:
-            # maybe a Sequence of mapping? Cast and try it.
+            # maybe a Sequence of tuples? Cast and try it.
             _values = dict(
-                cast(Iterable[Tuple[str, Any]], values))
+                cast(Iterable[Tuple[Any, Any]], values))
 
         else:
             raise TypeError(f'Sequence must contain `Dict`, `Mapping`, or `Sequence`, '
@@ -188,7 +188,7 @@ class Tafra:
 
         return _values
 
-    def _parse_iterable(self, values: Iterable[_Element]) -> Dict[str, Any]:
+    def _parse_iterable(self, values: Iterable[_Element]) -> Dict[Any, Any]:
         iter_values = iter(values)
         head = next(iter_values)
         if isinstance(head, Dict):
@@ -197,10 +197,10 @@ class Tafra:
             _values = head
 
         elif isinstance(head, Sequence) and len(head) == 2:
-            # maybe an Iterable of mapping? Cast and try it.
+            # maybe an Iterable of tuples? Cast and try it.
             _values = dict(chain(
-                cast(Iterable[Tuple[str, Any]], [head]),
-                cast(Iterator[Tuple[str, Any]], values)))
+                cast(Iterable[Tuple[Any, Any]], [head]),
+                cast(Iterator[Tuple[Any, Any]], values)))
 
         else:
             raise TypeError(f'Iterable must contain `Dict`, `Mapping`, or `Sequence`, '
@@ -208,21 +208,20 @@ class Tafra:
 
         return _values
 
-    def _parse_iterator(self, values: Iterator[_Element]) -> Dict[str, Any]:
+    def _parse_iterator(self, values: Iterator[_Element]) -> Dict[Any, Any]:
         head = next(values)
 
         if isinstance(head, Dict):
             # consume the iterator if its a dict
-            # mypy thinks the iterator is exhausted
             for _dict in values:
                 head.update(cast(Mapping[Any, Any], _dict))
             _values = head
 
         elif isinstance(head, Sequence) and len(head) == 2:
-            # maybe an Iterator of [name, value]? Cast and try it.
+            # maybe an Iterator of tuples? Cast and try it.
             _values = dict(chain(
-                cast(Iterable[Tuple[str, Any]], [head]),
-                cast(Iterator[Tuple[str, Any]], values)))
+                cast(Iterable[Tuple[Any, Any]], [head]),
+                cast(Iterator[Tuple[Any, Any]], values)))
 
         else:
             raise TypeError(f'Iterator must contain `Dict`, `Mapping`, or `Sequence`, '
