@@ -60,12 +60,17 @@ and SQL-style "group by" and join operations.
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
 | Constructors               | `as_tafra <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.as_tafra>`_,                                    |
 |                            | `from_dataframe <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.from_dataframe>`_,                        |
-|                            | `from_series <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.from_series>`_                               |
+|                            | `from_series <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.from_series>`_,                              |
+|                            | `from_records <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.from_records>`_                             |
++----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
+| SQL Readers                | `read_sql <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.read_sql>`_,                                    |
+|                            | `read_sql_chunks <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.read_sql_chucnks>`_                      |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
 | Destructors                | `to_records <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.to_records>`_,                                |
 |                            | `to_list <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.to_list>`_,                                      |
 |                            | `to_tuple <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.to_tuple>`_,                                    |
-|                            | `to_array <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.to_array>`_                                     |
+|                            | `to_array <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.to_array>`_,                                    |
+|                            | `to_pandas <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.to_pandas>`_                                   |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
 | Properties                 | `rows <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.rows>`_,                                            |
 |                            | `columns <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.columns>`_,                                      |

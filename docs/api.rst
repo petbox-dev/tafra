@@ -38,13 +38,17 @@ Methods
 
 .. autosummary::
 
+    from_records
     from_dataframe
     from_series
+    read_sql
+    read_sql_chunks
     as_tafra
     to_records
     to_list
     to_tuple
     to_array
+    to_pandas
     rows
     columns
     data
@@ -125,11 +129,15 @@ Methods
 
     .. automethod:: from_dataframe
     .. automethod:: from_series
+    .. automethod:: from_records
+    .. automethod:: read_sql
+    .. automethod:: read_sql_chunks
     .. automethod:: as_tafra
     .. automethod:: to_records
     .. automethod:: to_list
     .. automethod:: to_tuple
     .. automethod:: to_array
+    .. automethod:: to_pandas
     .. autoattribute:: rows
     .. autoattribute:: columns
     .. autoattribute:: data
