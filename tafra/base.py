@@ -17,11 +17,11 @@ import re
 import warnings
 import pprint as pprint
 from datetime import date, datetime
-from itertools import chain
+from itertools import chain, islice
 import dataclasses as dc
 
 import numpy as np
-from .protocol import Series, DataFrame  # just for mypy...
+from .protocol import Series, DataFrame, Cursor  # just for mypy...
 
 from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union as _Union, Sequence,
                     NamedTuple, Sized, Iterable, Iterator, Type, KeysView, ValuesView, ItemsView)
@@ -88,7 +88,10 @@ class Tafra:
     """
     A minimalist dataframe.
 
-    Constructs a :class:`Tafra` from :class:`dict` of data and (optionally) dtypes.
+    Constructs a :class:`Tafra` from :class:`dict` of data and (optionally)
+    dtypes. Types on parameters are the types of the constructed
+    :class:`Tafra`, but attempts are made to parse anything that "looks" like
+    a dataframe.
 
     Parameters
     ----------
@@ -246,7 +249,7 @@ class Tafra:
             if isinstance(item[0], str):
                 return self.select(cast(Sequence[str], item))
             else:
-                return self._index(item)
+                return self._index(cast(Sequence[_Union[int, bool]], item))
 
         else:
             raise TypeError(f'Type {type(item)} not supported.')
@@ -339,13 +342,13 @@ class Tafra:
             self._dtypes
         )
 
-    def _index(self, index: Sequence[_Union[str, int, bool]]) -> 'Tafra':
+    def _index(self, index: Sequence[_Union[int, bool]]) -> 'Tafra':
         """
         Use numpy indexing to slice the data :class:`np.ndarray`.
 
         Parameters
         ----------
-            index: Sequence[Union[str, int, bool]]
+            index: Sequence[Union[int, bool]]
 
         """
         # TODO: just let numpy handle errors?
@@ -776,6 +779,38 @@ class Tafra:
         return TAFRA_TYPE[dtype](array)
 
     @classmethod
+    def from_records(cls, records: Iterable[Iterable[Any]], columns: Iterable[str],
+                     dtypes: Optional[Iterable[Any]] = None) -> 'Tafra':
+        """
+        Construct a :class:`Tafra` from an Iterator of records, e.g. from a
+        SQL query. The records should be a nested Iterable, but can also be
+        fed a cursor method such as ``cur.fetchmany()`` or ``cur.fetchall()``.
+
+        Parameters
+        ----------
+            records: ITerable[Iteralble[str]]
+                The records to turn into a :class:`Tafra`.
+
+            columns: Iterable[str]
+                The column names to use.
+
+            dtypes: Optional[Iterable[Any]] = None
+                The dtypes of the columns.
+
+        Returns
+        -------
+            tafra: Tafra
+                The constructed :class:`Tafra`.
+        """
+        if dtypes is None:
+            return Tafra({column: value for column, value in zip(columns, zip(*records))})
+
+        return Tafra(
+            {column: value for column, value in zip(columns, zip(*records))},
+            {column: value for column, value in zip(columns, dtypes)}
+        )
+
+    @classmethod
     def from_series(cls, s: Series, dtype: Optional[str] = None) -> 'Tafra':
         """
         Construct a :class:`Tafra` from a :class:`pd.DataFrame`.
@@ -785,7 +820,7 @@ class Tafra:
             df: pd.DataFrame
                 The dataframe used to build the :class:`Tafra`.
 
-            dtypes: Optional[Dict[str, str]] = None
+            dtypes: Optional[str] = None
                 The dtypes of the columns.
 
         Returns
@@ -803,7 +838,7 @@ class Tafra:
         )
 
     @classmethod
-    def from_dataframe(cls, df: DataFrame, dtypes: Optional[Dict[str, str]] = None) -> 'Tafra':
+    def from_dataframe(cls, df: DataFrame, dtypes: Optional[Dict[str, Any]] = None) -> 'Tafra':
         """
         Construct a :class:`Tafra` from a :class:`pd.DataFrame`.
 
@@ -812,7 +847,7 @@ class Tafra:
             df: pd.DataFrame
                 The dataframe used to build the :class:`Tafra`.
 
-            dtypes: Optional[Dict[str, str]] = None
+            dtypes: Optional[Dict[str, Any]] = None
                 The dtypes of the columns.
 
         Returns
@@ -828,6 +863,50 @@ class Tafra:
             {c: cls._apply_type(dtypes[c], df[c].values) for c in df.columns},
             {c: dtypes[c] for c in df.columns}
         )
+
+    @classmethod
+    def read_sql(cls, query: str, cur: Cursor) -> 'Tafra':
+        """
+        Execute a SQL SELECT statement using a :class:`pyodbc.Cursor` and
+        return a Tuple of column names and an Iterator of records.
+        """
+        columns: Tuple[str]
+        dtypes: Tuple[Type[Any]]
+
+        cur.execute(query)
+
+        columns, dtypes = zip(*((d[0], d[1]) for d in cur.description))
+
+        head = cur.fetchone()
+        if head is None:
+            return Tafra({column: () for column in columns})
+
+        return Tafra.from_records(chain([head], cur.fetchall()), columns, dtypes)
+
+    @classmethod
+    def read_sql_chunks(cls, query: str, cur: Cursor, chunksize: int = 100) -> Iterator['Tafra']:
+        """
+        Execute a SQL SELECT statement using a :class:`pyodbc.Cursor` and
+        return a Tuple of column names and an Iterator of records.
+        """
+        columns: Tuple[str]
+        dtypes: Tuple[Type[Any]]
+
+        cur.execute(query)
+
+        columns, dtypes = zip(*((d[0], d[1]) for d in cur.description))
+
+        head = cur.fetchone()
+        if head is None:
+            yield Tafra({column: () for column in columns})
+            return
+
+        def chunks(iterable: Iterable[Any], chunksize: int = 1000) -> Iterator[Iterable[Any]]:
+            for f in iterable:
+                yield list(chain([f], islice(iterable, chunksize - 1)))
+
+        for chunk in chunks(chain([head], cur), chunksize):
+            yield Tafra.from_records(chunk, columns, dtypes)
 
     @classmethod
     def as_tafra(cls, maybe_tafra: _Union['Tafra', DataFrame, Series, Dict[str, Any], Any]
@@ -1055,7 +1134,7 @@ class Tafra:
         """
         return self._slice(slice(n))
 
-    def select(self, columns: Sequence[str]) -> 'Tafra':
+    def select(self, columns: Iterable[str]) -> 'Tafra':
         """
         Use column names to slice the :class:`Tafra` columns analogous to
         SQL SELECT.
@@ -1064,7 +1143,7 @@ class Tafra:
 
         Parameters
         ----------
-            columns: Sequence[str]
+            columns: Iterable[str]
                 The column names to slice from the :class:`Tafra`.
 
         Returns
@@ -1479,7 +1558,7 @@ class Tafra:
             return None
         return value
 
-    def to_records(self, columns: Optional[Sequence[str]] = None,
+    def to_records(self, columns: Optional[Iterable[str]] = None,
                    cast_null: bool = True) -> Iterator[Tuple[Any, ...]]:
         """
         Return a :class:`Iterator` of :class:`Tuple`, each being a record
@@ -1488,7 +1567,7 @@ class Tafra:
 
         Parameters
         ----------
-            columns: Optional[Sequence[str]] = None
+            columns: Optional[Iterable[str]] = None
                 The columns to extract. If ``None``, extract all columns.
 
             cast_null: bool
@@ -1512,7 +1591,7 @@ class Tafra:
             ) for c in columns)
         return
 
-    def to_list(self, columns: Optional[Sequence[str]] = None,
+    def to_list(self, columns: Optional[Iterable[str]] = None,
                 inner: bool = False) -> _Union[List[np.ndarray], List[List[Any]]]:
         """
         Return a list of homogeneously typed columns (as np.ndarrays). If a
@@ -1521,6 +1600,9 @@ class Tafra:
 
         Parameters
         ----------
+            columns: Optional[Iterable[str]] = None
+                The columns to extract. If ``None``, extract all columns.
+
             inner: bool = False
                 Cast all :class:`np.ndarray` to :class`List`.
 
@@ -1539,7 +1621,7 @@ class Tafra:
             return [list(self._data[c]) for c in columns]
         return [self._data[c] for c in columns]
 
-    def to_tuple(self, columns: Optional[Sequence[str]] = None, name: str = 'Tafra',
+    def to_tuple(self, columns: Optional[Iterable[str]] = None, name: str = 'Tafra',
                  inner: bool = False) -> _Union[Tuple[np.ndarray], Tuple[Tuple[Any, ...]]]:
         """
         Return a list of homogeneously typed columns (as np.ndarrays). If a
@@ -1548,6 +1630,9 @@ class Tafra:
 
         Parameters
         ----------
+            columns: Optional[Iterable[str]] = None
+                The columns to extract. If ``None``, extract all columns.
+
             inner: bool = False
                 Cast all :class:`np.ndarray` to :class`List`.
 
@@ -1570,13 +1655,13 @@ class Tafra:
             return TafraNT(*(tuple(self._data[c]) for c in columns))  # type: ignore
         return TafraNT(*(self._data[c] for c in columns))  # type: ignore
 
-    def to_array(self, columns: Optional[Sequence[str]] = None) -> np.ndarray:
+    def to_array(self, columns: Optional[Iterable[str]] = None) -> np.ndarray:
         """
         Return an object array.
 
         Parameters
         ----------
-            columns: Optional[Sequence[str]] = None
+            columns: Optional[Iterable[str]] = None
                 The columns to extract. If ``None``, extract all columns.
 
         Returns
@@ -1592,42 +1677,42 @@ class Tafra:
 
         return np.array(list(self._data[c] for c in columns)).T
 
-    def group_by(self, columns: Sequence[str], aggregation: 'InitAggregation' = {},
+    def group_by(self, columns: Iterable[str], aggregation: 'InitAggregation' = {},
                  iter_fn: Mapping[str, Callable[[np.ndarray], Any]] = dict()) -> 'Tafra':
         """
         Helper function to implement :class:`tafra.groups.GroupBy`.
         """
         return GroupBy(columns, aggregation, iter_fn).apply(self)
 
-    def transform(self, columns: Sequence[str], aggregation: 'InitAggregation' = {},
+    def transform(self, columns: Iterable[str], aggregation: 'InitAggregation' = {},
                   iter_fn: Dict[str, Callable[[np.ndarray], Any]] = dict()) -> 'Tafra':
         """
         Helper function to implement :class:`tafra.groups.Transform`.
         """
         return Transform(columns, aggregation, iter_fn).apply(self)
 
-    def iterate_by(self, columns: Sequence[str]) -> Iterator['GroupDescription']:
+    def iterate_by(self, columns: Iterable[str]) -> Iterator['GroupDescription']:
         """
         Helper function to implement :class:`tafra.groups.IterateBy`.
         """
         yield from IterateBy(columns).apply(self)
 
-    def inner_join(self, right: 'Tafra', on: Sequence[Tuple[str, str, str]],
-                   select: Sequence[str] = list()) -> 'Tafra':
+    def inner_join(self, right: 'Tafra', on: Iterable[Tuple[str, str, str]],
+                   select: Iterable[str] = list()) -> 'Tafra':
         """
         Helper function to implement :class:`tafra.groups.InnerJoin`.
         """
         return InnerJoin(on, select).apply(self, right)
 
-    def left_join(self, right: 'Tafra', on: Sequence[Tuple[str, str, str]],
-                  select: Sequence[str] = list()) -> 'Tafra':
+    def left_join(self, right: 'Tafra', on: Iterable[Tuple[str, str, str]],
+                  select: Iterable[str] = list()) -> 'Tafra':
         """
         Helper function to implement :class:`tafra.groups.LeftJoin`.
         """
         return LeftJoin(on, select).apply(self, right)
 
     def cross_join(self, right: 'Tafra',
-                   select: Sequence[str] = list()) -> 'Tafra':
+                   select: Iterable[str] = list()) -> 'Tafra':
         """
         Helper function to implement :class:`tafra.groups.CrossJoin`.
         """

@@ -4,8 +4,9 @@ from decimal import Decimal
 import numpy as np
 from tafra import Tafra, object_formatter
 import pandas as pd  # type: ignore
+from itertools import islice
 
-from typing import Dict, List, Any, Iterator, Iterable, Sequence
+from typing import Dict, List, Any, Iterator, Iterable, Sequence, Tuple, Optional, Type
 
 import pytest  # type: ignore
 from unittest.mock import MagicMock
@@ -31,6 +32,46 @@ class DataFrame:
 
     def __setitem__(self, column: str, value: np.ndarray) -> None:
         self._data[column].values = value
+
+
+class Cursor:
+    description = (
+        ('Fruit', str, None, 1, 1, 1, True),
+        ('Amount', int, None, 1, 1, 1, True),
+        ('Price', float, None, 1, 1, 1, True)
+    )
+    _iter = [
+        ('Apples', 5, .95),
+        ('Pears', 2, .80)
+    ]
+    idx = 0
+
+    def __iter__(self) -> Iterator[Tuple[Any, ...]]:
+        return self
+
+    def __next__(self) -> Tuple[Any, ...]:
+        try:
+            item = self._iter[self.idx]
+        except IndexError:
+            raise StopIteration()
+        self.idx += 1
+        return item
+
+    def execute(self, sql: str) -> None:
+        ...
+
+    def fetchone(self) -> Optional[Tuple[Any, ...]]:
+        try:
+            return next(self)
+        except:
+            return None
+
+    def fetchmany(self, size: int) -> List[Tuple[Any, ...]]:
+        return list(islice(self, size))
+
+
+    def fetchall(self) -> List[Tuple[Any, ...]]:
+        return [rec for rec in self]
 
 
 def build_tafra() -> Tafra:
@@ -232,6 +273,36 @@ def test_constructions() -> None:
 
     with pytest.raises(ValueError) as e:
         t = Tafra({'x': np.array([1, 2]), 'y': np.array([3., 4., 5.])})
+
+def test_read_sql() -> None:
+
+    cur = Cursor()
+    columns, dtypes = zip(*((d[0], d[1]) for d in cur.description))
+    records = cur.fetchall()
+    t = Tafra.from_records(records, columns)
+    check_tafra(t)
+
+    t = Tafra.from_records(records, columns, dtypes)
+    check_tafra(t)
+
+    cur = Cursor()
+    t = Tafra.read_sql('SELECT * FROM [Table]', cur)  # type: ignore
+    check_tafra(t)
+
+    cur = Cursor()
+    cur._iter = []
+    t = Tafra.read_sql('SELECT * FROM [Table]', cur)  # type: ignore
+    check_tafra(t)
+
+    cur = Cursor()
+    for t in Tafra.read_sql_chunks('SELECT * FROM [Table]', cur):  # type: ignore
+        check_tafra(t)
+
+    cur = Cursor()
+    cur._iter = []
+    for t in Tafra.read_sql_chunks('SELECT * FROM [Table]', cur):  # type: ignore
+        check_tafra(t)
+
 
 def test_destructors() -> None:
     def gen_values() -> Iterator[Dict[str, np.ndarray]]:

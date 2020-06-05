@@ -146,7 +146,7 @@ class GroupSet:
     """
 
     @staticmethod
-    def _unique_groups(tafra: 'Tafra', columns: Sequence[str]) -> List[Any]:
+    def _unique_groups(tafra: 'Tafra', columns: Iterable[str]) -> List[Any]:
         """
         Construct a unique set of grouped values.
         Uses :class:``OrderedDict`` rather than :class:``set`` to maintain order.
@@ -154,7 +154,7 @@ class GroupSet:
         return list(OrderedDict.fromkeys(zip(*(tafra._data[col] for col in columns))))
 
     @staticmethod
-    def _validate(tafra: 'Tafra', columns: Sequence[str]) -> None:  # pragma: no cover
+    def _validate(tafra: 'Tafra', columns: Iterable[str]) -> None:  # pragma: no cover
         assert tafra._rows >= 1, 'No rows exist in `tafra`.'
         tafra._validate_columns(columns)
 
@@ -164,7 +164,7 @@ class AggMethod(GroupSet):
     """
     Basic methods for aggregations over a data table.
     """
-    group_by_cols: Sequence[str]
+    group_by_cols: Iterable[str]
     aggregation: dc.InitVar[InitAggregation]
     _aggregation: Mapping[str, Tuple[Callable[[np.ndarray], Any], str]] = dc.field(init=False)
     iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
@@ -212,7 +212,7 @@ class GroupBy(AggMethod):
 
     Parameters
     ----------
-        group_by: Sequence[str]
+        group_by: Iterable[str]
             The column names to group by.
 
         aggregation: Mapping[str, Union[Callable[[np.ndarray], Any], \
@@ -275,7 +275,7 @@ class Transform(AggMethod):
 
     Parameters
     ----------
-        group_by: Sequence[str]
+        group_by: Iterable[str]
             The column names to group by.
 
         aggregation: Mapping[str, Union[Callable[[np.ndarray], Any], \
@@ -340,10 +340,10 @@ class IterateBy(GroupSet):
 
     Parameters
     ----------
-        group_by: Sequence[str]
+        group_by: Iterable[str]
             The column names to group by.
     """
-    group_by_cols: Sequence[str]
+    group_by_cols: Iterable[str]
 
     def apply(self, tafra: 'Tafra') -> Iterator[GroupDescription]:
         """
@@ -378,8 +378,8 @@ class Join(GroupSet):
     """
     Base class for SQL-like JOINs.
     """
-    on: Sequence[Tuple[str, str, str]]
-    select: Sequence[str]
+    on: Iterable[Tuple[str, str, str]]
+    select: Iterable[str]
 
     def _validate_dtypes(self, l_table: 'Tafra', r_table: 'Tafra') -> None:
         for l_column, r_column, _ in self.on:
@@ -400,7 +400,7 @@ class Join(GroupSet):
                     f'does not match other `Tafra` dtype `{r_dtype}`.')
 
     @staticmethod
-    def _validate_ops(ops: Sequence[str]) -> None:
+    def _validate_ops(ops: Iterable[str]) -> None:
         for op in ops:
             _op = JOIN_OPS.get(op, None)
             if _op is None:
@@ -421,7 +421,7 @@ class InnerJoin(Join):
         right: Tafra
             The right-side :class:`Tafra` to join.
 
-        on: Sequence[Tuple[str, str, str]]
+        on: Iterable[Tuple[str, str, str]]
             The columns and operator to join on. Should be given as
             ('left column', 'right column', 'op') Valid ops are:
 
@@ -432,7 +432,7 @@ class InnerJoin(Join):
             '>'  : greater than
             '>=' : greater than or equal to
 
-        select: Sequence[str] = []
+        select: Iterable[str] = []
             The columns to return. If not given, all unique columns names
             are returned. If the column exists in both :class`Tafra`,
             prefers the left over the right.
@@ -512,7 +512,7 @@ class LeftJoin(Join):
         right: Tafra
             The right-side :class:`Tafra` to join.
 
-        on: Sequence[Tuple[str, str, str]]
+        on: Iterable[Tuple[str, str, str]]
             The columns and operator to join on. Should be given as
             ('left column', 'right column', 'op') Valid ops are:
 
@@ -523,7 +523,7 @@ class LeftJoin(Join):
             '>'  : greater than
             '>=' : greater than or equal to
 
-        select: Sequence[str] = []
+        select: Iterable[str] = []
             The columns to return. If not given, all unique columns names
             are returned. If the column exists in both :class`Tafra`,
             prefers the left over the right.
@@ -605,7 +605,7 @@ class CrossJoin(Join):
         right: Tafra
             The right-side :class:`Tafra` to join.
 
-        select: Sequence[str] = []
+        select: Iterable[str] = []
             The columns to return. If not given, all unique columns names
             are returned. If the column exists in both :class`Tafra`,
             prefers the left over the right.
