@@ -162,8 +162,8 @@ class Tafra:
             _values = cast(Dict[Any, Any], values)
 
         if not isinstance(_values, Dict):
-            raise TypeError(f'Must contain `Dict`, `Mapping`, `Sequence`, Iterable, or Iterator, '
-                            'got `{type(_values)}`')
+            raise TypeError('Must contain `Dict`, `Mapping`, `Sequence`, Iterable, or Iterator, '
+                            f'got `{type(_values)}`')
 
         # cast all keys to strings if they are not
         # must copy first as mutating the dict changes next(iterator)
@@ -186,8 +186,8 @@ class Tafra:
                 cast(Iterable[Tuple[Any, Any]], values))
 
         else:
-            raise TypeError(f'Sequence must contain `Dict`, `Mapping`, or `Sequence`, '
-                            'got `{type(head)}`')
+            raise TypeError('Sequence must contain `Dict`, `Mapping`, or `Sequence`, '
+                            f'got `{type(head)}`')
 
         return _values
 
@@ -206,8 +206,8 @@ class Tafra:
                 cast(Iterator[Tuple[Any, Any]], values)))
 
         else:
-            raise TypeError(f'Iterable must contain `Dict`, `Mapping`, or `Sequence`, '
-                            'got `{type(head)}`')
+            raise TypeError('Iterable must contain `Dict`, `Mapping`, or `Sequence`, '
+                            f'got `{type(head)}`')
 
         return _values
 
@@ -227,8 +227,8 @@ class Tafra:
                 cast(Iterator[Tuple[Any, Any]], values)))
 
         else:
-            raise TypeError(f'Iterator must contain `Dict`, `Mapping`, or `Sequence`, '
-                            'got `{type(head)}`')
+            raise TypeError('Iterator must contain `Dict`, `Mapping`, or `Sequence`, '
+                            f'got `{type(head)}`')
 
         return _values
 
