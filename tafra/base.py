@@ -1686,7 +1686,7 @@ class Tafra:
             dataframe: :class:`pandas.DataFrame`
         """
         try:
-            import pandas as pd  #  type: ignore
+            import pandas as pd  # type: ignore
         except ImportError as e:  # pragma: no cover
             raise ImportError('`pandas` does not appear to be installed.')
 
