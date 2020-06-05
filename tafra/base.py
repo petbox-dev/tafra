@@ -1270,8 +1270,8 @@ class Tafra:
 
     def _coalesce_dtypes(self) -> None:
         """
-        Update :attr:`_dtypes` with missing keys that exist in :attr:`_data`.
-        **Must be called if :attr:`data` or :attr`:_data` is directly
+        Update :attr:`dtypes` with missing keys that exist in :attr:`data`.
+        **Must be called if :attr:`data` or :attr:`data` is directly
         modified!**
 
         Returns
@@ -1624,9 +1624,9 @@ class Tafra:
     def to_tuple(self, columns: Optional[Iterable[str]] = None, name: str = 'Tafra',
                  inner: bool = False) -> _Union[Tuple[np.ndarray], Tuple[Tuple[Any, ...]]]:
         """
-        Return a list of homogeneously typed columns (as np.ndarrays). If a
-        generator is needed, use `Tafra.to_records()`. If `inner == True`
-        each column will be cast from :class:`np.ndarray` to a :class:`List`.
+        Return a :class:`NamedTuple`. If a generator is needed, use
+        :meth:`Tafra.to_records()`. If `inner == True` each column will be
+        cast from :class:`np.ndarray` to a :class:`Tuple`.
 
         Parameters
         ----------
