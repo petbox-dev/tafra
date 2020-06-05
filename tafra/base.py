@@ -65,10 +65,30 @@ RECORD_TYPE: Dict[str, Callable[[Any], Any]] = {
 }
 
 
+Scalar = _Union[str, int, float, bool]
+_Mapping = _Union[
+    Mapping[str, Any],
+    Mapping[int, Any],
+    Mapping[float, Any],
+    Mapping[bool, Any],
+]
+_Element = _Union[Tuple[str, Any], List[Any], _Mapping]
+InitVar = _Union[
+    Tuple[str, Any],
+    _Mapping,
+    Sequence[_Element],
+    Iterable[_Element],
+    Iterator[_Element],
+    enumerate
+]
+
+
 @dc.dataclass(repr=False, eq=False)
 class Tafra:
     """
-    The innards of a dataframe.
+    A minimalist dataframe.
+
+    Constructs a :class:`Tafra` from :class:`dict` of data and (optionally) dtypes.
 
     Parameters
     ----------
@@ -80,21 +100,6 @@ class Tafra:
             the ``_data``.
 
     """
-
-    Scalar = _Union[str, int, float, bool]
-    _Mapping = _Union[
-        Mapping[str, Any],
-        Mapping[int, Any],
-        Mapping[float, Any],
-        Mapping[bool, Any],
-    ]
-    InitVar = _Union[
-        Tuple[Scalar, Any],
-        _Mapping,
-        Iterator[Tuple[Scalar, Any]],
-        Iterator[_Mapping]
-    ]
-
     data: dc.InitVar[InitVar]
     dtypes: dc.InitVar[InitVar] = None
 
@@ -134,28 +139,94 @@ class Tafra:
         self._coalesce_dtypes()
         self.update_dtypes_inplace(self._dtypes)
 
-    def _check_initvar(self, values: InitVar) -> Dict[str, _Union[str, np.ndarray]]:
-        if isinstance(values, Iterator):
-            head = next(values)
-            if isinstance(head, Dict):
-                for _dict in values:
-                    head.update(cast(Mapping[Any, Any], _dict))
-                _values = head
-            elif isinstance(head, Sequence) and len(head) == 2:
-                # maybe an iterator of mapping? Cast and try it.
-                _values = dict(chain(
-                    cast(Iterable[Tuple[str, Any]], [head]),
-                    cast(Iterator[Tuple[str, Any]], values)))
+    def _check_initvar(self, values: InitVar) -> Dict[str, Any]:
+        _values: Dict[Any, Any]
+
+        if isinstance(values, (Mapping, dict)):
+            _values = cast(Dict[str, Any], values)
+
+        elif isinstance(values, Sequence):
+            _values = self._parse_sequence(values)
+
+        elif isinstance(values, (Iterator, enumerate)):
+            _values = self._parse_iterator(cast(Iterator[_Element], values))
+
+        elif isinstance(values, Iterable):
+            _values = self._parse_iterable(cast(Iterable[_Element], values))
+
         else:
-            _values = cast(Dict[str, _Union[str, np.ndarray]], values)
+            # last ditch attempt
+            _values = cast(Dict[Any, Any], values)
 
         if not isinstance(_values, Dict):
-            raise TypeError(f'Must supply a `Dict` or `Mapping`, got `{type(_values)}`')
+            raise TypeError(f'Must contain `Dict`, `Mapping`, `Sequence`, Iterable, or Iterator, '
+                            'got `{type(_values)}`')
 
+        # cast all keys to strings if they are not
         # must copy first as mutating the dict changes next(iterator)
         columns = [c for c in _values.keys() if not isinstance(c, str)]
         for column in columns:
             _values[str(column)] = _values.pop(column)
+
+        return _values
+
+    def _parse_sequence(self, values: Sequence[_Element]) -> Dict[str, Any]:
+        head = values[0]
+        if isinstance(head, Dict):
+            for _dict in values:
+                head.update(cast(Mapping[Any, Any], _dict))
+            _values = head
+
+        elif isinstance(head, Sequence) and len(head) == 2:
+            # maybe a Sequence of mapping? Cast and try it.
+            _values = dict(
+                cast(Iterable[Tuple[str, Any]], values))
+
+        else:
+            raise TypeError(f'Sequence must contain `Dict`, `Mapping`, or `Sequence`, '
+                            'got `{type(head)}`')
+
+        return _values
+
+    def _parse_iterable(self, values: Iterable[_Element]) -> Dict[str, Any]:
+        iter_values = iter(values)
+        head = next(iter_values)
+        if isinstance(head, Dict):
+            for _dict in iter_values:
+                head.update(cast(Mapping[Any, Any], _dict))
+            _values = head
+
+        elif isinstance(head, Sequence) and len(head) == 2:
+            # maybe an Iterable of mapping? Cast and try it.
+            _values = dict(chain(
+                cast(Iterable[Tuple[str, Any]], [head]),
+                cast(Iterator[Tuple[str, Any]], values)))
+
+        else:
+            raise TypeError(f'Iterable must contain `Dict`, `Mapping`, or `Sequence`, '
+                            'got `{type(head)}`')
+
+        return _values
+
+    def _parse_iterator(self, values: Iterator[_Element]) -> Dict[str, Any]:
+        head = next(values)
+
+        if isinstance(head, Dict):
+            # consume the iterator if its a dict
+            # mypy thinks the iterator is exhausted
+            for _dict in values:
+                head.update(cast(Mapping[Any, Any], _dict))
+            _values = head
+
+        elif isinstance(head, Sequence) and len(head) == 2:
+            # maybe an Iterator of [name, value]? Cast and try it.
+            _values = dict(chain(
+                cast(Iterable[Tuple[str, Any]], [head]),
+                cast(Iterator[Tuple[str, Any]], values)))
+
+        else:
+            raise TypeError(f'Iterator must contain `Dict`, `Mapping`, or `Sequence`, '
+                            'got `{type(head)}`')
 
         return _values
 
@@ -166,10 +237,7 @@ class Tafra:
         if isinstance(item, str):
             return self._data[item]
 
-        elif isinstance(item, int):
-            return self._slice(item)
-
-        elif isinstance(item, slice):
+        elif isinstance(item, (int, slice)):
             return self._slice(item)
 
         elif isinstance(item, np.ndarray):
@@ -973,7 +1041,7 @@ class Tafra:
         for column, value in self.itercols():
             yield fn(value, *args, **kwargs)
 
-    def head(self, n: int = 5) -> None:  # pragma: no cover
+    def head(self, n: int = 5) -> 'Tafra':
         """
         Display the head of the :class:`Tafra`.
 
@@ -986,15 +1054,7 @@ class Tafra:
         -------
             None: None
         """
-        if _in_notebook():
-            try:
-                from IPython.display import display  # type: ignore # noqa
-                display(self[:min(self._rows, n)])
-                return
-            except Exception as e:
-                pass
-
-        print(self[:min(self._rows, n)].pformat())
+        return self._slice(slice(n))
 
     def select(self, columns: Sequence[str]) -> 'Tafra':
         """
@@ -1533,25 +1593,25 @@ class Tafra:
 
         return np.array(list(self._data[c] for c in columns)).T
 
-    def group_by(self, group_by: Sequence[str], aggregation: 'InitAggregation' = {},
+    def group_by(self, columns: Sequence[str], aggregation: 'InitAggregation' = {},
                  iter_fn: Mapping[str, Callable[[np.ndarray], Any]] = dict()) -> 'Tafra':
         """
         Helper function to implement :class:`tafra.groups.GroupBy`.
         """
-        return GroupBy(group_by, aggregation, iter_fn).apply(self)
+        return GroupBy(columns, aggregation, iter_fn).apply(self)
 
-    def transform(self, group_by: Sequence[str], aggregation: 'InitAggregation' = {},
+    def transform(self, columns: Sequence[str], aggregation: 'InitAggregation' = {},
                   iter_fn: Dict[str, Callable[[np.ndarray], Any]] = dict()) -> 'Tafra':
         """
         Helper function to implement :class:`tafra.groups.Transform`.
         """
-        return Transform(group_by, aggregation, iter_fn).apply(self)
+        return Transform(columns, aggregation, iter_fn).apply(self)
 
-    def iterate_by(self, group_by: Sequence[str]) -> Iterator['GroupDescription']:
+    def iterate_by(self, columns: Sequence[str]) -> Iterator['GroupDescription']:
         """
         Helper function to implement :class:`tafra.groups.IterateBy`.
         """
-        yield from IterateBy(group_by).apply(self)
+        yield from IterateBy(columns).apply(self)
 
     def inner_join(self, right: 'Tafra', on: Sequence[Tuple[str, str, str]],
                    select: Sequence[str] = list()) -> 'Tafra':

@@ -5,7 +5,7 @@ import numpy as np
 from tafra import Tafra, object_formatter
 import pandas as pd  # type: ignore
 
-from typing import Dict, List, Any, Iterator
+from typing import Dict, List, Any, Iterator, Iterable, Sequence
 
 import pytest  # type: ignore
 from unittest.mock import MagicMock
@@ -77,7 +77,7 @@ def test_constructions() -> None:
         t = Tafra()  # type: ignore # noqa
 
     with pytest.raises(ValueError) as e:
-        t = Tafra({})  # type: ignore
+        t = Tafra({})
 
     t = Tafra({'x': None})
     check_tafra(t)
@@ -97,7 +97,61 @@ def test_constructions() -> None:
     t = Tafra({'x': 'test'})
     check_tafra(t)
 
-    t.update_dtypes_inplace({'x': 'O'})
+    t = Tafra((('x', np.arange(6)),))
+    check_tafra(t)
+
+    t = Tafra([('x', np.arange(6))])
+    check_tafra(t)
+
+    t = Tafra([['x', np.arange(6)]])
+    check_tafra(t)
+
+    t = Tafra([('x', np.arange(6)), ('y', np.linspace(0, 1, 6))])
+    check_tafra(t)
+
+    t = Tafra([['x', np.arange(6)], ('y', np.linspace(0, 1, 6))])
+    check_tafra(t)
+
+    t = Tafra([('x', np.arange(6)), ['y', np.linspace(0, 1, 6)]])
+    check_tafra(t)
+
+    t = Tafra([['x', np.arange(6)], ['y', np.linspace(0, 1, 6)]])
+    check_tafra(t)
+
+    t = Tafra([{'x': np.arange(6)}, {'y': np.linspace(0, 1, 6)}])
+    check_tafra(t)
+
+    t = Tafra(iter([{'x': np.arange(6)}, {'y': np.linspace(0, 1, 6)}]))
+    check_tafra(t)
+
+    def iterator() -> Iterator[Dict[str, np.ndarray]]:
+        yield {'x': np.array([1, 2, 3, 4, 5, 6])}
+        yield {'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object')}
+        yield {'z': np.array([0, 0, 0, 1, 1, 1])}
+
+    t = Tafra(iterator())
+    check_tafra(t)
+
+    class DictIterable:
+        def __iter__(self) -> Iterator[Dict[str, np.ndarray]]:
+            yield {'x': np.array([1, 2, 3, 4, 5, 6])}
+            yield {'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object')}
+            yield {'z': np.array([0, 0, 0, 1, 1, 1])}
+
+
+    t = Tafra(DictIterable())
+    check_tafra(t)
+
+    t = Tafra(iter(DictIterable()))
+    check_tafra(t)
+
+    class SequenceIterable:
+        def __iter__(self) -> Iterator[Any]:
+            yield ('x', np.array([1, 2, 3, 4, 5, 6]))
+            yield ['y', np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object')]
+            yield ('z', np.array([0, 0, 0, 1, 1, 1]))
+
+    t = Tafra(SequenceIterable())
     check_tafra(t)
 
     t = Tafra(enumerate(np.arange(6)))
@@ -124,10 +178,62 @@ def test_constructions() -> None:
     _ = t.to_array(columns=columns)
     pd.DataFrame(t._data)
 
+    t = build_tafra()
+    df = pd.DataFrame(t.data)
+    _ = Tafra.from_series(df['x'])
+    check_tafra(_)
+
+    _ = Tafra.from_dataframe(df)
+    check_tafra(_)
+
+    _ = Tafra.as_tafra(df)
+    check_tafra(_)
+
+    _ = Tafra.as_tafra(df['x'])
+    check_tafra(_)
+
+    _ = Tafra.as_tafra(t)
+    check_tafra(_)
+
+    _ = Tafra.as_tafra({'x': np.array(1)})
+    check_tafra(_)
+
+    _ = Tafra.from_series(Series())
+    check_tafra(_)
+
+    _ = Tafra.as_tafra(Series())
+    check_tafra(_)
+
+    _ = Tafra.from_dataframe(DataFrame())  # type: ignore
+    check_tafra(_)
+
+    _ = Tafra.as_tafra(DataFrame())
+    check_tafra(_)
+
+    with pytest.raises(TypeError) as e:
+        t = Tafra([{1, 2}])  # type: ignore
+
+    class BadIterable:
+        def __iter__(self) -> Iterator[Any]:
+            yield {1, 2}
+            yield {3.1412159, .5772156}
+
+    with pytest.raises(TypeError) as e:
+        t = Tafra(BadIterable())
+
+    with pytest.raises(TypeError) as e:
+        t = Tafra(iter(BadIterable()))
+
+    with pytest.raises(TypeError) as e:
+        _ = Tafra(np.arange(6))
+
+    with pytest.raises(TypeError) as e:
+        _ = Tafra.as_tafra(np.arange(6))
 
     with pytest.raises(ValueError) as e:
         t = Tafra({'x': np.array([1, 2]), 'y': np.array([3., 4., 5.])})
 
+def test_destructors() -> None:
     def gen_values() -> Iterator[Dict[str, np.ndarray]]:
         yield {'x': np.arange(6)}
         yield {'y': np.arange(6)}
@@ -174,43 +280,6 @@ def test_constructions() -> None:
     _ = t.to_array(columns=['x'])
     _ = t.to_array(columns=['x', 'y'])
 
-    t = build_tafra()
-    df = pd.DataFrame(t.data)
-    _ = Tafra.from_series(df['x'])
-    check_tafra(_)
-
-    _ = Tafra.from_dataframe(df)
-    check_tafra(_)
-
-    _ = Tafra.as_tafra(df)
-    check_tafra(_)
-
-    _ = Tafra.as_tafra(df['x'])
-    check_tafra(_)
-
-    _ = Tafra.as_tafra(t)
-    check_tafra(_)
-
-    _ = Tafra.as_tafra({'x': np.array(1)})
-    check_tafra(_)
-
-    _ = Tafra.from_series(Series())
-    check_tafra(_)
-
-    _ = Tafra.as_tafra(Series())
-    check_tafra(_)
-
-    _ = Tafra.from_dataframe(DataFrame())  # type: ignore
-    check_tafra(_)
-
-    _ = Tafra.as_tafra(DataFrame())
-    check_tafra(_)
-
-    with pytest.raises(TypeError) as e:
-        _ = Tafra(np.arange(6))
-
-    with pytest.raises(TypeError) as e:
-        _ = Tafra.as_tafra(np.arange(6))
 
 def test_properties() -> None:
     t = build_tafra()
@@ -261,6 +330,20 @@ def test_assignment() -> None:
 
     with pytest.raises(ValueError) as e:
         t['x'] = np.arange(3)
+
+def test_dtype_update() -> None:
+    t = build_tafra()
+    assert t._data['x'].dtype != np.dtype(object)
+    t.update_dtypes_inplace({'x': 'O'})
+    assert t._data['x'].dtype == np.dtype(object)
+    check_tafra(t)
+
+    t = build_tafra()
+    assert t._data['x'].dtype != np.dtype(object)
+    _ = t.update_dtypes({'x': 'O'})
+    assert _._data['x'].dtype == np.dtype(object)
+    check_tafra(_)
+
 
 def test_select() -> None:
     t = build_tafra()
