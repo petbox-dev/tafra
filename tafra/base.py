@@ -129,6 +129,7 @@ class Tafra:
             value, modified = self._validate_value(value, check_rows=False)
             if modified:
                 self._data[column] = value
+                self._dtypes[column] = self._format_type(value.dtype)
 
             if rows is None:
                 rows = len(value)
@@ -883,9 +884,6 @@ class Tafra:
             tafra: Tafra
                 The constructed :class:`Tafra`.
         """
-        columns: Tuple[str]
-        dtypes: Tuple[Type[Any]]
-
         cur.execute(query)
 
         columns, dtypes = zip(*((d[0], d[1]) for d in cur.description))
@@ -915,9 +913,6 @@ class Tafra:
             tafra: Tafra
                 The constructed :class:`Tafra`.
         """
-        columns: Tuple[str]
-        dtypes: Tuple[Type[Any]]
-
         cur.execute(query)
 
         columns, dtypes = zip(*((d[0], d[1]) for d in cur.description))
