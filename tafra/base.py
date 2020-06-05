@@ -1677,6 +1677,21 @@ class Tafra:
 
         return np.array(list(self._data[c] for c in columns)).T
 
+    def to_pandas(self) -> DataFrame:
+        """
+        Construct a :class:`pandas.DataFrame`.
+
+        Returns
+        -------
+            dataframe: :class:`pandas.DataFrame`
+        """
+        try:
+            import pandas as pd  #  type: ignore
+        except ImportError as e:  # pragma: no cover
+            raise ImportError('`pandas` does not appear to be installed.')
+
+        return pd.DataFrame(self._data)
+
     def group_by(self, columns: Iterable[str], aggregation: 'InitAggregation' = {},
                  iter_fn: Mapping[str, Callable[[np.ndarray], Any]] = dict()) -> 'Tafra':
         """

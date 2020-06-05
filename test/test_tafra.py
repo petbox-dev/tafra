@@ -109,7 +109,8 @@ def check_tafra(t: Tafra) -> bool:
     _ = t.to_tuple(columns=columns, inner=True)
     _ = t.to_array()
     _ = t.to_array(columns=columns)
-    pd.DataFrame(t._data)
+    df = t.to_pandas()
+    assert isinstance(df, pd.DataFrame)
 
     return True
 
