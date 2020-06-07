@@ -37,10 +37,17 @@ object_formatter['Decimal'] = lambda x: x.astype(float)
 
 
 TAFRA_TYPE: Dict[str, Callable[[np.ndarray], np.ndarray]] = {
-    'int': lambda x: x.astype(int),
-    'float': lambda x: x.astype(float),
-    'decimal': lambda x: x.astype(float),
-    'bool': lambda x: x.astype(bool),
+    'int': lambda x: x.astype(np.int64),
+    'int8': lambda x: x.astype(np.int8),
+    'int16': lambda x: x.astype(np.int16),
+    'int32': lambda x: x.astype(np.int32),
+    'int64': lambda x: x.astype(np.int64),
+    'float': lambda x: x.astype(np.float64),
+    'float16': lambda x: x.astype(np.float16),
+    'float32': lambda x: x.astype(np.float32),
+    'float64': lambda x: x.astype(np.float64),
+    'decimal': lambda x: x.astype(np.float64),
+    'bool': lambda x: x.astype(np.bool),
     'str': lambda x: x.astype(str),
     'date': lambda x: x.astype('datetime64'),
     'object': lambda x: x.astype(object),
