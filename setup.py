@@ -1,5 +1,5 @@
 """
-Tafra: the innards of a dataframe
+Tafra: a minimalist dataframe
 
 
 Author
@@ -19,7 +19,7 @@ import re
 from tafra import __version__
 
 try:
-    from setuptools import setup  # type: ignore
+    from setuptools import setup
 except ImportError:
     from distutils.core import setup
 
@@ -75,7 +75,7 @@ setup(
     url='https://github.com/petbox-dev/tafra',
     author='David S. Fulford',
     author_email='petbox.dev@gmail.com',
-    install_requires=['numpy>=1.17'],
+    install_requires=['numpy>=1.17', 'typing_extensions'],
     zip_safe=False,
     packages=['tafra'],
     package_data={
@@ -98,7 +98,7 @@ setup(
         'Typing :: Typed'
     ],
     keywords=[
-        'tafra', 'dataframe', 'sql', 'group-by',
-        'performance'
+        'tafra', 'dataframe', 'sql', 'group-by', 'aggregation',
+        'performance', 'minimalist'
     ],
 )

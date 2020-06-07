@@ -4,8 +4,9 @@ from decimal import Decimal
 import numpy as np
 from tafra import Tafra, object_formatter
 import pandas as pd  # type: ignore
+from itertools import islice
 
-from typing import Dict, List, Any, Iterator
+from typing import Dict, List, Any, Iterator, Iterable, Sequence, Tuple, Optional, Type
 
 import pytest  # type: ignore
 from unittest.mock import MagicMock
@@ -33,7 +34,45 @@ class DataFrame:
         self._data[column].values = value
 
 
-print = MagicMock()
+class Cursor:
+    description = (
+        ('Fruit', str, None, 1, 1, 1, True),
+        ('Amount', int, None, 1, 1, 1, True),
+        ('Price', float, None, 1, 1, 1, True)
+    )
+    _iter = [
+        ('Apples', 5, .95),
+        ('Pears', 2, .80)
+    ]
+    idx = 0
+
+    def __iter__(self) -> Iterator[Tuple[Any, ...]]:
+        return self
+
+    def __next__(self) -> Tuple[Any, ...]:
+        try:
+            item = self._iter[self.idx]
+        except IndexError:
+            raise StopIteration()
+        self.idx += 1
+        return item
+
+    def execute(self, sql: str) -> None:
+        ...
+
+    def fetchone(self) -> Optional[Tuple[Any, ...]]:
+        try:
+            return next(self)
+        except:
+            return None
+
+    def fetchmany(self, size: int) -> List[Tuple[Any, ...]]:
+        return list(islice(self, size))
+
+
+    def fetchall(self) -> List[Tuple[Any, ...]]:
+        return [rec for rec in self]
+
 
 def build_tafra() -> Tafra:
     return Tafra({
@@ -54,10 +93,24 @@ def check_tafra(t: Tafra) -> bool:
         assert t._rows == len(t._data[c])
         pd.Series(t._data[c])
 
+    columns = [c for c in t.columns][:-1]
+
     _ = t.to_records()
+    _ = t.to_records(columns=columns)
     _ = t.to_list()
-    _ = t.to_list()
-    pd.DataFrame(t._data)
+    _ = t.to_list(columns=columns)
+    _ = t.to_list(inner=True)
+    _ = t.to_list(columns=columns, inner=True)
+    _ = t.to_tuple()
+    _ = t.to_tuple(columns=columns)
+    _ = t.to_tuple(name='tf')
+    _ = t.to_tuple(columns=columns, name='tf')
+    _ = t.to_tuple(inner=True)
+    _ = t.to_tuple(columns=columns, inner=True)
+    _ = t.to_array()
+    _ = t.to_array(columns=columns)
+    df = t.to_pandas()
+    assert isinstance(df, pd.DataFrame)
 
     return True
 
@@ -66,7 +119,7 @@ def test_constructions() -> None:
         t = Tafra()  # type: ignore # noqa
 
     with pytest.raises(ValueError) as e:
-        t = Tafra({})  # type: ignore
+        t = Tafra({})
 
     t = Tafra({'x': None})
     check_tafra(t)
@@ -86,50 +139,86 @@ def test_constructions() -> None:
     t = Tafra({'x': 'test'})
     check_tafra(t)
 
-    t.update_dtypes_inplace({'x': 'O'})
+    t = Tafra((('x', np.arange(6)),))
+    check_tafra(t)
+
+    t = Tafra([('x', np.arange(6))])
+    check_tafra(t)
+
+    t = Tafra([['x', np.arange(6)]])
+    check_tafra(t)
+
+    t = Tafra([('x', np.arange(6)), ('y', np.linspace(0, 1, 6))])
+    check_tafra(t)
+
+    t = Tafra([['x', np.arange(6)], ('y', np.linspace(0, 1, 6))])
+    check_tafra(t)
+
+    t = Tafra([('x', np.arange(6)), ['y', np.linspace(0, 1, 6)]])
+    check_tafra(t)
+
+    t = Tafra([['x', np.arange(6)], ['y', np.linspace(0, 1, 6)]])
+    check_tafra(t)
+
+    t = Tafra([{'x': np.arange(6)}, {'y': np.linspace(0, 1, 6)}])
+    check_tafra(t)
+
+    t = Tafra(iter([{'x': np.arange(6)}, {'y': np.linspace(0, 1, 6)}]))
+    check_tafra(t)
+
+    def iterator() -> Iterator[Dict[str, np.ndarray]]:
+        yield {'x': np.array([1, 2, 3, 4, 5, 6])}
+        yield {'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object')}
+        yield {'z': np.array([0, 0, 0, 1, 1, 1])}
+
+    t = Tafra(iterator())
+    check_tafra(t)
+
+    class DictIterable:
+        def __iter__(self) -> Iterator[Dict[str, np.ndarray]]:
+            yield {'x': np.array([1, 2, 3, 4, 5, 6])}
+            yield {'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object')}
+            yield {'z': np.array([0, 0, 0, 1, 1, 1])}
+
+
+    t = Tafra(DictIterable())
+    check_tafra(t)
+
+    t = Tafra(iter(DictIterable()))
+    check_tafra(t)
+
+    class SequenceIterable:
+        def __iter__(self) -> Iterator[Any]:
+            yield ('x', np.array([1, 2, 3, 4, 5, 6]))
+            yield ['y', np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object')]
+            yield ('z', np.array([0, 0, 0, 1, 1, 1]))
+
+    t = Tafra(SequenceIterable())
     check_tafra(t)
 
     t = Tafra(enumerate(np.arange(6)))
-    check_tafra(t)
+    # to_tuple will not work with field names like '0', do custom test
+    assert len(t._data) == len(t._dtypes)
+    for c in t.columns:
+        assert isinstance(t[c], np.ndarray)
+        assert isinstance(t.data[c], np.ndarray)
+        assert isinstance(t._data[c], np.ndarray)
+        assert isinstance(t.dtypes[c], str)
+        assert isinstance(t._dtypes[c], str)
+        assert t._rows == len(t._data[c])
+        pd.Series(t._data[c])
 
-    with pytest.raises(ValueError) as e:
-        t = Tafra({'x': np.array([1, 2]), 'y': np.array([3., 4., 5.])})
+        columns = [c for c in t.columns][:-1]
 
-    def gen_values() -> Iterator[Dict[str, np.ndarray]]:
-        yield {'x': np.arange(6)}
-        yield {'y': np.arange(6)}
-
-    t = Tafra(gen_values())
-    check_tafra(t)
-
-    t = build_tafra()
-    t = t.update_dtypes({'x': 'float'})
-    t.data['x'][2] = np.nan
-    check_tafra(t)
-
-    _ = tuple(t.to_records())
-    _ = tuple(t.to_records(columns='x'))
-    _ = tuple(t.to_records(columns=['x']))
-    _ = tuple(t.to_records(columns=['x', 'y']))
-    _ = tuple(t.to_records(cast_null=False))
-    _ = tuple(t.to_records(columns='x', cast_null=False))
-    _ = tuple(t.to_records(columns=['x'], cast_null=False))
-    _ = tuple(t.to_records(columns=['x', 'y'], cast_null=False))
-
+    _ = t.to_records()
+    _ = t.to_records(columns=columns)
     _ = t.to_list()
-    _ = t.to_list(columns='x')
-    _ = t.to_list(columns=['x'])
-    _ = t.to_list(columns=['x', 'y'])
-
+    _ = t.to_list(columns=columns)
     _ = t.to_list(inner=True)
-    _ = t.to_list(columns='x', inner=True)
-    _ = t.to_list(columns=['x'], inner=True)
-    _ = t.to_list(columns=['x', 'y'], inner=True)
-
+    _ = t.to_list(columns=columns, inner=True)
     _ = t.to_array()
-    _ = t.to_array(columns='x')
-    _ = t.to_array(columns=['x'])
-    _ = t.to_array(columns=['x', 'y'])
+    _ = t.to_array(columns=columns)
+    pd.DataFrame(t._data)
 
     t = build_tafra()
     df = pd.DataFrame(t.data)
@@ -164,10 +253,105 @@ def test_constructions() -> None:
     check_tafra(_)
 
     with pytest.raises(TypeError) as e:
+        t = Tafra([{1, 2}])  # type: ignore
+
+    class BadIterable:
+        def __iter__(self) -> Iterator[Any]:
+            yield {1, 2}
+            yield {3.1412159, .5772156}
+
+    with pytest.raises(TypeError) as e:
+        t = Tafra(BadIterable())
+
+    with pytest.raises(TypeError) as e:
+        t = Tafra(iter(BadIterable()))
+
+    with pytest.raises(TypeError) as e:
         _ = Tafra(np.arange(6))
 
     with pytest.raises(TypeError) as e:
         _ = Tafra.as_tafra(np.arange(6))
+
+    with pytest.raises(ValueError) as e:
+        t = Tafra({'x': np.array([1, 2]), 'y': np.array([3., 4., 5.])})
+
+def test_read_sql() -> None:
+
+    cur = Cursor()
+    columns, dtypes = zip(*((d[0], d[1]) for d in cur.description))
+    records = cur.fetchall()
+    t = Tafra.from_records(records, columns)
+    check_tafra(t)
+
+    t = Tafra.from_records(records, columns, dtypes)
+    check_tafra(t)
+
+    cur = Cursor()
+    t = Tafra.read_sql('SELECT * FROM [Table]', cur)  # type: ignore
+    check_tafra(t)
+
+    cur = Cursor()
+    cur._iter = []
+    t = Tafra.read_sql('SELECT * FROM [Table]', cur)  # type: ignore
+    check_tafra(t)
+
+    cur = Cursor()
+    for t in Tafra.read_sql_chunks('SELECT * FROM [Table]', cur):  # type: ignore
+        check_tafra(t)
+
+    cur = Cursor()
+    cur._iter = []
+    for t in Tafra.read_sql_chunks('SELECT * FROM [Table]', cur):  # type: ignore
+        check_tafra(t)
+
+
+def test_destructors() -> None:
+    def gen_values() -> Iterator[Dict[str, np.ndarray]]:
+        yield {'x': np.arange(6)}
+        yield {'y': np.arange(6)}
+
+    t = Tafra(gen_values())
+    check_tafra(t)
+
+    t = build_tafra()
+    t = t.update_dtypes({'x': 'float'})
+    t.data['x'][2] = np.nan
+    check_tafra(t)
+
+    _ = tuple(t.to_records())
+    _ = tuple(t.to_records(columns='x'))
+    _ = tuple(t.to_records(columns=['x']))
+    _ = tuple(t.to_records(columns=['x', 'y']))
+    _ = tuple(t.to_records(cast_null=False))
+    _ = tuple(t.to_records(columns='x', cast_null=False))
+    _ = tuple(t.to_records(columns=['x'], cast_null=False))
+    _ = tuple(t.to_records(columns=['x', 'y'], cast_null=False))
+
+    _ = t.to_list()
+    _ = t.to_list(columns='x')
+    _ = t.to_list(columns=['x'])
+    _ = t.to_list(columns=['x', 'y'])
+
+    _ = t.to_list(inner=True)
+    _ = t.to_list(columns='x', inner=True)
+    _ = t.to_list(columns=['x'], inner=True)
+    _ = t.to_list(columns=['x', 'y'], inner=True)
+
+    _ = t.to_tuple()
+    _ = t.to_tuple(columns='x')
+    _ = t.to_tuple(columns=['x'])
+    _ = t.to_tuple(columns=['x', 'y'])
+
+    _ = t.to_tuple(inner=True)
+    _ = t.to_tuple(columns='x', inner=True)
+    _ = t.to_tuple(columns=['x'], inner=True)
+    _ = t.to_tuple(columns=['x', 'y'], inner=True)
+
+    _ = t.to_array()
+    _ = t.to_array(columns='x')
+    _ = t.to_array(columns=['x'])
+    _ = t.to_array(columns=['x', 'y'])
+
 
 def test_properties() -> None:
     t = build_tafra()
@@ -218,6 +402,20 @@ def test_assignment() -> None:
 
     with pytest.raises(ValueError) as e:
         t['x'] = np.arange(3)
+
+def test_dtype_update() -> None:
+    t = build_tafra()
+    assert t._data['x'].dtype != np.dtype(object)
+    t.update_dtypes_inplace({'x': 'O'})
+    assert t._data['x'].dtype == np.dtype(object)
+    check_tafra(t)
+
+    t = build_tafra()
+    assert t._data['x'].dtype != np.dtype(object)
+    _ = t.update_dtypes({'x': 'O'})
+    assert _._data['x'].dtype == np.dtype(object)
+    check_tafra(_)
+
 
 def test_select() -> None:
     t = build_tafra()
@@ -624,6 +822,9 @@ def test_datetime() -> None:
     _ = tuple(t.to_records())
 
     _ = t.to_list()
+    _ = t.to_list(inner=True)
+    _ = t.to_tuple()
+    _ = t.to_tuple(inner=True)
 
 def test_coalesce() -> None:
     t = Tafra({'x': np.array([1, 2, None, 4, None])})
