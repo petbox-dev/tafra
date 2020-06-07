@@ -1,5 +1,6 @@
 """
-Tafra: the innards of a dataframe
+Tafra: a minimalist dataframe
+
 
 Author
 ------
