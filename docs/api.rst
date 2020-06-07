@@ -38,12 +38,17 @@ Methods
 
 .. autosummary::
 
+    from_records
     from_dataframe
     from_series
+    read_sql
+    read_sql_chunks
     as_tafra
     to_records
     to_list
+    to_tuple
     to_array
+    to_pandas
     rows
     columns
     data
@@ -67,11 +72,11 @@ Methods
     update_inplace
     update_dtypes
     update_dtypes_inplace
-    _coalesce_dtypes
     rename
     rename_inplace
     coalesce
     coalesce_inplace
+    _coalesce_dtypes
     delete
     delete_inplace
     pprint
@@ -123,10 +128,15 @@ Methods
 
     .. automethod:: from_dataframe
     .. automethod:: from_series
+    .. automethod:: from_records
+    .. automethod:: read_sql
+    .. automethod:: read_sql_chunks
     .. automethod:: as_tafra
     .. automethod:: to_records
     .. automethod:: to_list
+    .. automethod:: to_tuple
     .. automethod:: to_array
+    .. automethod:: to_pandas
     .. autoattribute:: rows
     .. autoattribute:: columns
     .. autoattribute:: data
@@ -150,15 +160,13 @@ Methods
     .. automethod:: update_inplace
     .. automethod:: update_dtypes
     .. automethod:: update_dtypes_inplace
-    .. automethod:: _coalesce_dtypes
     .. automethod:: rename
     .. automethod:: rename_inplace
     .. automethod:: coalesce
     .. automethod:: coalesce_inplace
+    .. automethod:: _coalesce_dtypes
     .. automethod:: delete
     .. automethod:: delete_inplace
-    .. automethod:: union
-    .. automethod:: union_inplace
     .. automethod:: pprint
     .. automethod:: pformat
     .. automethod:: to_html
@@ -169,6 +177,8 @@ Helper Methods
 .. class:: tafra.base.Tafra
     :noindex:
 
+    .. automethod:: union
+    .. automethod:: union_inplace
     .. automethod:: group_by
     .. automethod:: transform
     .. automethod:: iterate_by
