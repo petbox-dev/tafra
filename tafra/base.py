@@ -53,6 +53,25 @@ TAFRA_TYPE: Dict[str, Callable[[np.ndarray], np.ndarray]] = {
     'object': lambda x: x.astype(object),
 }
 
+FORMAT_TYPE = {
+    'int': 'int64',
+    'int8': 'int8',
+    'int16': 'int16',
+    'int32': 'int32',
+    'int64': 'int64',
+    'float': 'float64',
+    'float16': 'float16',
+    'float32': 'float32',
+    'float64': 'float64',
+    'bool': 'bool',
+    'str': 'str',
+    '<U': 'str',
+    'date': 'date',
+    '<M': 'date',
+    'object': 'object',
+    'O': 'object'
+}
+
 NAMEDTUPLE_TYPE: Dict[str, Type[Any]] = {
     'int': int,
     'float': float,
@@ -127,7 +146,7 @@ class Tafra:
         #     return
 
         rows: Optional[int] = None
-        self._data = cast(Dict[str, np.ndarray], self._check_initvar(data))
+        self._data = self._check_initvar(data)
         if dtypes is None or isinstance(dtypes, property):
             self._dtypes = {}
         else:
@@ -749,24 +768,9 @@ class Tafra:
         """
         _dtype = str(dtype)
 
-        if 'int' in _dtype:
-            return 'int'
-        if 'float' in _dtype:
-            return 'float'
-        if 'bool' in _dtype:
-            return 'bool'
-        if 'str' in _dtype:
-            return 'str'
-        if '<U' in _dtype:
-            return 'str'
-        if 'date' in _dtype:
-            return 'date'
-        if '<M' in _dtype:
-            return 'date'
-        if 'object' in _dtype:
-            return 'object'
-        if 'O' in _dtype:
-            return 'object'
+        for key, value in FORMAT_TYPE.items():
+            if key in _dtype:
+                return value
 
         return _dtype
 
