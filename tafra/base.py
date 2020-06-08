@@ -28,8 +28,12 @@ from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union a
                     NamedTuple, Sized, Iterable, Iterator, Type, KeysView, ValuesView, ItemsView)
 from typing import cast
 from typing_extensions import Protocol
+from io import TextIOWrapper
 
 from .formatter import ObjectFormatter
+from .csvreader import CSVReader
+
+
 object_formatter = ObjectFormatter()
 
 # default object formats
@@ -923,6 +927,32 @@ class Tafra:
 
         for chunk in chunks(chain([head], cur), chunksize):
             yield Tafra.from_records(chunk, columns, dtypes)
+
+    @classmethod
+    def read_csv(cls, csv_file: _Union[str, TextIOWrapper], guess_rows: int = 5,
+                 **csvkw: Dict[str, Any]) -> 'Tafra':
+        """
+        Read a CSV file with a header row, infer the types of each column,
+        and return a Tafra containing the file's contents.
+
+        Parameters
+        ----------
+            csv_file: Union[str, TextIOWrapper]
+                The path to the CSV file, or an open file-like object.
+
+            guess_rows: int
+                The number of rows to use when guessing column types.
+
+            **csvkw: Dict[str, Any]
+                Additional keyword arguments passed to csv.reader.
+
+        Returns
+        -------
+            tafra: Tafra
+                The constructed :class:`Tafra`.
+        """
+        reader = CSVReader(csv_file, guess_rows, **csvkw)
+        return Tafra(reader.read())
 
     @classmethod
     def as_tafra(cls, maybe_tafra: _Union['Tafra', DataFrame, Series, Dict[str, Any], Any]
