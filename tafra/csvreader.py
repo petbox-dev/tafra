@@ -62,6 +62,7 @@ class CSVReader:
         self._guess_data: Dict[str, List[Any]] = {
             col: list() for col in self._header
         }
+        self._data: Dict[str, List[Any]] = dict()
         self._guess_rows = guess_rows
         self._rows = 0
         self._state = ReaderState.AWAIT_GUESSABLE
@@ -92,9 +93,9 @@ class CSVReader:
             return
 
         if self._state == ReaderState.GUESS:
-            self._data: Dict[str, List[Any]] = dict()
             for col in self._header:
-                ty, parsed = _guess_column(self._guess_data[col])
+                ty, parsed = _guess_column(_TYPE_PRECEDENCE,
+                        self._guess_data[col])
                 self._guess_types[col] = ty
                 self._data[col] = parsed
             self._state = ReaderState.READ
@@ -124,9 +125,9 @@ class CSVReader:
             if self._should_close:
                 self._stream.close()
 
-            self._data: Dict[str, List[Any]] = dict()
             for col in self._header:
-                ty, parsed = _guess_column(self._guess_data[col])
+                ty, parsed = _guess_column(_TYPE_PRECEDENCE,
+                        self._guess_data[col])
                 self._guess_types[col] = ty
                 self._data[col] = parsed
 
@@ -143,8 +144,13 @@ class CSVReader:
             return
 
     def _promote(self, col: str, val: str) -> None:
-        # TODO: type-promotion logic
-        pass
+        ty_ix = _TYPE_PRECEDENCE.index(self._guess_types[col])
+        try_next = _TYPE_PRECEDENCE[ty_ix + 1:]
+        stringized = list(map(str, self._data[col]))
+        stringized.append(val)
+        ty, parsed = _guess_column(try_next, stringized)
+        self._guess_types[col] = ty
+        self._data[col] = parsed
 
     def _finalize(self) -> Dict[str, np.ndarray]:
         if self._state != ReaderState.DONE:
@@ -166,8 +172,9 @@ def _unique_header(header: List[str]) -> List[str]:
     return uniq
 
 # the "real" return type is a dependent pair (t: ReadableType ** List[t.dtype])
-def _guess_column(vals: List[str]) -> Tuple[ReadableType, List[Any]]:
-    for ty in _TYPE_PRECEDENCE:
+def _guess_column(precedence: List[ReadableType], vals: List[str]
+                  ) -> Tuple[ReadableType, List[Any]]:
+    for ty in precedence:
         try:
             # mypy doesn't really get that the thing we're mapping is not a method
             #   on `ty` but a data member
