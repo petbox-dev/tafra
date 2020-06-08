@@ -59,6 +59,9 @@ class Union:
     """
     @staticmethod
     def _validate(left: 'Tafra', right: 'Tafra') -> None:
+        """
+        Validate the :class:`Tafra` before applying.
+        """
         # These should be unreachable unless attributes were directly modified
         if len(left._data) != len(left._dtypes):
             assert 0, 'This `Tafra` length of data and dtypes do not match'
@@ -156,6 +159,9 @@ class GroupSet:
 
     @staticmethod
     def _validate(tafra: 'Tafra', columns: Iterable[str]) -> None:  # pragma: no cover
+        """
+        Validate the :class:`Tafra` before applying.
+        """
         assert tafra._rows >= 1, 'No rows exist in `tafra`.'
         tafra._validate_columns(columns)
 
@@ -213,7 +219,7 @@ class GroupBy(AggMethod):
 
     Parameters
     ----------
-        group_by: Iterable[str]
+        columns: Iterable[str]
             The column names to group by.
 
         aggregation: Mapping[str, Union[Callable[[np.ndarray], Any], \
@@ -454,7 +460,7 @@ class InnerJoin(Join):
         Returns
         -------
             tafra: Tafra
-                An iterator over the grouped :class:`Tafra`.
+                The joined :class:`Tafra`.
         """
         left_cols, right_cols, ops = list(zip(*self.on))
         self._validate(left_t, left_cols)
@@ -545,7 +551,7 @@ class LeftJoin(Join):
         Returns
         -------
             tafra: Tafra
-                An iterator over the grouped :class:`Tafra`.
+                The joined :class:`Tafra`.
         """
         left_cols, right_cols, ops = list(zip(*self.on))
         self._validate(left_t, left_cols)
@@ -610,11 +616,6 @@ class CrossJoin(Join):
             The columns to return. If not given, all unique columns names
             are returned. If the column exists in both :class`Tafra`,
             prefers the left over the right.
-
-    Returns
-    -------
-        tafra: Tafra
-            The joined :class:`Tafra`.
     """
 
     def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
