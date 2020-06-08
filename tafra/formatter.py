@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Any, Iterator, MutableMapping, Type
+from typing import Callable, Dict, Tuple, Any, Iterator, MutableMapping, Type
 
 import numpy as np
 
@@ -63,3 +63,22 @@ class ObjectFormatter(Dict[str, Callable[[np.ndarray], np.ndarray]],
 
     def copy(self) -> Dict[str, Any]:
         return {k: dict.__getitem__(self, k) for k in self}
+
+    def parse_dtype(self, value: np.ndarray) -> Tuple[np.ndarray, bool]:
+        """
+        Parse an object dtype.
+
+        Parameters
+        ----------
+            value: np.ndarray
+                The :class:`np.ndarray` to be parsed.
+
+        Returns
+        -------
+            value, modified: Tuple(np.ndarray, bool)
+                The :class:`np.ndarray` and whether it was modified or not.
+        """
+        type_name = type(value[0]).__name__
+        if type_name in self.keys():
+            return self[type_name](value), True
+        return value, False

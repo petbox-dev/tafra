@@ -662,10 +662,7 @@ class Tafra:
 
         # special parsing of various object types
         if value.dtype == np.dtype(object):
-            type_name = type(value[0]).__name__
-            if type_name in object_formatter:
-                value = object_formatter[type_name](value)
-                modified = True
+            value, modified = object_formatter.parse_dtype(value)
 
         assert value.ndim >= 1, '`Tafra` only supports assigning ndim >= 1.'
 
@@ -675,6 +672,27 @@ class Tafra:
                 f'This `Tafra` has {rows} rows. Assigned np.ndarray has {len(value)} rows.')
 
         return value, modified
+
+    def parse_object_dtypes(self) -> None:
+        """
+        Parse the object dtypes using the :class:`ObjectFormatter` instance.
+        """
+        tafra = self.copy()
+        tafra.parse_object_dtypes_inplace()
+        return tafra
+
+    def parse_object_dtypes_inplace(self) -> None:
+        """
+        Inplace version.
+
+        Parse the object dtypes using the :class:`ObjectFormatter` instance.
+        """
+        for column, value in self._data.items():
+            if value.dtype == np.dtype(object):
+                value, modified = object_formatter.parse_dtype(value)
+                if modified:
+                    self._data[column] = value
+                    self._dtypes[column] = self._format_dtype(value.dtype)
 
     def _validate_columns(self, columns: Iterable[str]) -> None:
         """
@@ -1237,20 +1255,13 @@ class Tafra:
             None: None
         """
         tafra = self.copy()
-        rows = tafra._rows
-
-        for column, value in other._data.items():
-            if len(value) != rows:
-                raise ValueError(
-                    'Other `Tafra` must have consistent row count. '
-                    f'This `Tafra` has {rows} rows, other `Tafra` has {len(value)} rows.')
-            tafra._data[column] = value
-
         tafra.update_dtypes_inplace(other._dtypes)
         return tafra
 
     def update_inplace(self, other: 'Tafra') -> None:
         """
+        Inplace version.
+
         Update the data and dtypes of this :class:`Tafra` with another
         :class:`Tafra`. Length of rows must match, while data of different
         ``dtype`` will overwrite.
@@ -1317,6 +1328,8 @@ class Tafra:
 
     def update_dtypes_inplace(self, dtypes: Dict[str, Any]) -> None:
         """
+        Inplace version.
+
         Apply new dtypes.
 
         Parameters
@@ -1707,6 +1720,9 @@ class Tafra:
 
     def union_inplace(self, other: 'Tafra') -> None:
         """
+        Inplace version.
+
+
         Helper function to implement :meth:`tafra.group.Union.apply_inplace`.
 
         Union two :class:`Tafra` together. Analogy to SQL UNION or

@@ -72,6 +72,7 @@ Methods
     update_inplace
     update_dtypes
     update_dtypes_inplace
+    parse_object_dtypes
     rename
     rename_inplace
     coalesce
