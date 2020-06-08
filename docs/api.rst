@@ -73,6 +73,7 @@ Methods
     update_dtypes
     update_dtypes_inplace
     parse_object_dtypes
+    parse_object_dtypes_inplace
     rename
     rename_inplace
     coalesce
@@ -164,6 +165,8 @@ Methods
     .. automethod:: update_inplace
     .. automethod:: update_dtypes
     .. automethod:: update_dtypes_inplace
+    .. automethod:: parse_object_dtypes
+    .. automethod:: parse_object_dtypes_inplace
     .. automethod:: rename
     .. automethod:: rename_inplace
     .. automethod:: coalesce
