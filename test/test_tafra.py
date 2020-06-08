@@ -1,5 +1,6 @@
 import warnings
 from decimal import Decimal
+from datetime import date, datetime
 
 import numpy as np
 from tafra import Tafra, object_formatter
@@ -819,12 +820,20 @@ def test_datetime() -> None:
     t.update_dtypes({'d': '<M8[D]'})
     check_tafra(t)
 
-    _ = tuple(t.to_records())
+def test_object_parse() -> None:
+    t = build_tafra()
+    t['d'] = np.array([datetime.fromisoformat(f'2020-0{_+1}-01') for _ in range(6)])
+    assert t._dtypes['d'] == 'object'
+    check_tafra(t)
 
-    _ = t.to_list()
-    _ = t.to_list(inner=True)
-    _ = t.to_tuple()
-    _ = t.to_tuple(inner=True)
+    object_formatter['datetime'] = lambda x: x.astype('datetime64[D]')
+    t2 = t.parse_object_dtypes()
+    assert t2['d'].dtype == np.dtype('datetime64[D]')
+    check_tafra(t2)
+
+    t.parse_object_dtypes_inplace()
+    assert t['d'].dtype == np.dtype('datetime64[D]')
+    check_tafra(t)
 
 def test_coalesce() -> None:
     t = Tafra({'x': np.array([1, 2, None, 4, None])})
