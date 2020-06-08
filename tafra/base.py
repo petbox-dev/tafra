@@ -137,9 +137,9 @@ class Tafra:
             raise ValueError('No data provided in constructor statement.')
 
         self.update_dtypes_inplace(self._dtypes)
+        self._coalesce_dtypes()
         # must coalesce all dtypes immediately, other functions assume a
         # proper structure of the Tafra
-        self._coalesce_dtypes()
         self._update_rows()
 
     def _check_initvar(self, values: InitVar) -> Dict[str, Any]:
@@ -638,7 +638,7 @@ class Tafra:
             else:
                 pass
 
-        elif isinstance(value, str) or not isinstance(value, Sized):
+        elif isinstance(value, str) or not isinstance(value, Sized) or value is None:
             value = np.full(rows, value)
             modified = True
 
@@ -662,7 +662,8 @@ class Tafra:
 
         # special parsing of various object types
         if value.dtype == np.dtype(object):
-            value, modified = object_formatter.parse_dtype(value)
+            value, _modified = object_formatter.parse_dtype(value)
+            modified |= _modified
 
         assert value.ndim >= 1, '`Tafra` only supports assigning ndim >= 1.'
 
@@ -673,7 +674,7 @@ class Tafra:
 
         return value, modified
 
-    def parse_object_dtypes(self) -> None:
+    def parse_object_dtypes(self) -> 'Tafra':
         """
         Parse the object dtypes using the :class:`ObjectFormatter` instance.
         """
@@ -1255,7 +1256,7 @@ class Tafra:
             None: None
         """
         tafra = self.copy()
-        tafra.update_dtypes_inplace(other._dtypes)
+        tafra.update_inplace(other)
         return tafra
 
     def update_inplace(self, other: 'Tafra') -> None:
@@ -1316,14 +1317,7 @@ class Tafra:
                 The updated :class:`Tafra`.
         """
         tafra = self.copy()
-
-        dtypes = tafra._validate_dtypes(dtypes)
-        tafra._dtypes.update(dtypes)
-
-        for column in tafra._dtypes.keys():
-            if tafra._format_dtype(tafra._data[column].dtype) != tafra._dtypes[column]:
-                tafra._data[column] = tafra._data[column].astype(tafra._dtypes[column])
-
+        tafra.update_dtypes_inplace(dtypes)
         return tafra
 
     def update_dtypes_inplace(self, dtypes: Dict[str, Any]) -> None:
@@ -1366,9 +1360,7 @@ class Tafra:
         """
 
         tafra = self.copy()
-        for cur, new in renames.items():
-            tafra._data[new] = tafra._data.pop(cur)
-            tafra._dtypes[new] = tafra._dtypes.pop(cur)
+        tafra.rename_inplace(renames)
         return tafra
 
     def rename_inplace(self, renames: Dict[str, str]) -> None:
