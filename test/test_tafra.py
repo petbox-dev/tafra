@@ -430,12 +430,12 @@ def test_formatter() -> None:
     _ = str(object_formatter)
 
     t = Tafra({'x': Decimal(1.2345)})
-    assert t._dtypes['x'] == 'float'
+    assert t._dtypes['x'] == 'float64'
     assert t['x'].dtype == np.dtype(float)
 
     object_formatter['Decimal'] = lambda x: x.astype(int)
     t = Tafra({'x': Decimal(1.2345)})
-    assert t._dtypes['x'] == 'int'
+    assert t._dtypes['x'] == 'int32'
     assert t['x'].dtype == np.dtype(int)
 
     _ = str(object_formatter)

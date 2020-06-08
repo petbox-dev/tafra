@@ -6,7 +6,7 @@ import numpy as np
 class ObjectFormatter(Dict[str, Callable[[np.ndarray], np.ndarray]],
                       MutableMapping[str, Callable[[np.ndarray], np.ndarray]]):
     """
-    A dictionary to contain mappings for formatting objects. Some numpy objects
+    A dictionary that contains mappings for formatting objects. Some numpy objects
     should be cast to other types, e.g. the :class:`decimal.Decimal` type cannot
     operate with :class:`np.float`. These mappings are defined in this class.
 

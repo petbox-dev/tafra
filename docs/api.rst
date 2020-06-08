@@ -82,6 +82,9 @@ Methods
     pprint
     pformat
     to_html
+    _slice
+    _index
+    _ndindex
 
 
 Helper Methods
@@ -106,20 +109,20 @@ Object Formatter
 
 .. currentmodule:: tafra.formatter
 
-.. autoclass:: ObjectFormatter
+.. autosummary::
 
-    .. automethod:: __getitem__
-    .. automethod:: __setitem__
-    .. automethod:: __delitem__
+    ObjectFormatter
 
 
 Detailed Reference
 ==================
 
+
 Tafra
 -----
 
 .. currentmodule:: tafra.base
+
 
 Methods
 ~~~~~~~
@@ -170,11 +173,15 @@ Methods
     .. automethod:: pprint
     .. automethod:: pformat
     .. automethod:: to_html
+    .. automethod:: _slice
+    .. automethod:: _index
+    .. automethod:: _ndindex
+
 
 Helper Methods
 ~~~~~~~~~~~~~~
 
-.. class:: tafra.base.Tafra
+.. class:: Tafra
     :noindex:
 
     .. automethod:: union
@@ -185,6 +192,7 @@ Helper Methods
     .. automethod:: inner_join
     .. automethod:: left_join
     .. automethod:: cross_join
+
 
 Aggregations
 ------------
@@ -219,3 +227,15 @@ Aggregations
 .. autoclass:: CrossJoin
 
     .. automethod:: apply
+
+
+Object Formatter
+----------------
+
+.. currentmodule:: tafra.formatter
+
+.. autoclass:: ObjectFormatter
+
+    .. automethod:: __getitem__
+    .. automethod:: __setitem__
+    .. automethod:: __delitem__
