@@ -29,14 +29,6 @@ from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union a
 from typing import cast
 from typing_extensions import Protocol
 
-from .formatter import ObjectFormatter
-
-
-object_formatter = ObjectFormatter()
-
-# default object formats
-object_formatter['Decimal'] = lambda x: x.astype(float)
-
 
 NAMEDTUPLE_TYPE: Dict[str, Type[Any]] = {
     'int': int,
@@ -123,23 +115,20 @@ class Tafra:
 
         # check that the values are properly formed np.ndarray
         for column, value in self._data.items():
-            value, modified = self._validate_value(value, check_rows=False)
-            if modified:
-                self._data[column] = value
-                self._dtypes[column] = self._format_dtype(value.dtype)
+            self._ensure_valid(column, value, check_rows=False)
 
             if rows is None:
-                rows = len(value)
-            elif rows != len(value):
+                rows = len(self._data[column])
+            elif rows != len(self._data[column]):
                 raise ValueError('`Tafra` must have consistent row counts.')
 
         if rows is None:
             raise ValueError('No data provided in constructor statement.')
 
         self.update_dtypes_inplace(self._dtypes)
-        self._coalesce_dtypes()
         # must coalesce all dtypes immediately, other functions assume a
         # proper structure of the Tafra
+        self._coalesce_dtypes()
         self._update_rows()
 
     def _check_initvar(self, values: InitVar) -> Dict[str, Any]:
@@ -255,9 +244,7 @@ class Tafra:
             raise TypeError(f'Type {type(item)} not supported.')
 
     def __setitem__(self, item: str, value: _Union[np.ndarray, Sequence[Any], Any]) -> None:
-        _value, _ = self._validate_value(value)
-        self._data[item] = _value
-        self._dtypes[item] = self._format_dtype(_value.dtype)
+        self._ensure_valid(item, value)
 
     def __len__(self) -> int:
         assert self._data is not None, 'Cannot construct a Tafra with no data.'
@@ -608,43 +595,41 @@ class Tafra:
         tbody = self._html_tbody(tr)
         return self._html_table(thead, tbody)
 
-    def _validate_value(self, value: _Union[np.ndarray, Sequence[Any], Any],
-                        check_rows: bool = True) -> Tuple[np.ndarray, bool]:
+    def _ensure_valid(self, column: str, value: _Union[np.ndarray, Sequence[Any], Any],
+                        check_rows: bool = True) -> None:
         """
         Validate values as an :class:`np.ndarray` of equal length to
         :attr:`rows` before assignment. Will attempt to create a
         :class:`np.ndarray` if ``value`` is not one already, and will check
-        that :attr`np.ndarray.ndim` is ``1``.
-        If :attr:`np.ndarray.ndim` ``> 1`` it will attempt :meth:`np.squeeze`
+        that :attr`np.ndarray.ndim` is ``1``. If :attr:`np.ndarray.ndim`
+        ``> 1`` it will attempt :meth:`np.squeeze`
         on ``value``.
 
         Parameters
         ----------
+            column: str
+                The column to assign to.
+
             value: Union[np.ndarray, Sequence[Any], Any]
                 The value to be assigned.
 
         Returns
         -------
-            value: np.ndarray
-                The validated value.
+            None: None
         """
-        modified = False
         rows = self._rows if check_rows else 1
 
         if isinstance(value, np.ndarray):
             if len(value.shape) == 0:
                 value = np.full(rows, value.item())
-                modified = True
             else:
                 pass
 
         elif isinstance(value, str) or not isinstance(value, Sized) or value is None:
             value = np.full(rows, value)
-            modified = True
 
         elif isinstance(value, Iterable):
             value = np.array(value)
-            modified = True
 
         assert isinstance(value, np.ndarray), '`Tafra` only supports assigning `ndarray`.'
 
@@ -658,13 +643,6 @@ class Tafra:
                 warnings.resetwarnings()
                 value = sq_value
 
-            modified = True
-
-        # special parsing of various object types
-        if value.dtype == np.dtype(object):
-            value, _modified = object_formatter.parse_dtype(value)
-            modified |= _modified
-
         assert value.ndim >= 1, '`Tafra` only supports assigning ndim >= 1.'
 
         if check_rows and len(value) != rows:
@@ -672,7 +650,13 @@ class Tafra:
                 '`Tafra` must have consistent row counts.\n'
                 f'This `Tafra` has {rows} rows. Assigned np.ndarray has {len(value)} rows.')
 
-        return value, modified
+        # special parsing of various object types
+        parsed_value = object_formatter.parse_dtype(value)
+        if parsed_value is not None:
+            value = parsed_value
+
+        self._data[column] = value
+        self._dtypes[column] = self._format_dtype(value.dtype)
 
     def parse_object_dtypes(self) -> 'Tafra':
         """
@@ -689,11 +673,10 @@ class Tafra:
         Parse the object dtypes using the :class:`ObjectFormatter` instance.
         """
         for column, value in self._data.items():
-            if value.dtype == np.dtype(object):
-                value, modified = object_formatter.parse_dtype(value)
-                if modified:
-                    self._data[column] = value
-                    self._dtypes[column] = self._format_dtype(value.dtype)
+            parsed_value = object_formatter.parse_dtype(value)
+            if parsed_value is not None:
+                self._data[column] = parsed_value
+                self._dtypes[column] = self._format_dtype(parsed_value.dtype)
 
     def _validate_columns(self, columns: Iterable[str]) -> None:
         """
@@ -1933,3 +1916,10 @@ def _in_notebook() -> bool:  # pragma: no cover
 # Import here to resolve circular dependency
 from .group import (GroupBy, Transform, IterateBy, InnerJoin, LeftJoin, CrossJoin, Union,
                     InitAggregation, GroupDescription)
+
+
+from .formatter import ObjectFormatter
+object_formatter = ObjectFormatter()
+
+# default object formats
+object_formatter['Decimal'] = lambda x: x.astype(float)
