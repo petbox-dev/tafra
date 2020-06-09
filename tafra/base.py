@@ -29,6 +29,12 @@ from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union a
 from typing import cast
 from typing_extensions import Protocol
 
+from .formatter import ObjectFormatter
+object_formatter = ObjectFormatter()
+
+# default object formats
+object_formatter['Decimal'] = lambda x: x.astype(float)
+
 
 NAMEDTUPLE_TYPE: Dict[str, Type[Any]] = {
     'int': int,
@@ -1916,10 +1922,3 @@ def _in_notebook() -> bool:  # pragma: no cover
 # Import here to resolve circular dependency
 from .group import (GroupBy, Transform, IterateBy, InnerJoin, LeftJoin, CrossJoin, Union,
                     InitAggregation, GroupDescription)
-
-
-from .formatter import ObjectFormatter
-object_formatter = ObjectFormatter()
-
-# default object formats
-object_formatter['Decimal'] = lambda x: x.astype(float)
