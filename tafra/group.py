@@ -34,6 +34,24 @@ JOIN_OPS: Dict[str, Callable[[Any, Any], Any]] = {
     '>=': operator.ge
 }
 
+CREATE_QRY = """
+DROP TABLE IF EXISTS join;
+
+CREATE TABLE join (
+    {column_type}
+    {primary_key}
+);
+"""
+
+INSERT_QRY = """
+INSERT INTO join (
+    {columns}
+)
+VALUES (
+    {placeholders}
+);
+"""
+
 # for the passed argument to an aggregation
 InitAggregation = Mapping[
     str,
@@ -462,50 +480,77 @@ class InnerJoin(Join):
             tafra: Tafra
                 The joined :class:`Tafra`.
         """
-        left_cols, right_cols, ops = list(zip(*self.on))
-        self._validate(left_t, left_cols)
-        self._validate(right_t, right_cols)
+        import time as thyme
+        now = thyme.time()
+        left_ons, right_ons, ops = list(zip(*self.on))
+        self._validate(left_t, left_ons)
+        self._validate(right_t, right_ons)
         self._validate_dtypes(left_t, right_t)
         self._validate_ops(ops)
 
         _on = tuple((left_col, right_col, JOIN_OPS[op]) for left_col, right_col, op in self.on)
+        left_unique = self._unique_groups(left_t, [left_col for left_col, _, _ in _on])
 
-        join: Dict[str, List[Any]] = {column: list() for column in chain(
-            left_t._data.keys(),
-            right_t._data.keys()
-        ) if not self.select
-            or (self.select and column in self.select)}
+        total_rows = 0
+        where_rows = np.empty(len(left_unique), dtype=object)
 
-        # right-to-left so left dtypes overwrite
-        dtypes: Dict[str, str] = {column: dtype for column, dtype in chain(
-            right_t._dtypes.items(),
-            left_t._dtypes.items()
-        ) if column in join.keys()}
+        print(f'Validations: {thyme.time() - now:.3f}')
+        now = thyme.time()
 
-        for i in range(left_t._rows):
-            right_rows = np.full(right_t._rows, True)
+        for i, u in enumerate(left_unique):
+            where_left = np.full(left_t._rows, True)
+            where_right = np.full(right_t._rows, True)
 
-            for left_col, right_col, op in _on:
-                right_rows &= op(left_t[left_col][i], right_t[right_col])
+            for val, (left_col, right_col, op) in zip(u, _on):
+                where_left &= left_t._data[left_col] == val
+                where_right &= op(left_t[where_left][0], right_t[right_col])
 
-            right_count = np.sum(right_rows)
+            row_count = np.sum(where_left) * np.sum(where_right)
+            total_rows += row_count
+            left_rows = np.argwhere(where_left)[0]
+            right_rows = np.argwhere(where_right)[0]
+            where_rows[i] = (row_count, left_rows, right_rows)
 
-            # this is the only difference from the LeftJoin
-            if right_count <= 0:
-                continue
+        print(f'Find rows: {thyme.time() - now:.3f}')
+        now = thyme.time()
 
-            for column in join.keys():
-                if column in left_t._data:
-                    join[column].extend(max(1, right_count) * [left_t[column][i]])
+        join: Dict[str, np.ndarray] = {
+            column: np.empty(total_rows, dtype=dtype)
+            for column, dtype in chain(
+                left_t.dtypes.items(), right_t._dtypes.items()
+            )
+            if not self.select
+            or (self.select and column in self.select)
+        }
 
-                elif column in right_t._data:
-                    join[column].extend(right_t[column][right_rows])
+        print(f'Build joins: {thyme.time() - now:.3f}')
+        now = thyme.time()
 
-        return Tafra(
-            {column: np.array(value)
-             for column, value in join.items()},
-            dtypes
-        )
+        left_cols = []
+        right_cols = []
+        for i, column in enumerate(join.keys()):
+            if column in left_t._dtypes.keys():
+                left_cols.append(column)
+            elif column in right_t._dtypes.keys():
+                right_cols.append(column)
+            else:
+                assert 0, f'Column {column} doesn\'t exist in either left or right tafra.'
+
+        print(f'Get Left/Right: {thyme.time() - now:.3f}')
+        now = thyme.time()
+
+        c = 0
+        for i, (row_count, left_rows, right_rows) in enumerate(where_rows):
+            for column in left_cols:
+                join[column][c: c + row_count] = left_t._data[column][i]
+            for column in right_cols:
+                join[column][c: c + row_count] = right_t._data[column][i]
+            c += row_count
+
+        now = thyme.time()
+        print(f'Fill Array: {thyme.time() - now:.3f}')
+
+        return Tafra({column: np.array(value) for column, value in join.items()})
 
 
 class LeftJoin(Join):
