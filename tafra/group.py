@@ -492,10 +492,12 @@ class InnerJoin(Join):
         left_unique = self._unique_groups(left_t, [left_col for left_col, _, _ in _on])
 
         total_rows = 0
-        where_rows = np.empty(len(left_unique), dtype=object)
+        where_rows: List[Tuple[int, np.ndarray, np.ndarray]] = []
 
         print(f'Validations: {thyme.time() - now:.3f}')
         now = thyme.time()
+
+        #TODO: accelerate this?
 
         for i, u in enumerate(left_unique):
             where_left = np.full(left_t._rows, True)
@@ -503,13 +505,13 @@ class InnerJoin(Join):
 
             for val, (left_col, right_col, op) in zip(u, _on):
                 where_left &= left_t._data[left_col] == val
-                where_right &= op(left_t[where_left][0], right_t[right_col])
+                where_right &= op(right_t[right_col], val)
 
             row_count = np.sum(where_left) * np.sum(where_right)
             total_rows += row_count
-            left_rows = np.argwhere(where_left)[0]
-            right_rows = np.argwhere(where_right)[0]
-            where_rows[i] = (row_count, left_rows, right_rows)
+            left_rows = np.argwhere(where_left).squeeze()
+            right_rows = np.argwhere(where_right).squeeze()
+            where_rows.append((row_count, left_rows, right_rows))
 
         print(f'Find rows: {thyme.time() - now:.3f}')
         now = thyme.time()
@@ -533,8 +535,8 @@ class InnerJoin(Join):
                 left_cols.append(column)
             elif column in right_t._dtypes.keys():
                 right_cols.append(column)
-            else:
-                assert 0, f'Column {column} doesn\'t exist in either left or right tafra.'
+            else:  # pragma: no cover
+                assert 0, (f'Column {column} doesn\'t exist in either left or right tafra.')
 
         print(f'Get Left/Right: {thyme.time() - now:.3f}')
         now = thyme.time()
@@ -542,9 +544,9 @@ class InnerJoin(Join):
         c = 0
         for i, (row_count, left_rows, right_rows) in enumerate(where_rows):
             for column in left_cols:
-                join[column][c: c + row_count] = left_t._data[column][i]
+                join[column][c: c + row_count] = left_t._data[column][left_rows]
             for column in right_cols:
-                join[column][c: c + row_count] = right_t._data[column][i]
+                join[column][c: c + row_count] = right_t._data[column][right_rows]
             c += row_count
 
         now = thyme.time()
