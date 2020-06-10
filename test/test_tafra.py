@@ -1,3 +1,4 @@
+import platform
 import warnings
 from decimal import Decimal
 from datetime import date, datetime
@@ -436,7 +437,10 @@ def test_formatter() -> None:
 
     object_formatter['Decimal'] = lambda x: x.astype(int)
     t = Tafra({'x': Decimal(1.2345)})
-    assert t._dtypes['x'] == 'int32'
+    if platform.system() == 'Windows':
+        assert t._dtypes['x'] == 'int32'
+    elif platform.system() == 'Linux':
+        assert t._dtypes['x'] == 'int64'
     assert t['x'].dtype == np.dtype(int)
 
     _ = str(object_formatter)
