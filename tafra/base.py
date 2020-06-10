@@ -250,7 +250,7 @@ class Tafra:
             raise TypeError(f'Type {type(item)} not supported.')
 
     def __setitem__(self, item: str, value: _Union[np.ndarray, Sequence[Any], Any]) -> None:
-        self._ensure_valid(item, value)
+        self._ensure_valid(item, value, set_item=True)
 
     def __len__(self) -> int:
         assert self._data is not None, 'Cannot construct a Tafra with no data.'
@@ -602,7 +602,7 @@ class Tafra:
         return self._html_table(thead, tbody)
 
     def _ensure_valid(self, column: str, value: _Union[np.ndarray, Sequence[Any], Any],
-                      check_rows: bool = True) -> None:
+                      check_rows: bool = True, set_item: bool = False) -> None:
         """
         Validate values as an :class:`np.ndarray` of equal length to
         :attr:`rows` before assignment. Will attempt to create a
@@ -661,7 +661,7 @@ class Tafra:
             value = parsed_value
 
         # have we modified value?
-        if id(value) != id_value:
+        if set_item or id(value) != id_value:
             self._data[column] = value
             self._dtypes[column] = self._format_dtype(value.dtype)
 
