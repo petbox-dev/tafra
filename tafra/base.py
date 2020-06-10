@@ -28,8 +28,12 @@ from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union a
                     NamedTuple, Sized, Iterable, Iterator, Type, KeysView, ValuesView, ItemsView)
 from typing import cast
 from typing_extensions import Protocol
+from io import TextIOWrapper
 
 from .formatter import ObjectFormatter
+from .csvreader import CSVReader
+
+
 object_formatter = ObjectFormatter()
 
 # default object formats
@@ -925,6 +929,39 @@ class Tafra:
             yield Tafra.from_records(chunk, columns, dtypes)
 
     @classmethod
+    def read_csv(cls, csv_file: _Union[str, TextIOWrapper], guess_rows: int = 5,
+                 dtypes: Optional[Dict[str, str]] = None, **csvkw: Dict[str, Any]
+                 ) -> 'Tafra':
+        """
+        Read a CSV file with a header row, infer the types of each column,
+        and return a Tafra containing the file's contents.
+
+        Parameters
+        ----------
+            csv_file: Union[str, TextIOWrapper]
+                The path to the CSV file, or an open file-like object.
+
+            guess_rows: int
+                The number of rows to use when guessing column types.
+
+            dtypes: Optional[Dict[str, str]]
+                dtypes by column name; by default, all dtypes will be inferred
+                from the file contents.
+
+            **csvkw: Dict[str, Any]
+                Additional keyword arguments passed to csv.reader.
+
+        Returns
+        -------
+            tafra: Tafra
+                The constructed :class:`Tafra`.
+        """
+        reader = CSVReader(csv_file, guess_rows, **csvkw)
+        # TODO: check the typing of the dtypes argument to Tafra.__init__ -
+        #   for now this won't typecheck but is correct.
+        return Tafra(reader.read(), dtypes=dtypes) # type: ignore
+
+    @classmethod
     def as_tafra(cls, maybe_tafra: _Union['Tafra', DataFrame, Series, Dict[str, Any], Any]
                  ) -> Optional['Tafra']:
         """
@@ -1329,7 +1366,6 @@ class Tafra:
         """
         dtypes = self._validate_dtypes(dtypes)
         self._dtypes.update(dtypes)
-
 
         for column in dtypes.keys():
             if self._format_dtype(self._data[column].dtype) != self._dtypes[column]:
