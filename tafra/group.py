@@ -34,24 +34,6 @@ JOIN_OPS: Dict[str, Callable[[Any, Any], Any]] = {
     '>=': operator.ge
 }
 
-CREATE_QRY = """
-DROP TABLE IF EXISTS join;
-
-CREATE TABLE join (
-    {column_type}
-    {primary_key}
-);
-"""
-
-INSERT_QRY = """
-INSERT INTO join (
-    {columns}
-)
-VALUES (
-    {placeholders}
-);
-"""
-
 # for the passed argument to an aggregation
 InitAggregation = Mapping[
     str,
