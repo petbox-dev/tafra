@@ -43,12 +43,14 @@ Methods
     from_series
     read_sql
     read_sql_chunks
+    read_csv
     as_tafra
     to_records
     to_list
     to_tuple
     to_array
     to_pandas
+    to_csv
     rows
     columns
     data
@@ -136,12 +138,14 @@ Methods
     .. automethod:: from_records
     .. automethod:: read_sql
     .. automethod:: read_sql_chunks
+    .. automethod:: read_csv
     .. automethod:: as_tafra
     .. automethod:: to_records
     .. automethod:: to_list
     .. automethod:: to_tuple
     .. automethod:: to_array
     .. automethod:: to_pandas
+    .. automethod:: to_csv
     .. autoattribute:: rows
     .. autoattribute:: columns
     .. autoattribute:: data

@@ -14,8 +14,10 @@ Created on April 25, 2020
 __all__ = ['Tafra']
 
 import sys
+from pathlib import Path
 import re
 import warnings
+import csv
 import pprint as pprint
 from datetime import date, datetime
 from itertools import chain, islice
@@ -100,7 +102,7 @@ class Tafra:
 
     """
     data: dc.InitVar[InitVar]
-    dtypes: dc.InitVar[InitVar] = None
+    dtypes: dc.InitVar[Optional[InitVar]] = None
 
     _data: Dict[str, np.ndarray] = dc.field(init=False)
     _dtypes: Dict[str, str] = dc.field(init=False)
@@ -751,7 +753,7 @@ class Tafra:
         _dtype = np.dtype(dtype)
         name = _dtype.type.__name__
         if 'str' in name:
-            return _dtype.str
+            return 'str'
 
         return name.replace('_', '')
 
@@ -957,9 +959,7 @@ class Tafra:
                 The constructed :class:`Tafra`.
         """
         reader = CSVReader(csv_file, guess_rows, **csvkw)
-        # TODO: check the typing of the dtypes argument to Tafra.__init__ -
-        #   for now this won't typecheck but is correct.
-        return Tafra(reader.read(), dtypes=dtypes) # type: ignore
+        return Tafra(reader.read(), dtypes=dtypes)
 
     @classmethod
     def as_tafra(cls, maybe_tafra: _Union['Tafra', DataFrame, Series, Dict[str, Any], Any]
@@ -1717,6 +1717,20 @@ class Tafra:
             raise ImportError('`pandas` does not appear to be installed.')
 
         return pd.DataFrame(self._data)
+
+    def to_csv(self, filename: _Union[str, Path]) -> None:
+        """
+        Write the :class:`Tafra` to a CSV.
+
+        Parameters
+        ----------
+            filename: Union[str, Path]
+                The path of the filename to write.
+        """
+        with open(filename, 'w', newline='') as f:
+            writer = csv.writer(f, delimiter=',', quotechar='"')
+            writer.writerow(self._data.keys())
+            writer.writerows(self.to_records())
 
     def union(self, other: 'Tafra') -> 'Tafra':
         """
