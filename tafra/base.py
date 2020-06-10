@@ -602,7 +602,7 @@ class Tafra:
         return self._html_table(thead, tbody)
 
     def _ensure_valid(self, column: str, value: _Union[np.ndarray, Sequence[Any], Any],
-                        check_rows: bool = True) -> None:
+                      check_rows: bool = True) -> None:
         """
         Validate values as an :class:`np.ndarray` of equal length to
         :attr:`rows` before assignment. Will attempt to create a
@@ -623,13 +623,12 @@ class Tafra:
         -------
             None: None
         """
+        id_value = id(value)
         rows = self._rows if check_rows else 1
 
         if isinstance(value, np.ndarray):
             if len(value.shape) == 0:
                 value = np.full(rows, value.item())
-            else:
-                pass
 
         elif isinstance(value, str) or not isinstance(value, Sized) or value is None:
             value = np.full(rows, value)
@@ -661,8 +660,10 @@ class Tafra:
         if parsed_value is not None:
             value = parsed_value
 
-        self._data[column] = value
-        self._dtypes[column] = self._format_dtype(value.dtype)
+        # have we modified value?
+        if id(value) != id_value:
+            self._data[column] = value
+            self._dtypes[column] = self._format_dtype(value.dtype)
 
     def parse_object_dtypes(self) -> 'Tafra':
         """
@@ -717,7 +718,7 @@ class Tafra:
                 The validated types.
         """
         msg = ''
-        _dtypes = {}
+        _dtypes: Dict[str, Any] = {}
 
         self._validate_columns(dtypes.keys())
 
@@ -947,17 +948,17 @@ class Tafra:
         if isinstance(maybe_tafra, Tafra):
             return maybe_tafra
 
-        elif isinstance(maybe_tafra, Series):
-            return cls.from_series(maybe_tafra)  # pragma: no cover
+        elif isinstance(maybe_tafra, Series):  # pragma: no cover
+            return cls.from_series(maybe_tafra)
 
-        elif type(maybe_tafra).__name__ == 'Series':
-            return cls.from_series(cast(Series, maybe_tafra))  # pragma: no cover
+        elif type(maybe_tafra).__name__ == 'Series':  # pragma: no cover
+            return cls.from_series(cast(Series, maybe_tafra))
 
-        elif isinstance(maybe_tafra, DataFrame):
-            return cls.from_dataframe(maybe_tafra)  # pragma: no cover
+        elif isinstance(maybe_tafra, DataFrame):  # pragma: no cover
+            return cls.from_dataframe(maybe_tafra)
 
-        elif type(maybe_tafra).__name__ == 'DataFrame':
-            return cls.from_dataframe(cast(DataFrame, maybe_tafra))  # pragma: no cover
+        elif type(maybe_tafra).__name__ == 'DataFrame':  # pragma: no cover
+            return cls.from_dataframe(cast(DataFrame, maybe_tafra))
 
         elif isinstance(maybe_tafra, dict):
             return cls(maybe_tafra)
@@ -1328,6 +1329,7 @@ class Tafra:
         """
         dtypes = self._validate_dtypes(dtypes)
         self._dtypes.update(dtypes)
+
 
         for column in dtypes.keys():
             if self._format_dtype(self._data[column].dtype) != self._dtypes[column]:
@@ -1913,7 +1915,7 @@ def _in_notebook() -> bool:  # pragma: no cover
     """
     try:
         from IPython import get_ipython  # type: ignore
-        if 'IPKernelApp' in get_ipython().config:  # pragma: no cover
+        if 'IPKernelApp' in get_ipython().config:
             return True
     except Exception as e:
         pass
