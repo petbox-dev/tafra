@@ -929,7 +929,8 @@ class Tafra:
 
     @classmethod
     def read_csv(cls, csv_file: _Union[str, TextIOWrapper], guess_rows: int = 5,
-                 **csvkw: Dict[str, Any]) -> 'Tafra':
+                 dtypes: Optional[Dict[str, str]] = None, **csvkw: Dict[str, Any]
+                 ) -> 'Tafra':
         """
         Read a CSV file with a header row, infer the types of each column,
         and return a Tafra containing the file's contents.
@@ -942,6 +943,10 @@ class Tafra:
             guess_rows: int
                 The number of rows to use when guessing column types.
 
+            dtypes: Optional[Dict[str, str]]
+                dtypes by column name; by default, all dtypes will be inferred
+                from the file contents.
+
             **csvkw: Dict[str, Any]
                 Additional keyword arguments passed to csv.reader.
 
@@ -951,7 +956,9 @@ class Tafra:
                 The constructed :class:`Tafra`.
         """
         reader = CSVReader(csv_file, guess_rows, **csvkw)
-        return Tafra(reader.read())
+        # TODO: check the typing of the dtypes argument to Tafra.__init__ -
+        #   for now this won't typecheck but is correct.
+        return Tafra(reader.read(), dtypes=dtypes) # type: ignore
 
     @classmethod
     def as_tafra(cls, maybe_tafra: _Union['Tafra', DataFrame, Series, Dict[str, Any], Any]
