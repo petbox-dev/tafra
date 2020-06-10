@@ -1367,7 +1367,6 @@ class Tafra:
         dtypes = self._validate_dtypes(dtypes)
         self._dtypes.update(dtypes)
 
-
         for column in dtypes.keys():
             if self._format_dtype(self._data[column].dtype) != self._dtypes[column]:
                 self._data[column] = self._data[column].astype(self._dtypes[column])
