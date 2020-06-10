@@ -486,6 +486,15 @@ def test_update() -> None:
     check_tafra(_)
     assert len(_) == len(t) + len(t2)
 
+def test_coalesce_dtypes() -> None:
+    t = build_tafra()
+    t._data['a'] = np.arange(6)
+    assert 'a' not in t._dtypes
+
+    t._coalesce_dtypes()
+    assert 'a' in t._dtypes
+    check_tafra(t)
+
 def test_update_dtypes() -> None:
     t = build_tafra()
     t.update_dtypes_inplace({'x': float})
