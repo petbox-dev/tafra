@@ -199,28 +199,7 @@ def test_constructions() -> None:
     check_tafra(t)
 
     t = Tafra(enumerate(np.arange(6)))
-    # to_tuple will not work with field names like '0', do custom test
-    assert len(t._data) == len(t._dtypes)
-    for c in t.columns:
-        assert isinstance(t[c], np.ndarray)
-        assert isinstance(t.data[c], np.ndarray)
-        assert isinstance(t._data[c], np.ndarray)
-        assert isinstance(t.dtypes[c], str)
-        assert isinstance(t._dtypes[c], str)
-        assert t._rows == len(t._data[c])
-        pd.Series(t._data[c])
-
-        columns = [c for c in t.columns][:-1]
-
-    _ = t.to_records()
-    _ = t.to_records(columns=columns)
-    _ = t.to_list()
-    _ = t.to_list(columns=columns)
-    _ = t.to_list(inner=True)
-    _ = t.to_list(columns=columns, inner=True)
-    _ = t.to_array()
-    _ = t.to_array(columns=columns)
-    pd.DataFrame(t._data)
+    check_tafra(t)
 
     t = build_tafra()
     df = pd.DataFrame(t.data)
