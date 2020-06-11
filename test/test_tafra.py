@@ -1019,6 +1019,17 @@ def test_csv() -> None:
     check_tafra(t)
     t.to_csv('test/test_to_csv.csv')
 
+    # test again with TextIOWrapper
+    with open('test/ex1.csv', 'r') as f:
+        t = Tafra.read_csv(f)
+    assert t.dtypes['a'] == 'int32'
+    assert t.dtypes['b'] == 'bool'
+    assert t.dtypes['c'] == 'float64'
+    assert t.rows == 6
+    assert len(t.columns) == 3
+    check_tafra(t)
+    t.to_csv('test/test_to_csv.csv')
+
     # short CSV - ends during inference period
     t = Tafra.read_csv('test/ex2.csv')
     assert t.dtypes['a'] == 'int32'
@@ -1054,6 +1065,10 @@ def test_csv() -> None:
     # bad CSV - missing column on row #4
     with pytest.raises(ValueError) as e:
         t = Tafra.read_csv('test/ex5.csv')
+
+    # bad CSV - missing column on row #4 - after guess rows
+    with pytest.raises(ValueError) as e:
+        t = Tafra.read_csv('test/ex5.csv', guess_rows=2)
 
     # override a column type
     t = Tafra.read_csv('test/ex4.csv', dtypes={'a': 'float32'})

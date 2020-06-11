@@ -27,10 +27,12 @@ import numpy as np
 from .protocol import Series, DataFrame, Cursor  # just for mypy...
 
 from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union as _Union, Sequence,
-                    NamedTuple, Sized, Iterable, Iterator, Type, KeysView, ValuesView, ItemsView)
+                    NamedTuple, Sized, Iterable, Iterator, Type, KeysView, ValuesView, ItemsView,
+                    IO)
 from typing import cast
 from typing_extensions import Protocol
 from io import TextIOWrapper
+from os import PathLike
 
 from .formatter import ObjectFormatter
 from .csvreader import CSVReader
@@ -931,7 +933,7 @@ class Tafra:
             yield Tafra.from_records(chunk, columns, dtypes)
 
     @classmethod
-    def read_csv(cls, csv_file: _Union[str, TextIOWrapper], guess_rows: int = 5,
+    def read_csv(cls, csv_file: _Union[str, Path, TextIOWrapper, IO[str]], guess_rows: int = 5,
                  dtypes: Optional[Dict[str, str]] = None, **csvkw: Dict[str, Any]
                  ) -> 'Tafra':
         """
@@ -958,7 +960,7 @@ class Tafra:
             tafra: Tafra
                 The constructed :class:`Tafra`.
         """
-        reader = CSVReader(csv_file, guess_rows, **csvkw)
+        reader = CSVReader(cast(_Union[str, Path, TextIOWrapper], csv_file), guess_rows, **csvkw)
         return Tafra(reader.read(), dtypes=dtypes)
 
     @classmethod
