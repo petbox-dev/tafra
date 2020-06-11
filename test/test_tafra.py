@@ -1037,6 +1037,8 @@ def test_csv() -> None:
     assert t.dtypes['c'] == 'float64'
     assert t.rows == 6
     assert len(t.columns) == 3
+    check_tafra(t)
+    t.to_csv('test/test_to_csv.csv')
 
     # short CSV - ends during inference period
     t = Tafra.read_csv('test/ex2.csv')
@@ -1045,6 +1047,8 @@ def test_csv() -> None:
     assert t.dtypes['c'] == 'float64'
     assert t.rows == 2
     assert len(t.columns) == 3
+    check_tafra(t)
+    t.to_csv('test/test_to_csv.csv')
 
     # harder CSV - promote to object during inference period,
     #   duplicate column name
@@ -1054,6 +1058,8 @@ def test_csv() -> None:
     assert t.dtypes['b (2)'] == 'float64'
     assert t.rows == 6
     assert len(t.columns) == 3
+    check_tafra(t)
+    t.to_csv('test/test_to_csv.csv')
 
     # as above, but with a promotion required after inference period
     #   (heuristic fails)
@@ -1063,6 +1069,8 @@ def test_csv() -> None:
     assert t.dtypes['b (2)'] == 'float64'
     assert t.rows == 6
     assert len(t.columns) == 3
+    check_tafra(t)
+    t.to_csv('test/test_to_csv.csv')
 
     # bad CSV - missing column on row #4
     with pytest.raises(ValueError) as e:
@@ -1075,3 +1083,5 @@ def test_csv() -> None:
     assert t.dtypes['b (2)'] == 'float64'
     assert t.rows == 6
     assert len(t.columns) == 3
+    check_tafra(t)
+    t.to_csv('test/test_to_csv.csv')
