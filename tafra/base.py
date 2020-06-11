@@ -292,7 +292,7 @@ class Tafra:
                 An iterator of :class:`NamedTuple`.
         """
         TafraNT = NamedTuple(name, **{  # type: ignore
-            to_identifier(column): NAMEDTUPLE_TYPE[self._reduce_dtype(dtype)]
+            to_field_name(column): NAMEDTUPLE_TYPE[self._reduce_dtype(dtype)]
             for column, dtype in self._dtypes.items()})
 
         for tf in self.__iter__():
@@ -1674,7 +1674,7 @@ class Tafra:
 
         # note: mypy does not support dynamically constructed NamedTuple as return type
         TafraNT = NamedTuple(name, **{  # type: ignore
-            to_identifier(column): NAMEDTUPLE_TYPE[self._reduce_dtype(self._dtypes[column])]
+            to_field_name(column): NAMEDTUPLE_TYPE[self._reduce_dtype(self._dtypes[column])]
             for column in columns})
 
         if inner:
@@ -1955,15 +1955,19 @@ class Tafra:
         """
         return CrossJoin([], select).apply(self, right)
 
-def to_identifier(maybe_text: _Union[str, int, float]) -> str:
+def to_field_name(maybe_text: _Union[str, int, float]) -> str:
     text = str(maybe_text)
 
     # Remove invalid characters
-    text = re.sub('[^0-9a-zA-Z_]', '', text)
-    # Remove leading characters until we find a letter or underscore
-    text = re.sub('^[^a-zA-Z_]+', '', text)
+    mid_text = re.sub('[^0-9a-zA-Z_]', '', text)
 
-    return text
+    # Remove leading characters until we find a letter
+    final_text = re.sub('^[^a-zA-Z]+', '', mid_text)
+
+    if final_text == '':
+        final_text = 'field_' + mid_text
+
+    return final_text
 
 def _in_notebook() -> bool:  # pragma: no cover
     """
