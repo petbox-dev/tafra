@@ -1,3 +1,4 @@
+from pathlib import Path
 import csv
 import dataclasses as dc
 
@@ -6,8 +7,9 @@ import numpy as np
 
 from enum import Enum, auto
 from io import TextIOWrapper
-from typing import Any, Callable, Dict, List, Tuple, Type
+from typing import Any, Callable, Dict, List, Tuple, Type, IO
 from typing import Union
+from typing import cast
 
 # this doesn't type well in Python
 @dc.dataclass(frozen=True)
@@ -25,10 +27,10 @@ def _parse_bool(val: str) -> bool:
 
 # numpy-stubs is a lie about many of these, hence the type: ignore spam
 _TYPE_PRECEDENCE: List[ReadableType] = [
-    ReadableType(np.int32, np.int32), # type: ignore
-    ReadableType(np.int64, np.int64), # type: ignore
+    ReadableType(np.int32, cast(Callable[[str], Any], np.int32)),
+    ReadableType(np.int64, cast(Callable[[str], Any], np.int64)),
     # np.float32, # nervous about ever inferring this
-    ReadableType(np.float64, np.float64), # type: ignore
+    ReadableType(np.float64, cast(Callable[[str], Any], np.float64)),
     ReadableType(bool, _parse_bool),
     # TODO: date,
     # TODO: datetime,
@@ -45,12 +47,12 @@ class ReaderState(Enum):
     DONE = auto()
 
 class CSVReader:
-    def __init__(self, source: Union[str, TextIOWrapper], guess_rows: int = 5,
+    def __init__(self, source: Union[str, Path, TextIOWrapper], guess_rows: int = 5,
                  **csvkw: Dict[str, Any]):
-        if isinstance(source, str):
+        if isinstance(source, (str, Path)):
             self._stream = open(source, newline='')
             self._should_close = True
-        else:
+        elif isinstance(source, TextIOWrapper):
             source.reconfigure(newline='')
             self._stream = source
             self._should_close = False
@@ -93,7 +95,7 @@ class CSVReader:
             self.state_eof()
             return
 
-        if self._state == ReaderState.DONE:
+        if self._state == ReaderState.DONE:  # pragma: no cover
             return
 
     def state_await_guessable(self) -> None:
@@ -167,8 +169,7 @@ class CSVReader:
         self._data[col] = parsed
 
     def _finalize(self) -> Dict[str, np.ndarray]:
-        if self._state != ReaderState.DONE:
-            raise ValueError('CSVReader is not in DONE state.')
+        assert self._state == ReaderState.DONE, 'CSVReader is not in DONE state.'
         return {
             col: np.array(self._data[col], dtype=self._guess_types[col].dtype)
             for col in self._header
