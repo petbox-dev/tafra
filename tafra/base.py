@@ -1720,7 +1720,7 @@ class Tafra:
 
         return pd.DataFrame(self._data)
 
-    def to_csv(self, filename: _Union[str, Path]) -> None:
+    def to_csv(self, filename: _Union[str, Path, TextIOWrapper, IO[str]]) -> None:
         """
         Write the :class:`Tafra` to a CSV.
 
@@ -1729,10 +1729,24 @@ class Tafra:
             filename: Union[str, Path]
                 The path of the filename to write.
         """
-        with open(filename, 'w', newline='') as f:
-            writer = csv.writer(f, delimiter=',', quotechar='"')
-            writer.writerow(self._data.keys())
-            writer.writerows(self.to_records())
+        if isinstance(filename, (str, Path)):
+            f = open(filename, 'w', newline='')
+            should_close = True
+
+        elif isinstance(filename, TextIOWrapper):
+            if 'w' not in filename.mode:
+                raise ValueError(f'file must be opened in write mode, got {filename.mode}')
+            f = filename
+            should_close = False
+
+            f.reconfigure(newline='')
+
+        writer = csv.writer(f, delimiter=',', quotechar='"')
+        writer.writerow(self._data.keys())
+        writer.writerows(self.to_records())
+
+        if should_close:
+            f.close()
 
     def union(self, other: 'Tafra') -> 'Tafra':
         """

@@ -1,3 +1,4 @@
+from pathlib import Path
 import platform
 import warnings
 from decimal import Decimal
@@ -1009,15 +1010,26 @@ def test_left_join_invalid() -> None:
         t = l.left_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
 
 def test_csv() -> None:
+    write_path = 'test/test_to_csv.csv'
+
+    def write_reread(t: Tafra) -> None:
+        t.to_csv(write_path)
+        t2 = Tafra.read_csv(write_path, dtypes=t.dtypes)
+
+        for c1, c2 in zip(t.columns, t2.columns):
+            assert np.array_equal(t.data[c1], t2.data[c2])
+            assert np.array_equal(t.dtypes[c1], t2.dtypes[c2])
+
     # straightforward CSV - inference heuristic works
-    t = Tafra.read_csv('test/ex1.csv')
+    path = Path('test/ex1.csv')
+    t = Tafra.read_csv(path)
     assert t.dtypes['a'] == 'int32'
     assert t.dtypes['b'] == 'bool'
     assert t.dtypes['c'] == 'float64'
     assert t.rows == 6
     assert len(t.columns) == 3
     check_tafra(t)
-    t.to_csv('test/test_to_csv.csv')
+    write_reread(t)
 
     # test again with TextIOWrapper
     with open('test/ex1.csv', 'r') as f:
@@ -1028,7 +1040,13 @@ def test_csv() -> None:
     assert t.rows == 6
     assert len(t.columns) == 3
     check_tafra(t)
-    t.to_csv('test/test_to_csv.csv')
+    write_reread(t)
+
+    with open(write_path, 'w') as f:
+        t.to_csv(f)
+    with pytest.raises(ValueError) as e:
+        with open(write_path) as f:
+            t.to_csv(f)
 
     # short CSV - ends during inference period
     t = Tafra.read_csv('test/ex2.csv')
@@ -1038,7 +1056,7 @@ def test_csv() -> None:
     assert t.rows == 2
     assert len(t.columns) == 3
     check_tafra(t)
-    t.to_csv('test/test_to_csv.csv')
+    write_reread(t)
 
     # harder CSV - promote to object during inference period,
     #   duplicate column name
@@ -1049,7 +1067,7 @@ def test_csv() -> None:
     assert t.rows == 6
     assert len(t.columns) == 3
     check_tafra(t)
-    t.to_csv('test/test_to_csv.csv')
+    write_reread(t)
 
     # as above, but with a promotion required after inference period
     #   (heuristic fails)
@@ -1060,7 +1078,7 @@ def test_csv() -> None:
     assert t.rows == 6
     assert len(t.columns) == 3
     check_tafra(t)
-    t.to_csv('test/test_to_csv.csv')
+    write_reread(t)
 
     # bad CSV - missing column on row #4
     with pytest.raises(ValueError) as e:
@@ -1078,4 +1096,4 @@ def test_csv() -> None:
     assert t.rows == 6
     assert len(t.columns) == 3
     check_tafra(t)
-    t.to_csv('test/test_to_csv.csv')
+    write_reread(t)
