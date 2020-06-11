@@ -1720,7 +1720,8 @@ class Tafra:
 
         return pd.DataFrame(self._data)
 
-    def to_csv(self, filename: _Union[str, Path, TextIOWrapper, IO[str]]) -> None:
+    def to_csv(self, filename: _Union[str, Path, TextIOWrapper, IO[str]],
+               columns: Optional[Iterable[str]] = None) -> None:
         """
         Write the :class:`Tafra` to a CSV.
 
@@ -1728,7 +1729,17 @@ class Tafra:
         ----------
             filename: Union[str, Path]
                 The path of the filename to write.
+
+            columns: Iterable[str]
+                The columns to write. IF ``None``, write all columns.
         """
+        if columns is None:
+            columns = self.columns
+        else:
+            if isinstance(columns, str):
+                columns = [columns]
+            self._validate_columns(columns)
+
         if isinstance(filename, (str, Path)):
             f = open(filename, 'w', newline='')
             should_close = True
