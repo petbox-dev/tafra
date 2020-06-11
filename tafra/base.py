@@ -1705,20 +1705,33 @@ class Tafra:
 
         return np.array(list(self._data[c] for c in columns)).T
 
-    def to_pandas(self) -> DataFrame:
+    def to_pandas(self, columns: Optional[Iterable[str]] = None) -> DataFrame:
         """
         Construct a :class:`pandas.DataFrame`.
+
+        Parameters
+        ----------
+            columns: Iterable[str]
+                The columns to write. IF ``None``, write all columns.
 
         Returns
         -------
             dataframe: :class:`pandas.DataFrame`
         """
+        if columns is None:
+            tafra = self
+        else:
+            if isinstance(columns, str):
+                columns = [columns]
+            self._validate_columns(columns)
+            tafra = self.select(columns)
+
         try:
             import pandas as pd  # type: ignore
         except ImportError as e:  # pragma: no cover
             raise ImportError('`pandas` does not appear to be installed.')
 
-        return pd.DataFrame(self._data)
+        return pd.DataFrame(tafra._data)
 
     def to_csv(self, filename: _Union[str, Path, TextIOWrapper, IO[str]],
                columns: Optional[Iterable[str]] = None) -> None:
@@ -1734,11 +1747,12 @@ class Tafra:
                 The columns to write. IF ``None``, write all columns.
         """
         if columns is None:
-            columns = self.columns
+            tafra = self
         else:
             if isinstance(columns, str):
                 columns = [columns]
             self._validate_columns(columns)
+            tafra = self.select(columns)
 
         if isinstance(filename, (str, Path)):
             f = open(filename, 'w', newline='')
@@ -1753,8 +1767,8 @@ class Tafra:
             f.reconfigure(newline='')
 
         writer = csv.writer(f, delimiter=',', quotechar='"')
-        writer.writerow(self._data.keys())
-        writer.writerows(self.to_records())
+        writer.writerow(tafra._data.keys())
+        writer.writerows(tafra.to_records())
 
         if should_close:
             f.close()
