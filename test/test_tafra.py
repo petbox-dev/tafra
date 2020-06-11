@@ -1028,3 +1028,50 @@ def test_left_join_invalid() -> None:
     l._dtypes['x'] = 'float'
     with pytest.raises(TypeError) as e:
         t = l.left_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
+
+def test_csv() -> None:
+    # straightforward CSV - inference heuristic works
+    t = Tafra.read_csv('test/ex1.csv')
+    assert t.dtypes['a'] == 'int32'
+    assert t.dtypes['b'] == 'bool'
+    assert t.dtypes['c'] == 'float64'
+    assert t.rows == 6
+    assert len(t.columns) == 3
+
+    # short CSV - ends during inference period
+    t = Tafra.read_csv('test/ex2.csv')
+    assert t.dtypes['a'] == 'int32'
+    assert t.dtypes['b'] == 'bool'
+    assert t.dtypes['c'] == 'float64'
+    assert t.rows == 2
+    assert len(t.columns) == 3
+
+    # harder CSV - promote to object during inference period,
+    #   duplicate column name
+    t = Tafra.read_csv('test/ex3.csv')
+    assert t.dtypes['a'] == 'int32'
+    assert t.dtypes['b'] == 'object'
+    assert t.dtypes['b (2)'] == 'float64'
+    assert t.rows == 6
+    assert len(t.columns) == 3
+
+    # as above, but with a promotion required after inference period
+    #   (heuristic fails)
+    t = Tafra.read_csv('test/ex4.csv')
+    assert t.dtypes['a'] == 'int32'
+    assert t.dtypes['b'] == 'object'
+    assert t.dtypes['b (2)'] == 'float64'
+    assert t.rows == 6
+    assert len(t.columns) == 3
+
+    # bad CSV - missing column on row #4
+    with pytest.raises(ValueError) as e:
+        t = Tafra.read_csv('test/ex5.csv')
+
+    # override a column type
+    t = Tafra.read_csv('test/ex4.csv', dtypes={'a': 'float32'})
+    assert t.dtypes['a'] == 'float32'
+    assert t.dtypes['b'] == 'object'
+    assert t.dtypes['b (2)'] == 'float64'
+    assert t.rows == 6
+    assert len(t.columns) == 3
