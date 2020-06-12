@@ -43,12 +43,14 @@ Methods
     from_series
     read_sql
     read_sql_chunks
+    read_csv
     as_tafra
     to_records
     to_list
     to_tuple
     to_array
     to_pandas
+    to_csv
     rows
     columns
     data
@@ -72,6 +74,8 @@ Methods
     update_inplace
     update_dtypes
     update_dtypes_inplace
+    parse_object_dtypes
+    parse_object_dtypes_inplace
     rename
     rename_inplace
     coalesce
@@ -82,6 +86,9 @@ Methods
     pprint
     pformat
     to_html
+    _slice
+    _index
+    _ndindex
 
 
 Helper Methods
@@ -106,20 +113,20 @@ Object Formatter
 
 .. currentmodule:: tafra.formatter
 
-.. autoclass:: ObjectFormatter
+.. autosummary::
 
-    .. automethod:: __getitem__
-    .. automethod:: __setitem__
-    .. automethod:: __delitem__
+    ObjectFormatter
 
 
 Detailed Reference
 ==================
 
+
 Tafra
 -----
 
 .. currentmodule:: tafra.base
+
 
 Methods
 ~~~~~~~
@@ -131,12 +138,14 @@ Methods
     .. automethod:: from_records
     .. automethod:: read_sql
     .. automethod:: read_sql_chunks
+    .. automethod:: read_csv
     .. automethod:: as_tafra
     .. automethod:: to_records
     .. automethod:: to_list
     .. automethod:: to_tuple
     .. automethod:: to_array
     .. automethod:: to_pandas
+    .. automethod:: to_csv
     .. autoattribute:: rows
     .. autoattribute:: columns
     .. autoattribute:: data
@@ -160,6 +169,8 @@ Methods
     .. automethod:: update_inplace
     .. automethod:: update_dtypes
     .. automethod:: update_dtypes_inplace
+    .. automethod:: parse_object_dtypes
+    .. automethod:: parse_object_dtypes_inplace
     .. automethod:: rename
     .. automethod:: rename_inplace
     .. automethod:: coalesce
@@ -170,11 +181,15 @@ Methods
     .. automethod:: pprint
     .. automethod:: pformat
     .. automethod:: to_html
+    .. automethod:: _slice
+    .. automethod:: _index
+    .. automethod:: _ndindex
+
 
 Helper Methods
 ~~~~~~~~~~~~~~
 
-.. class:: tafra.base.Tafra
+.. class:: Tafra
     :noindex:
 
     .. automethod:: union
@@ -185,6 +200,7 @@ Helper Methods
     .. automethod:: inner_join
     .. automethod:: left_join
     .. automethod:: cross_join
+
 
 Aggregations
 ------------
@@ -219,3 +235,15 @@ Aggregations
 .. autoclass:: CrossJoin
 
     .. automethod:: apply
+
+
+Object Formatter
+----------------
+
+.. currentmodule:: tafra.formatter
+
+.. autoclass:: ObjectFormatter
+
+    .. automethod:: __getitem__
+    .. automethod:: __setitem__
+    .. automethod:: __delitem__

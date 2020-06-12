@@ -1,5 +1,6 @@
 # Other things
 *.ipynb
+test/test*.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -119,4 +120,4 @@ venv.bak/
 
 # mypy
 .mypy_cache/
-*._py 
+*._py

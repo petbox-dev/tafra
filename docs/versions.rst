@@ -6,6 +6,15 @@ Version History
    :noindex:
 
 
+1.0.4
+-----
+
+* Add ``read_csv``, ``to_csv``
+* Various refactoring and improvement in data validation
+* Add ``typing_extensions`` to dependencies
+* Change method of ``dtype`` storage, extract ``str`` representation from ``np.dtype()``.
+
+
 1.0.3
 -----
 
