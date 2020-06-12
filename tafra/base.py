@@ -14,8 +14,10 @@ Created on April 25, 2020
 __all__ = ['Tafra']
 
 import sys
+from pathlib import Path
 import re
 import warnings
+import csv
 import pprint as pprint
 from datetime import date, datetime
 from itertools import chain, islice
@@ -25,44 +27,41 @@ import numpy as np
 from .protocol import Series, DataFrame, Cursor  # just for mypy...
 
 from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union as _Union, Sequence,
-                    NamedTuple, Sized, Iterable, Iterator, Type, KeysView, ValuesView, ItemsView)
+                    NamedTuple, Sized, Iterable, Iterator, Type, KeysView, ValuesView, ItemsView,
+                    IO)
 from typing import cast
 from typing_extensions import Protocol
+from io import TextIOWrapper
+from os import PathLike
 
 from .formatter import ObjectFormatter
+from .csvreader import CSVReader
 
 
 object_formatter = ObjectFormatter()
+
+# default object formats
 object_formatter['Decimal'] = lambda x: x.astype(float)
 
-
-TAFRA_TYPE: Dict[str, Callable[[np.ndarray], np.ndarray]] = {
-    'int': lambda x: x.astype(int),
-    'float': lambda x: x.astype(float),
-    'decimal': lambda x: x.astype(float),
-    'bool': lambda x: x.astype(bool),
-    'str': lambda x: x.astype(str),
-    'date': lambda x: x.astype('datetime64'),
-    'object': lambda x: x.astype(object),
-}
 
 NAMEDTUPLE_TYPE: Dict[str, Type[Any]] = {
     'int': int,
     'float': float,
-    'decimal': float,
     'bool': bool,
     'str': str,
-    'date': datetime,
+    'date': date,
+    'datetime': datetime,
     'object': str,
 }
 
 RECORD_TYPE: Dict[str, Callable[[Any], Any]] = {
-    'int': lambda x: int(x),
-    'float': lambda x: float(x),
-    'bool': lambda x: bool(x),
-    'str': lambda x: str(x),
-    'date': lambda x: x.strftime(r'%Y-%m-%d'),
-    'object': lambda x: str(x),
+    'int': int,
+    'float': float,
+    'bool': bool,
+    'str': str,
+    'date': lambda x: x.isoformat(),
+    'datetime': lambda x: x.isoformat(),
+    'object': str,
 }
 
 
@@ -105,7 +104,7 @@ class Tafra:
 
     """
     data: dc.InitVar[InitVar]
-    dtypes: dc.InitVar[InitVar] = None
+    dtypes: dc.InitVar[Optional[InitVar]] = None
 
     _data: Dict[str, np.ndarray] = dc.field(init=False)
     _dtypes: Dict[str, str] = dc.field(init=False)
@@ -120,29 +119,31 @@ class Tafra:
         #     return
 
         rows: Optional[int] = None
-        self._data = cast(Dict[str, np.ndarray], self._check_initvar(data))
+
+        # check that the structure is actually a dict
+        self._data = self._check_initvar(data)
         if dtypes is None or isinstance(dtypes, property):
             self._dtypes = {}
         else:
             self._dtypes = cast(Dict[str, str], self._check_initvar(dtypes))
 
+        # check that the values are properly formed np.ndarray
         for column, value in self._data.items():
-            value, modified = self._validate_value(value, check_rows=False)
-            if modified:
-                self._data[column] = value
-                self._dtypes[column] = self._format_type(value.dtype)
+            self._ensure_valid(column, value, check_rows=False)
 
             if rows is None:
-                rows = len(value)
-            elif rows != len(value):
+                rows = len(self._data[column])
+            elif rows != len(self._data[column]):
                 raise ValueError('`Tafra` must have consistent row counts.')
 
         if rows is None:
             raise ValueError('No data provided in constructor statement.')
 
+        self.update_dtypes_inplace(self._dtypes)
+        # must coalesce all dtypes immediately, other functions assume a
+        # proper structure of the Tafra
         self._coalesce_dtypes()
         self._update_rows()
-        self.update_dtypes_inplace(self._dtypes)
 
     def _check_initvar(self, values: InitVar) -> Dict[str, Any]:
         _values: Dict[Any, Any]
@@ -179,11 +180,11 @@ class Tafra:
         head = values[0]
         if isinstance(head, Dict):
             for _dict in values:
-                head.update(cast(Mapping[Any, Any], _dict))
+                head.update(cast(Dict[Any, Any], _dict))
             _values = head
 
         elif isinstance(head, Sequence) and len(head) == 2:
-            # maybe a Sequence of tuples? Cast and try it.
+            # maybe a Sequence of 2-tuples or 2-lists? Cast and try it.
             _values = dict(
                 cast(Iterable[Tuple[Any, Any]], values))
 
@@ -198,11 +199,11 @@ class Tafra:
         head = next(iter_values)
         if isinstance(head, Dict):
             for _dict in iter_values:
-                head.update(cast(Mapping[Any, Any], _dict))
+                head.update(cast(Dict[Any, Any], _dict))
             _values = head
 
         elif isinstance(head, Sequence) and len(head) == 2:
-            # maybe an Iterable of tuples? Cast and try it.
+            # maybe an Iterable of 2-tuples or 2-lists? Cast and try it.
             _values = dict(chain(
                 cast(Iterable[Tuple[Any, Any]], [head]),
                 cast(Iterator[Tuple[Any, Any]], values)))
@@ -219,11 +220,11 @@ class Tafra:
         if isinstance(head, Dict):
             # consume the iterator if its a dict
             for _dict in values:
-                head.update(cast(Mapping[Any, Any], _dict))
+                head.update(cast(Dict[Any, Any], _dict))
             _values = head
 
         elif isinstance(head, Sequence) and len(head) == 2:
-            # maybe an Iterator of tuples? Cast and try it.
+            # maybe an Iterator of 2-tuples or 2-lists? Cast and try it.
             _values = dict(chain(
                 cast(Iterable[Tuple[Any, Any]], [head]),
                 cast(Iterator[Tuple[Any, Any]], values)))
@@ -257,9 +258,7 @@ class Tafra:
             raise TypeError(f'Type {type(item)} not supported.')
 
     def __setitem__(self, item: str, value: _Union[np.ndarray, Sequence[Any], Any]) -> None:
-        _value, _ = self._validate_value(value)
-        self._data[item] = _value
-        self._dtypes[item] = self._format_type(_value.dtype)
+        self._ensure_valid(item, value, set_item=True)
 
     def __len__(self) -> int:
         assert self._data is not None, 'Cannot construct a Tafra with no data.'
@@ -295,7 +294,8 @@ class Tafra:
                 An iterator of :class:`NamedTuple`.
         """
         TafraNT = NamedTuple(name, **{  # type: ignore
-            column: NAMEDTUPLE_TYPE[dtype] for column, dtype in self._dtypes.items()})
+            to_field_name(column): NAMEDTUPLE_TYPE[self._reduce_dtype(dtype)]
+            for column, dtype in self._dtypes.items()})
 
         for tf in self.__iter__():
             yield TafraNT(*(value.item() for value in tf._data.values()))
@@ -609,43 +609,40 @@ class Tafra:
         tbody = self._html_tbody(tr)
         return self._html_table(thead, tbody)
 
-    def _validate_value(self, value: _Union[np.ndarray, Sequence[Any], Any],
-                        check_rows: bool = True) -> Tuple[np.ndarray, bool]:
+    def _ensure_valid(self, column: str, value: _Union[np.ndarray, Sequence[Any], Any],
+                      check_rows: bool = True, set_item: bool = False) -> None:
         """
         Validate values as an :class:`np.ndarray` of equal length to
         :attr:`rows` before assignment. Will attempt to create a
         :class:`np.ndarray` if ``value`` is not one already, and will check
-        that :attr`np.ndarray.ndim` is ``1``.
-        If :attr:`np.ndarray.ndim` ``> 1`` it will attempt :meth:`np.squeeze`
+        that :attr`np.ndarray.ndim` is ``1``. If :attr:`np.ndarray.ndim`
+        ``> 1`` it will attempt :meth:`np.squeeze`
         on ``value``.
 
         Parameters
         ----------
+            column: str
+                The column to assign to.
+
             value: Union[np.ndarray, Sequence[Any], Any]
                 The value to be assigned.
 
         Returns
         -------
-            value: np.ndarray
-                The validated value.
+            None: None
         """
-        modified = False
+        id_value = id(value)
         rows = self._rows if check_rows else 1
 
         if isinstance(value, np.ndarray):
             if len(value.shape) == 0:
                 value = np.full(rows, value.item())
-                modified = True
-            else:
-                pass
 
-        elif isinstance(value, str) or not isinstance(value, Sized):
+        elif isinstance(value, str) or not isinstance(value, Sized) or value is None:
             value = np.full(rows, value)
-            modified = True
 
         elif isinstance(value, Iterable):
             value = np.array(value)
-            modified = True
 
         assert isinstance(value, np.ndarray), '`Tafra` only supports assigning `ndarray`.'
 
@@ -659,15 +656,6 @@ class Tafra:
                 warnings.resetwarnings()
                 value = sq_value
 
-            modified = True
-
-        # special parsing of various object types
-        if value.dtype == np.dtype(object):
-            type_name = type(value[0]).__name__
-            if type_name in object_formatter:
-                value = object_formatter[type_name](value)
-                modified = True
-
         assert value.ndim >= 1, '`Tafra` only supports assigning ndim >= 1.'
 
         if check_rows and len(value) != rows:
@@ -675,7 +663,35 @@ class Tafra:
                 '`Tafra` must have consistent row counts.\n'
                 f'This `Tafra` has {rows} rows. Assigned np.ndarray has {len(value)} rows.')
 
-        return value, modified
+        # special parsing of various object types
+        parsed_value = object_formatter.parse_dtype(value)
+        if parsed_value is not None:
+            value = parsed_value
+
+        # have we modified value?
+        if set_item or id(value) != id_value:
+            self._data[column] = value
+            self._dtypes[column] = self._format_dtype(value.dtype)
+
+    def parse_object_dtypes(self) -> 'Tafra':
+        """
+        Parse the object dtypes using the :class:`ObjectFormatter` instance.
+        """
+        tafra = self.copy()
+        tafra.parse_object_dtypes_inplace()
+        return tafra
+
+    def parse_object_dtypes_inplace(self) -> None:
+        """
+        Inplace version.
+
+        Parse the object dtypes using the :class:`ObjectFormatter` instance.
+        """
+        for column, value in self._data.items():
+            parsed_value = object_formatter.parse_dtype(value)
+            if parsed_value is not None:
+                self._data[column] = parsed_value
+                self._dtypes[column] = self._format_dtype(parsed_value.dtype)
 
     def _validate_columns(self, columns: Iterable[str]) -> None:
         """
@@ -696,8 +712,8 @@ class Tafra:
 
     def _validate_dtypes(self, dtypes: Dict[str, Any]) -> Dict[str, str]:
         """
-        Validate that the dtypes are defined as valid dtypes in
-        :const:`TAFRA_TYPE` and the columns exists in :attr:`_data`.
+        Validate that the dtypes as internally used names and that the columns
+        exists in :attr:`_data`.
 
         Parameters
         ----------
@@ -710,25 +726,21 @@ class Tafra:
                 The validated types.
         """
         msg = ''
-        _dtypes = {}
+        _dtypes: Dict[str, Any] = {}
 
         self._validate_columns(dtypes.keys())
 
         for column, _dtype in dtypes.items():
-            _dtypes[column] = self._format_type(_dtype)
-            if _dtypes[column] not in TAFRA_TYPE:
-                msg += f'`{_dtypes[column]}` is not a valid dtype for `{column}.`\n'
-
-        if len(msg) > 0:
-            # should be KeyError value Python 3.7.x has a bug with '\n'
-            raise ValueError(msg)
+            _dtypes[column] = self._format_dtype(_dtype)
 
         return _dtypes
 
     @staticmethod
-    def _format_type(dtype: Any) -> str:
+    def _format_dtype(dtype: Any) -> str:
         """
-        Parse a dtype into the internally used string representation.
+        Parse a dtype into the internally used string representation, if
+        defined. Otherwise, pass through and let numpy raise error if it is
+        not a valid dtype.
 
         Parameters
         ----------
@@ -740,48 +752,35 @@ class Tafra:
             dtype: str
                 The parsed dtype.
         """
-        _dtype = str(dtype)
-
-        if 'int' in _dtype:
-            return 'int'
-        if 'float' in _dtype:
-            return 'float'
-        if 'bool' in _dtype:
-            return 'bool'
-        if 'str' in _dtype:
+        _dtype = np.dtype(dtype)
+        name = _dtype.type.__name__
+        if 'str' in name:
             return 'str'
-        if '<U' in _dtype:
-            return 'str'
-        if 'date' in _dtype:
-            return 'date'
-        if '<M' in _dtype:
-            return 'date'
-        if 'object' in _dtype:
-            return 'object'
-        if 'O' in _dtype:
-            return 'object'
 
-        return _dtype
+        return name.replace('_', '')
 
     @staticmethod
-    def _apply_type(dtype: str, array: np.ndarray) -> np.ndarray:
+    def _reduce_dtype(dtype: Any) -> str:
         """
-        Apply the dtype to the :class:`np.ndarray`.
+        Parse a dtype to the base type.
 
         Parameters
         ----------
-            dtype: str
-                The parsed dtype.
-
-            array: np.ndaray
-                The array to which the dtype is applied.
+            dtype: Any
+                The dtype to parse.
 
         Returns
         -------
-            array:
-                The array with updated dtype.
+            dtype: str
+                The parsed dtype.
         """
-        return TAFRA_TYPE[dtype](array)
+        name = np.dtype(dtype).type.__name__
+        m = re.search(r'([a-z]+)', name)
+        if m:
+            return m.group(1)
+
+        # are there any dtypes without text names?
+        return name  # pragma: no cover
 
     @classmethod
     def from_records(cls, records: Iterable[Iterable[Any]], columns: Iterable[str],
@@ -835,10 +834,10 @@ class Tafra:
         """
         if dtype is None:
             dtype = s.dtype
-        dtypes = {s.name: cls._format_type(dtype)}
+        dtypes = {s.name: cls._format_dtype(dtype)}
 
         return cls(
-            {s.name: cls._apply_type(dtypes[s.name], s.values)},
+            {s.name: s.values.astype(dtypes[s.name])},
             dtypes
         )
 
@@ -862,10 +861,10 @@ class Tafra:
         """
         if dtypes is None:
             dtypes = {c: t for c, t in zip(df.columns, df.dtypes)}
-        dtypes = {c: cls._format_type(t) for c, t in dtypes.items()}
+        dtypes = {c: cls._format_dtype(t) for c, t in dtypes.items()}
 
         return cls(
-            {c: cls._apply_type(dtypes[c], df[c].values) for c in df.columns},
+            {c: df[c].values.astype(dtypes[c]) for c in df.columns},
             {c: dtypes[c] for c in df.columns}
         )
 
@@ -934,11 +933,42 @@ class Tafra:
             yield Tafra.from_records(chunk, columns, dtypes)
 
     @classmethod
+    def read_csv(cls, csv_file: _Union[str, Path, TextIOWrapper, IO[str]], guess_rows: int = 5,
+                 dtypes: Optional[Dict[str, str]] = None, **csvkw: Dict[str, Any]
+                 ) -> 'Tafra':
+        """
+        Read a CSV file with a header row, infer the types of each column,
+        and return a Tafra containing the file's contents.
+
+        Parameters
+        ----------
+            csv_file: Union[str, TextIOWrapper]
+                The path to the CSV file, or an open file-like object.
+
+            guess_rows: int
+                The number of rows to use when guessing column types.
+
+            dtypes: Optional[Dict[str, str]]
+                dtypes by column name; by default, all dtypes will be inferred
+                from the file contents.
+
+            **csvkw: Dict[str, Any]
+                Additional keyword arguments passed to csv.reader.
+
+        Returns
+        -------
+            tafra: Tafra
+                The constructed :class:`Tafra`.
+        """
+        reader = CSVReader(cast(_Union[str, Path, TextIOWrapper], csv_file), guess_rows, **csvkw)
+        return Tafra(reader.read(), dtypes=dtypes)
+
+    @classmethod
     def as_tafra(cls, maybe_tafra: _Union['Tafra', DataFrame, Series, Dict[str, Any], Any]
                  ) -> Optional['Tafra']:
         """
-        Returns the unmodified `tafra`` if already a `Tafra`, else construct
-        a `Tafra` from known types or subtypes of :class:`DataFrame` or `dict`.
+        Returns the unmodified `tafra`` if already a :class:`Tafra`, else construct
+        a :class:`Tafra` from known types or subtypes of :class:`DataFrame` or `dict`.
         Structural subtypes of :class:`DataFrame` or :class:`Series` are also
         valid, as are classes that have ``cls.__name__ == 'DataFrame'`` or
         ``cls.__name__ == 'Series'``.
@@ -957,17 +987,17 @@ class Tafra:
         if isinstance(maybe_tafra, Tafra):
             return maybe_tafra
 
-        elif isinstance(maybe_tafra, Series):
-            return cls.from_series(maybe_tafra)  # pragma: no cover
+        elif isinstance(maybe_tafra, Series):  # pragma: no cover
+            return cls.from_series(maybe_tafra)
 
-        elif type(maybe_tafra).__name__ == 'Series':
-            return cls.from_series(cast(Series, maybe_tafra))  # pragma: no cover
+        elif type(maybe_tafra).__name__ == 'Series':  # pragma: no cover
+            return cls.from_series(cast(Series, maybe_tafra))
 
-        elif isinstance(maybe_tafra, DataFrame):
-            return cls.from_dataframe(maybe_tafra)  # pragma: no cover
+        elif isinstance(maybe_tafra, DataFrame):  # pragma: no cover
+            return cls.from_dataframe(maybe_tafra)
 
-        elif type(maybe_tafra).__name__ == 'DataFrame':
-            return cls.from_dataframe(cast(DataFrame, maybe_tafra))  # pragma: no cover
+        elif type(maybe_tafra).__name__ == 'DataFrame':  # pragma: no cover
+            return cls.from_dataframe(cast(DataFrame, maybe_tafra))
 
         elif isinstance(maybe_tafra, dict):
             return cls(maybe_tafra)
@@ -1255,20 +1285,13 @@ class Tafra:
             None: None
         """
         tafra = self.copy()
-        rows = tafra._rows
-
-        for column, value in other._data.items():
-            if len(value) != rows:
-                raise ValueError(
-                    'Other `Tafra` must have consistent row count. '
-                    f'This `Tafra` has {rows} rows, other `Tafra` has {len(value)} rows.')
-            tafra._data[column] = value
-
-        tafra.update_dtypes_inplace(other._dtypes)
+        tafra.update_inplace(other)
         return tafra
 
     def update_inplace(self, other: 'Tafra') -> None:
         """
+        Inplace version.
+
         Update the data and dtypes of this :class:`Tafra` with another
         :class:`Tafra`. Length of rows must match, while data of different
         ``dtype`` will overwrite.
@@ -1305,7 +1328,7 @@ class Tafra:
         """
         for column in self._data.keys():
             if column not in self._dtypes:
-                self._dtypes[column] = self._format_type(self._data[column].dtype)
+                self._dtypes[column] = self._format_dtype(self._data[column].dtype)
 
     def update_dtypes(self, dtypes: Dict[str, Any]) -> 'Tafra':
         """
@@ -1323,19 +1346,13 @@ class Tafra:
                 The updated :class:`Tafra`.
         """
         tafra = self.copy()
-
-        tafra._validate_columns(dtypes.keys())
-        dtypes = tafra._validate_dtypes(dtypes)
-        tafra._dtypes.update(dtypes)
-
-        for column in tafra._dtypes.keys():
-            if tafra._format_type(tafra._data[column].dtype) != tafra._dtypes[column]:
-                tafra._data[column] = tafra._apply_type(tafra._dtypes[column], tafra._data[column])
-
+        tafra.update_dtypes_inplace(dtypes)
         return tafra
 
     def update_dtypes_inplace(self, dtypes: Dict[str, Any]) -> None:
         """
+        Inplace version.
+
         Apply new dtypes.
 
         Parameters
@@ -1349,13 +1366,12 @@ class Tafra:
             tafra: Optional[Tafra]
                 The updated :class:`Tafra`.
         """
-        self._validate_columns(dtypes.keys())
         dtypes = self._validate_dtypes(dtypes)
         self._dtypes.update(dtypes)
 
-        for column in self._dtypes.keys():
-            if self._format_type(self._data[column].dtype) != self._dtypes[column]:
-                self._data[column] = self._apply_type(self._dtypes[column], self._data[column])
+        for column in dtypes.keys():
+            if self._format_dtype(self._data[column].dtype) != self._dtypes[column]:
+                self._data[column] = self._data[column].astype(self._dtypes[column])
 
     def rename(self, renames: Dict[str, str]) -> 'Tafra':
         """
@@ -1373,9 +1389,7 @@ class Tafra:
         """
 
         tafra = self.copy()
-        for cur, new in renames.items():
-            tafra._data[new] = tafra._data.pop(cur)
-            tafra._dtypes[new] = tafra._dtypes.pop(cur)
+        tafra.rename_inplace(renames)
         return tafra
 
     def rename_inplace(self, renames: Dict[str, str]) -> None:
@@ -1543,20 +1557,7 @@ class Tafra:
         self._data[column] = self.coalesce(column, fills)
         self.update_dtypes_inplace({column: self._data[column].dtype})
 
-    def union(self, other: 'Tafra') -> 'Tafra':
-        """
-        Helper function to implement :meth:`tafra.group.Union.apply`.
-        """
-        return Union().apply(self, other)
-
-    def union_inplace(self, other: 'Tafra') -> None:
-        """
-        Helper function to implement :meth:`tafra.group.Union.apply_inplace`.
-        """
-        Union().apply_inplace(self, other)
-
-    @staticmethod
-    def _cast_record(dtype: str, data: np.ndarray, cast_null: bool) -> Optional[float]:
+    def _cast_record(self, dtype: str, data: np.ndarray, cast_null: bool) -> Optional[float]:
         """
         Casts needed to generate records for database insert.
         Will cast ``np.nan`` to ``None``. Requires changing ``dtype`` to
@@ -1578,8 +1579,9 @@ class Tafra:
             value: Any
                 The cast value.
         """
-        value: Any = RECORD_TYPE[dtype](data.item())
-        if cast_null and dtype == 'float' and np.isnan(data.item()):
+        _dtype = self._reduce_dtype(dtype)
+        value: Any = RECORD_TYPE[_dtype](data.item())
+        if cast_null and _dtype == 'float' and np.isnan(data.item()):
             return None
         return value
 
@@ -1674,7 +1676,8 @@ class Tafra:
 
         # note: mypy does not support dynamically constructed NamedTuple as return type
         TafraNT = NamedTuple(name, **{  # type: ignore
-            c: NAMEDTUPLE_TYPE[self._dtypes[c]] for c in columns})
+            to_field_name(column): NAMEDTUPLE_TYPE[self._reduce_dtype(self._dtypes[column])]
+            for column in columns})
 
         if inner:
             return TafraNT(*(tuple(self._data[c]) for c in columns))  # type: ignore
@@ -1702,9 +1705,14 @@ class Tafra:
 
         return np.array(list(self._data[c] for c in columns)).T
 
-    def to_pandas(self) -> DataFrame:
+    def to_pandas(self, columns: Optional[Iterable[str]] = None) -> DataFrame:
         """
         Construct a :class:`pandas.DataFrame`.
+
+        Parameters
+        ----------
+            columns: Iterable[str]
+                The columns to write. IF ``None``, write all columns.
 
         Returns
         -------
@@ -1715,12 +1723,124 @@ class Tafra:
         except ImportError as e:  # pragma: no cover
             raise ImportError('`pandas` does not appear to be installed.')
 
-        return pd.DataFrame(self._data)
+        if columns is None:
+            columns = self.columns
+        else:
+            if isinstance(columns, str):
+                columns = [columns]
+            self._validate_columns(columns)
+
+        return pd.DataFrame({
+            column: value for column, value in self._data.items()
+            if column in columns
+        })
+
+    def to_csv(self, filename: _Union[str, Path, TextIOWrapper, IO[str]],
+               columns: Optional[Iterable[str]] = None) -> None:
+        """
+        Write the :class:`Tafra` to a CSV.
+
+        Parameters
+        ----------
+            filename: Union[str, Path]
+                The path of the filename to write.
+
+            columns: Iterable[str]
+                The columns to write. IF ``None``, write all columns.
+        """
+        if columns is None:
+            columns = self.columns
+        else:
+            if isinstance(columns, str):
+                columns = [columns]
+            self._validate_columns(columns)
+
+        if isinstance(filename, (str, Path)):
+            f = open(filename, 'w', newline='')
+            should_close = True
+
+        elif isinstance(filename, TextIOWrapper):
+            if 'w' not in filename.mode:
+                raise ValueError(f'file must be opened in write mode, got {filename.mode}')
+            f = filename
+            should_close = False
+
+            f.reconfigure(newline='')
+
+        writer = csv.writer(f, delimiter=',', quotechar='"')
+        writer.writerow((column for column in self._data.keys() if column in columns))
+        writer.writerows(self.to_records(columns))
+
+        if should_close:
+            f.close()
+
+    def union(self, other: 'Tafra') -> 'Tafra':
+        """
+        Helper function to implement :meth:`tafra.group.Union.apply`.
+
+        Union two :class:`Tafra` together. Analogy to SQL UNION or
+        `pandas.append`. All column names and dtypes must match.
+
+        Parameters
+        ----------
+            other: Tafra
+                The other tafra to union.
+
+        Returns
+        -------
+            tafra: Tafra
+                A new tafra with the unioned data.
+        """
+        return Union().apply(self, other)
+
+    def union_inplace(self, other: 'Tafra') -> None:
+        """
+        Inplace version.
+
+
+        Helper function to implement :meth:`tafra.group.Union.apply_inplace`.
+
+        Union two :class:`Tafra` together. Analogy to SQL UNION or
+        `pandas.append`. All column names and dtypes must match.
+
+        Parameters
+        ----------
+            other: Tafra
+                The other tafra to union.
+
+        Returns
+        -------
+            None: None
+        """
+        Union().apply_inplace(self, other)
 
     def group_by(self, columns: Iterable[str], aggregation: 'InitAggregation' = {},
                  iter_fn: Mapping[str, Callable[[np.ndarray], Any]] = dict()) -> 'Tafra':
         """
         Helper function to implement :meth:`tafra.group.GroupBy.apply`.
+
+        Aggregation by a set of unique values.
+
+        Analogy to SQL ``GROUP BY``, not :meth:`pandas.DataFrame.groupby()`.
+
+        Parameters
+        ----------
+            columns: Iterable[str]
+                The column names to group by.
+
+            aggregation: Mapping[str, Union[Callable[[np.ndarray], Any], \
+                Optional. Tuple[Callable[[np.ndarray], Any], str]]]
+                A mapping for columns and aggregation functions. Should be
+                given as {'column': fn} or {'new_column': (fn, 'column')}.
+
+            iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
+                Optional. A mapping for new columns names to the function to apply to
+                the enumeration. Should be given as {'new_column': fn}.
+
+        Returns
+        -------
+            tafra: Tafra
+                The aggregated :class:`Tafra`.
         """
         return GroupBy(columns, aggregation, iter_fn).apply(self)
 
@@ -1728,12 +1848,51 @@ class Tafra:
                   iter_fn: Dict[str, Callable[[np.ndarray], Any]] = dict()) -> 'Tafra':
         """
         Helper function to implement :meth:`tafra.group.Transform.apply`.
+
+        Apply a function to each unique set of values and join to the original table.
+
+        Analogy to :meth:`pandas.DataFrame.groupby().transform()`,
+        i.e. a SQL ``GROUP BY`` and ``LEFT JOIN`` back to the original table.
+
+        Parameters
+        ----------
+            group_by: Iterable[str]
+                The column names to group by.
+
+            aggregation: Mapping[str, Union[Callable[[np.ndarray], Any], \
+            Tuple[Callable[[np.ndarray], Any], str]]]
+                Optional. A mapping for columns and aggregation functions. Should be
+                given as {'column': fn} or {'new_column': (fn, 'column')}.
+
+            iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
+                Optional. A mapping for new columns names to the function to apply to
+                the enumeration. Should be given as {'new_column': fn}.
+
+        Returns
+        -------
+            tafra: Tafra
+                The transformed :class:`Tafra`.
         """
         return Transform(columns, aggregation, iter_fn).apply(self)
 
     def iterate_by(self, columns: Iterable[str]) -> Iterator['GroupDescription']:
         """
         Helper function to implement :meth:`tafra.group.IterateBy.apply`.
+
+        A generator that yields a :class:`Tafra` for each set of unique values.
+
+        Analogy to `pandas.DataFrame.groupby()`, i.e. an Sequence of `Tafra` objects.
+        Yields tuples of ((unique grouping values, ...), row indices array, subset tafra)
+
+        Parameters
+        ----------
+            group_by: Iterable[str]
+                The column names to group by.
+
+        Returns
+        -------
+            tafras: Iterator[GroupDescription]
+                An iterator over the grouped :class:`Tafra`.
         """
         yield from IterateBy(columns).apply(self)
 
@@ -1741,6 +1900,36 @@ class Tafra:
                    select: Iterable[str] = list()) -> 'Tafra':
         """
         Helper function to implement :meth:`tafra.group.InnerJoin.apply`.
+
+        An inner join.
+
+        Analogy to SQL INNER JOIN, or `pandas.merge(..., how='inner')`,
+
+        Parameters
+        ----------
+            right: Tafra
+                The right-side :class:`Tafra` to join.
+
+            on: Iterable[Tuple[str, str, str]]
+                The columns and operator to join on. Should be given as
+                ('left column', 'right column', 'op') Valid ops are:
+
+                '==' : equal to
+                '!=' : not equal to
+                '<'  : less than
+                '<=' : less than or equal to
+                '>'  : greater than
+                '>=' : greater than or equal to
+
+            select: Iterable[str] = []
+                The columns to return. If not given, all unique columns names
+                are returned. If the column exists in both :class`Tafra`,
+                prefers the left over the right.
+
+        Returns
+        -------
+            tafra: Tafra
+                The joined :class:`Tafra`.
         """
         return InnerJoin(on, select).apply(self, right)
 
@@ -1748,6 +1937,36 @@ class Tafra:
                   select: Iterable[str] = list()) -> 'Tafra':
         """
         Helper function to implement :meth:`tafra.group.LeftJoin.apply`.
+
+        A left join.
+
+        Analogy to SQL LEFT JOIN, or `pandas.merge(..., how='left')`,
+
+        Parameters
+        ----------
+            right: Tafra
+                The right-side :class:`Tafra` to join.
+
+            on: Iterable[Tuple[str, str, str]]
+                The columns and operator to join on. Should be given as
+                ('left column', 'right column', 'op') Valid ops are:
+
+                '==' : equal to
+                '!=' : not equal to
+                '<'  : less than
+                '<=' : less than or equal to
+                '>'  : greater than
+                '>=' : greater than or equal to
+
+            select: Iterable[str] = []
+                The columns to return. If not given, all unique columns names
+                are returned. If the column exists in both :class`Tafra`,
+                prefers the left over the right.
+
+        Returns
+        -------
+            tafra: Tafra
+                The joined :class:`Tafra`.
         """
         return LeftJoin(on, select).apply(self, right)
 
@@ -1755,8 +1974,42 @@ class Tafra:
                    select: Iterable[str] = list()) -> 'Tafra':
         """
         Helper function to implement :meth:`tafra.group.CrossJoin.apply`.
+
+        A cross join.
+
+        Analogy to SQL CROSS JOIN, or `pandas.merge(..., how='outer')
+        using temporary columns of static value to intersect all rows`.
+
+        Parameters
+        ----------
+            right: Tafra
+                The right-side :class:`Tafra` to join.
+
+            select: Iterable[str] = []
+                The columns to return. If not given, all unique columns names
+                are returned. If the column exists in both :class`Tafra`,
+                prefers the left over the right.
+
+        Returns
+        -------
+            tafra: Tafra
+                The joined :class:`Tafra`.
         """
         return CrossJoin([], select).apply(self, right)
+
+def to_field_name(maybe_text: _Union[str, int, float]) -> str:
+    text = str(maybe_text)
+
+    # Remove invalid characters
+    mid_text = re.sub('[^0-9a-zA-Z_]', '', text)
+
+    # Remove leading characters until we find a letter
+    final_text = re.sub('^[^a-zA-Z]+', '', mid_text)
+
+    if final_text == '':
+        final_text = 'field_' + mid_text
+
+    return final_text
 
 def _in_notebook() -> bool:  # pragma: no cover
     """
@@ -1768,7 +2021,7 @@ def _in_notebook() -> bool:  # pragma: no cover
     """
     try:
         from IPython import get_ipython  # type: ignore
-        if 'IPKernelApp' in get_ipython().config:  # pragma: no cover
+        if 'IPKernelApp' in get_ipython().config:
             return True
     except Exception as e:
         pass
@@ -1777,10 +2030,3 @@ def _in_notebook() -> bool:  # pragma: no cover
 # Import here to resolve circular dependency
 from .group import (GroupBy, Transform, IterateBy, InnerJoin, LeftJoin, CrossJoin, Union,
                     InitAggregation, GroupDescription)
-
-Tafra.group_by.__doc__ += GroupBy.__doc__  # type: ignore
-Tafra.transform.__doc__ += Transform.__doc__  # type: ignore
-Tafra.iterate_by.__doc__ += IterateBy.__doc__  # type: ignore
-Tafra.inner_join.__doc__ += InnerJoin.__doc__  # type: ignore
-Tafra.left_join.__doc__ += LeftJoin.__doc__  # type: ignore
-Tafra.cross_join.__doc__ += CrossJoin.__doc__  # type: ignore

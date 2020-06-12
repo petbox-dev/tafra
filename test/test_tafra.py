@@ -1,5 +1,8 @@
+from pathlib import Path
+import platform
 import warnings
 from decimal import Decimal
+from datetime import date, datetime
 
 import numpy as np
 from tafra import Tafra, object_formatter
@@ -110,6 +113,10 @@ def check_tafra(t: Tafra) -> bool:
     _ = t.to_array()
     _ = t.to_array(columns=columns)
     df = t.to_pandas()
+    df = t.to_pandas(columns=columns)
+    write_path = Path('test/test_to_csv.csv')
+    t.to_csv(write_path)
+    # t.to_csv(write_path, columns=columns)
     assert isinstance(df, pd.DataFrame)
 
     return True
@@ -122,7 +129,8 @@ def test_constructions() -> None:
         t = Tafra({})
 
     t = Tafra({'x': None})
-    check_tafra(t)
+    with warnings.catch_warnings(record=True) as w:
+        check_tafra(t)
 
     t = Tafra({'x': Decimal('1.23456')})
     check_tafra(t)
@@ -197,28 +205,7 @@ def test_constructions() -> None:
     check_tafra(t)
 
     t = Tafra(enumerate(np.arange(6)))
-    # to_tuple will not work with field names like '0', do custom test
-    assert len(t._data) == len(t._dtypes)
-    for c in t.columns:
-        assert isinstance(t[c], np.ndarray)
-        assert isinstance(t.data[c], np.ndarray)
-        assert isinstance(t._data[c], np.ndarray)
-        assert isinstance(t.dtypes[c], str)
-        assert isinstance(t._dtypes[c], str)
-        assert t._rows == len(t._data[c])
-        pd.Series(t._data[c])
-
-        columns = [c for c in t.columns][:-1]
-
-    _ = t.to_records()
-    _ = t.to_records(columns=columns)
-    _ = t.to_list()
-    _ = t.to_list(columns=columns)
-    _ = t.to_list(inner=True)
-    _ = t.to_list(columns=columns, inner=True)
-    _ = t.to_array()
-    _ = t.to_array(columns=columns)
-    pd.DataFrame(t._data)
+    check_tafra(t)
 
     t = build_tafra()
     df = pd.DataFrame(t.data)
@@ -352,6 +339,17 @@ def test_destructors() -> None:
     _ = t.to_array(columns=['x'])
     _ = t.to_array(columns=['x', 'y'])
 
+    _ = t.to_pandas()
+    _ = t.to_pandas(columns='x')
+    _ = t.to_pandas(columns=['x'])
+    _ = t.to_pandas(columns=['x', 'y'])
+
+    filepath = Path('test/test_to_csv.csv')
+    t.to_csv(filepath)
+    t.to_csv(filepath, columns='x')
+    t.to_csv(filepath, columns=['x'])
+    t.to_csv(filepath, columns=['x', 'y'])
+
 
 def test_properties() -> None:
     t = build_tafra()
@@ -430,12 +428,15 @@ def test_formatter() -> None:
     _ = str(object_formatter)
 
     t = Tafra({'x': Decimal(1.2345)})
-    assert t._dtypes['x'] == 'float'
+    assert t._dtypes['x'] == 'float64'
     assert t['x'].dtype == np.dtype(float)
 
     object_formatter['Decimal'] = lambda x: x.astype(int)
     t = Tafra({'x': Decimal(1.2345)})
-    assert t._dtypes['x'] == 'int'
+    if platform.system() == 'Windows':
+        assert t._dtypes['x'] == 'int32'
+    elif platform.system() == 'Linux':
+        assert t._dtypes['x'] == 'int64'
     assert t['x'].dtype == np.dtype(int)
 
     _ = str(object_formatter)
@@ -484,6 +485,15 @@ def test_update() -> None:
     _ = t2.union(t)
     check_tafra(_)
     assert len(_) == len(t) + len(t2)
+
+def test_coalesce_dtypes() -> None:
+    t = build_tafra()
+    t._data['a'] = np.arange(6)
+    assert 'a' not in t._dtypes
+
+    t._coalesce_dtypes()
+    assert 'a' in t._dtypes
+    check_tafra(t)
 
 def test_update_dtypes() -> None:
     t = build_tafra()
@@ -819,12 +829,20 @@ def test_datetime() -> None:
     t.update_dtypes({'d': '<M8[D]'})
     check_tafra(t)
 
-    _ = tuple(t.to_records())
+def test_object_parse() -> None:
+    t = build_tafra()
+    t['d'] = np.array([datetime.fromisoformat(f'2020-0{_+1}-01') for _ in range(6)])
+    assert t._dtypes['d'] == 'object'
+    check_tafra(t)
 
-    _ = t.to_list()
-    _ = t.to_list(inner=True)
-    _ = t.to_tuple()
-    _ = t.to_tuple(inner=True)
+    object_formatter['datetime'] = lambda x: x.astype('datetime64[D]')
+    t2 = t.parse_object_dtypes()
+    assert t2['d'].dtype == np.dtype('datetime64[D]')
+    check_tafra(t2)
+
+    t.parse_object_dtypes_inplace()
+    assert t['d'].dtype == np.dtype('datetime64[D]')
+    check_tafra(t)
 
 def test_coalesce() -> None:
     t = Tafra({'x': np.array([1, 2, None, 4, None])})
@@ -1006,3 +1024,92 @@ def test_left_join_invalid() -> None:
     l._dtypes['x'] = 'float'
     with pytest.raises(TypeError) as e:
         t = l.left_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
+
+def test_csv() -> None:
+    write_path = 'test/test_to_csv.csv'
+
+    def write_reread(t: Tafra) -> None:
+        t.to_csv(write_path)
+        t2 = Tafra.read_csv(write_path, dtypes=t.dtypes)
+
+        for c1, c2 in zip(t.columns, t2.columns):
+            assert np.array_equal(t.data[c1], t2.data[c2])
+            assert np.array_equal(t.dtypes[c1], t2.dtypes[c2])
+
+    # straightforward CSV - inference heuristic works
+    path = Path('test/ex1.csv')
+    t = Tafra.read_csv(path)
+    assert t.dtypes['a'] == 'int32'
+    assert t.dtypes['b'] == 'bool'
+    assert t.dtypes['c'] == 'float64'
+    assert t.rows == 6
+    assert len(t.columns) == 3
+    check_tafra(t)
+    write_reread(t)
+
+    # test again with TextIOWrapper
+    with open('test/ex1.csv', 'r') as f:
+        t = Tafra.read_csv(f)
+    assert t.dtypes['a'] == 'int32'
+    assert t.dtypes['b'] == 'bool'
+    assert t.dtypes['c'] == 'float64'
+    assert t.rows == 6
+    assert len(t.columns) == 3
+    check_tafra(t)
+    write_reread(t)
+
+    with open(write_path, 'w') as f:
+        t.to_csv(f)
+    with pytest.raises(ValueError) as e:
+        with open(write_path) as f:
+            t.to_csv(f)
+
+    # short CSV - ends during inference period
+    t = Tafra.read_csv('test/ex2.csv')
+    assert t.dtypes['a'] == 'int32'
+    assert t.dtypes['b'] == 'bool'
+    assert t.dtypes['c'] == 'float64'
+    assert t.rows == 2
+    assert len(t.columns) == 3
+    check_tafra(t)
+    write_reread(t)
+
+    # harder CSV - promote to object during inference period,
+    #   duplicate column name
+    t = Tafra.read_csv('test/ex3.csv')
+    assert t.dtypes['a'] == 'int32'
+    assert t.dtypes['b'] == 'object'
+    assert t.dtypes['b (2)'] == 'float64'
+    assert t.rows == 6
+    assert len(t.columns) == 3
+    check_tafra(t)
+    write_reread(t)
+
+    # as above, but with a promotion required after inference period
+    #   (heuristic fails)
+    t = Tafra.read_csv('test/ex4.csv')
+    assert t.dtypes['a'] == 'int32'
+    assert t.dtypes['b'] == 'object'
+    assert t.dtypes['b (2)'] == 'float64'
+    assert t.rows == 6
+    assert len(t.columns) == 3
+    check_tafra(t)
+    write_reread(t)
+
+    # bad CSV - missing column on row #4
+    with pytest.raises(ValueError) as e:
+        t = Tafra.read_csv('test/ex5.csv')
+
+    # bad CSV - missing column on row #4 - after guess rows
+    with pytest.raises(ValueError) as e:
+        t = Tafra.read_csv('test/ex5.csv', guess_rows=2)
+
+    # override a column type
+    t = Tafra.read_csv('test/ex4.csv', dtypes={'a': 'float32'})
+    assert t.dtypes['a'] == 'float32'
+    assert t.dtypes['b'] == 'object'
+    assert t.dtypes['b (2)'] == 'float64'
+    assert t.rows == 6
+    assert len(t.columns) == 3
+    check_tafra(t)
+    write_reread(t)

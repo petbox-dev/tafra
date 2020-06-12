@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Any, Iterator, MutableMapping, Type
+from typing import Callable, Dict, Tuple, Any, Iterator, MutableMapping, Type, Optional
 
 import numpy as np
 
@@ -6,7 +6,7 @@ import numpy as np
 class ObjectFormatter(Dict[str, Callable[[np.ndarray], np.ndarray]],
                       MutableMapping[str, Callable[[np.ndarray], np.ndarray]]):
     """
-    A dictionary to contain mappings for formatting objects. Some numpy objects
+    A dictionary that contains mappings for formatting objects. Some numpy objects
     should be cast to other types, e.g. the :class:`decimal.Decimal` type cannot
     operate with :class:`np.float`. These mappings are defined in this class.
 
@@ -63,3 +63,27 @@ class ObjectFormatter(Dict[str, Callable[[np.ndarray], np.ndarray]],
 
     def copy(self) -> Dict[str, Any]:
         return {k: dict.__getitem__(self, k) for k in self}
+
+    def parse_dtype(self, value: np.ndarray) -> Optional[np.ndarray]:
+        """
+        Parse an object dtype.
+
+        Parameters
+        ----------
+            value: np.ndarray
+                The :class:`np.ndarray` to be parsed.
+
+        Returns
+        -------
+            value, modified: Tuple(np.ndarray, bool)
+                The :class:`np.ndarray` and whether it was modified or not.
+        """
+        if value.dtype != np.dtype(object):
+            return None
+
+        type_name = type(value[0]).__name__
+        if type_name in self.keys():
+            value = self[type_name](value)
+            return value
+
+        return None
