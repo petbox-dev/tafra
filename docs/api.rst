@@ -67,6 +67,7 @@ Methods
     itertuples
     itercols
     row_map
+    tuple_map
     col_map
     select
     copy
@@ -87,7 +88,8 @@ Methods
     pformat
     to_html
     _slice
-    _index
+    _iindex
+    _aindex
     _ndindex
 
 
@@ -162,6 +164,7 @@ Methods
     .. automethod:: itertuples
     .. automethod:: itercols
     .. automethod:: row_map
+    .. automethod:: tuple_map
     .. automethod:: col_map
     .. automethod:: select
     .. automethod:: copy
@@ -182,7 +185,8 @@ Methods
     .. automethod:: pformat
     .. automethod:: to_html
     .. automethod:: _slice
-    .. automethod:: _index
+    .. automethod:: _iindex
+    .. automethod:: _aindex
     .. automethod:: _ndindex
 
 
