@@ -967,8 +967,8 @@ class Tafra:
     def as_tafra(cls, maybe_tafra: _Union['Tafra', DataFrame, Series, Dict[str, Any], Any]
                  ) -> Optional['Tafra']:
         """
-        Returns the unmodified `tafra`` if already a `Tafra`, else construct
-        a `Tafra` from known types or subtypes of :class:`DataFrame` or `dict`.
+        Returns the unmodified `tafra`` if already a :class:`Tafra`, else construct
+        a :class:`Tafra` from known types or subtypes of :class:`DataFrame` or `dict`.
         Structural subtypes of :class:`DataFrame` or :class:`Series` are also
         valid, as are classes that have ``cls.__name__ == 'DataFrame'`` or
         ``cls.__name__ == 'Series'``.
@@ -1718,20 +1718,22 @@ class Tafra:
         -------
             dataframe: :class:`pandas.DataFrame`
         """
-        if columns is None:
-            tafra = self
-        else:
-            if isinstance(columns, str):
-                columns = [columns]
-            self._validate_columns(columns)
-            tafra = self.select(columns)
-
         try:
             import pandas as pd  # type: ignore
         except ImportError as e:  # pragma: no cover
             raise ImportError('`pandas` does not appear to be installed.')
 
-        return pd.DataFrame(tafra._data)
+        if columns is None:
+            columns = self.columns
+        else:
+            if isinstance(columns, str):
+                columns = [columns]
+            self._validate_columns(columns)
+
+        return pd.DataFrame({
+            column: value for column, value in self._data.items()
+            if column in columns
+        })
 
     def to_csv(self, filename: _Union[str, Path, TextIOWrapper, IO[str]],
                columns: Optional[Iterable[str]] = None) -> None:
@@ -1747,12 +1749,11 @@ class Tafra:
                 The columns to write. IF ``None``, write all columns.
         """
         if columns is None:
-            tafra = self
+            columns = self.columns
         else:
             if isinstance(columns, str):
                 columns = [columns]
             self._validate_columns(columns)
-            tafra = self.select(columns)
 
         if isinstance(filename, (str, Path)):
             f = open(filename, 'w', newline='')
@@ -1767,8 +1768,8 @@ class Tafra:
             f.reconfigure(newline='')
 
         writer = csv.writer(f, delimiter=',', quotechar='"')
-        writer.writerow(tafra._data.keys())
-        writer.writerows(tafra.to_records())
+        writer.writerow((column for column in self._data.keys() if column in columns))
+        writer.writerows(self.to_records(columns))
 
         if should_close:
             f.close()

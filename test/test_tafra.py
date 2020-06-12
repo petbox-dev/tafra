@@ -113,6 +113,10 @@ def check_tafra(t: Tafra) -> bool:
     _ = t.to_array()
     _ = t.to_array(columns=columns)
     df = t.to_pandas()
+    df = t.to_pandas(columns=columns)
+    write_path = Path('test/test_to_csv.csv')
+    t.to_csv(write_path)
+    # t.to_csv(write_path, columns=columns)
     assert isinstance(df, pd.DataFrame)
 
     return True
@@ -125,7 +129,8 @@ def test_constructions() -> None:
         t = Tafra({})
 
     t = Tafra({'x': None})
-    check_tafra(t)
+    with warnings.catch_warnings(record=True) as w:
+        check_tafra(t)
 
     t = Tafra({'x': Decimal('1.23456')})
     check_tafra(t)
@@ -333,6 +338,17 @@ def test_destructors() -> None:
     _ = t.to_array(columns='x')
     _ = t.to_array(columns=['x'])
     _ = t.to_array(columns=['x', 'y'])
+
+    _ = t.to_pandas()
+    _ = t.to_pandas(columns='x')
+    _ = t.to_pandas(columns=['x'])
+    _ = t.to_pandas(columns=['x', 'y'])
+
+    filepath = Path('test/test_to_csv.csv')
+    t.to_csv(filepath)
+    t.to_csv(filepath, columns='x')
+    t.to_csv(filepath, columns=['x'])
+    t.to_csv(filepath, columns=['x', 'y'])
 
 
 def test_properties() -> None:
