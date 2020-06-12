@@ -6,13 +6,23 @@ Version History
    :noindex:
 
 
+1.0.5
+-----
+
+* Add ``tuple_map`` method
+* Refactor all iterators and ``..._map`` functions to improve performance
+* Unpack ``np.ndarray`` if given as keys to constructor
+* Add ``validate=False`` in ``__post_init__`` if inputs are **known** to be
+   valid to improve performance
+
+
 1.0.4
 -----
 
 * Add ``read_csv``, ``to_csv``
 * Various refactoring and improvement in data validation
 * Add ``typing_extensions`` to dependencies
-* Change method of ``dtype`` storage, extract ``str`` representation from ``np.dtype()``.
+* Change method of ``dtype`` storage, extract ``str`` representation from ``np.dtype()``
 
 
 1.0.3
