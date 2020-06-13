@@ -1,3 +1,17 @@
+"""
+Tafra: a minimalist dataframe
+
+Copyright (c) 2020 Derrick W. Turk and David S. Fulford
+
+Author
+------
+Derrick W. Turk
+David S. Fulford
+
+Notes
+-----
+Created on April 25, 2020
+"""
 import numpy as np
 from typing import Dict, List, Tuple, Any, Optional, Type, Iterable, Iterator
 from typing_extensions import Protocol, runtime_checkable
