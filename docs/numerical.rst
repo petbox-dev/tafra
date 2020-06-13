@@ -136,19 +136,20 @@ possible:
 .. code-block:: python
 
     >>> from numba import jit
+    >>> jit_kw = {'fastmath': True}
 
-    >>> @jit
+    >>> @jit(**jit_kw)
     ...  def tan_to_nominal(D: float) -> float:
-    ...     return -np.log1p(-D)
+    ...     return -math.log1p(-D)
 
-    >>> @jit
+    >>> @jit(**jit_kw)
     ... def sec_to_nominal(D: float, b: float) -> float:
     ...     if b <= 1e-4:
     ...         return tan_to_nominal(D)
     ...
     ...     return ((1.0 - D) ** -b - 1.0) / b
 
-    >>> @jit
+    >>> @jit(**jit_kw)
     ... def hyp(qi: float, Di: float, bi: float, t: np.ndarray) -> np.ndarray:
     ...     Dn = sec_to_nominal(Di, bi)
     ...
