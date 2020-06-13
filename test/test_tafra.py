@@ -72,7 +72,6 @@ class Cursor:
     def fetchmany(self, size: int) -> List[Tuple[Any, ...]]:
         return list(islice(self, size))
 
-
     def fetchall(self) -> List[Tuple[Any, ...]]:
         return [rec for rec in self]
 
@@ -122,6 +121,16 @@ def check_tafra(t: Tafra) -> bool:
     return True
 
 def test_constructions() -> None:
+    t = build_tafra()
+    check_tafra(t)
+
+    t = Tafra({
+        'x': np.array([1, 2, 3, 4, 5, 6]),
+        'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
+        'z': np.array([0, 0, 0, 1, 1, 1])
+    }, validate=False)
+    check_tafra(t)
+
     with pytest.raises(TypeError) as e:
         t = Tafra()  # type: ignore # noqa
 
@@ -156,6 +165,12 @@ def test_constructions() -> None:
     t = Tafra([['x', np.arange(6)]])
     check_tafra(t)
 
+    t = Tafra([(np.array('x'), np.arange(6))])
+    check_tafra(t)
+
+    t = Tafra([(np.array(['x']), np.arange(6))])
+    check_tafra(t)
+
     t = Tafra([('x', np.arange(6)), ('y', np.linspace(0, 1, 6))])
     check_tafra(t)
 
@@ -188,7 +203,6 @@ def test_constructions() -> None:
             yield {'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object')}
             yield {'z': np.array([0, 0, 0, 1, 1, 1])}
 
-
     t = Tafra(DictIterable())
     check_tafra(t)
 
@@ -202,6 +216,18 @@ def test_constructions() -> None:
             yield ('z', np.array([0, 0, 0, 1, 1, 1]))
 
     t = Tafra(SequenceIterable())
+    check_tafra(t)
+
+    class SequenceIterable2:
+        def __iter__(self) -> Iterator[Any]:
+            yield (np.array(['x']), np.array([1, 2, 3, 4, 5, 6]))
+            yield [np.array(['y']), np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object')]
+            yield (np.array(['z']), np.array([0, 0, 0, 1, 1, 1]))
+
+    t = Tafra(SequenceIterable2())
+    check_tafra(t)
+
+    t = Tafra(iter(SequenceIterable2()))
     check_tafra(t)
 
     t = Tafra(enumerate(np.arange(6)))
@@ -586,6 +612,9 @@ def test_iter_methods() -> None:
     for _ in t.itertuples(name='test'):
         pass
 
+    for _ in t.itertuples(name=None):
+        pass
+
 def test_groupby() -> None:
     t = build_tafra()
     gb = t.group_by(
@@ -660,6 +689,7 @@ def test_invalid_agg() -> None:
 def test_map() -> None:
     t = build_tafra()
     _ = list(t.row_map(np.repeat, 6))
+    _ = list(t.tuple_map(np.repeat, 6))
     _ = Tafra(t.col_map(np.repeat, name=True, repeats=6))
     _ = list(t.col_map(np.repeat, name=False, repeats=6))
 
@@ -751,7 +781,6 @@ def test_slice() -> None:
     _ = t[[True, 2]]
     check_tafra(_)
     check_tafra(t)
-
 
     with pytest.raises(IndexError) as e:
         _ = t[np.array([[1, 2]])]
