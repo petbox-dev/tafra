@@ -8,6 +8,7 @@ Contents
 
     README <self>
     api
+    numerical
 
 .. toctree::
     :maxdepth: 1
