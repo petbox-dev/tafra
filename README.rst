@@ -84,8 +84,9 @@ and SQL-style "group by" and join operations.
 |                            | `itertuples <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.itertuples>`_,                                |
 |                            | `itercols <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.itercols>`_                                     |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Functional Methods         | `row_map <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.row_map>`_                                       |
-|                            | `col_map <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.col_map>`_,                                      |
+| Functional Methods         | `row_map <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.row_map>`_,                                      |
+|                            | `tuple_map <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.tuple_map>`_,                                  |
+|                            | `col_map <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.col_map>`_                                       |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
 | Dict-like Methods          | `keys <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.keys>`_,                                            |
 |                            | `values <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.values>`_,                                        |
