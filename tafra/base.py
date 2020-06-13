@@ -1192,9 +1192,9 @@ class Tafra:
 
     def tuple_map(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Iterator[Any]:
         """
-        Map a function over rows. To apply to specific columns, use
-        :meth:`select` first. The function must operate on :class:`NamedTuple` from
-        :meth:`itertuples`.
+        Map a function over rows. This is faster than :meth:`row_map`. To apply
+        to specific columns, use :meth:`select` first. The function must operate
+        on :class:`NamedTuple` from :meth:`itertuples`.
 
         Parameters
         ----------
