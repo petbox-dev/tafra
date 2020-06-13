@@ -318,8 +318,9 @@ class Tafra:
 
         Parameters
         ----------
-            name: str = 'Tafra'
-                The name for the :class:`NamedTuple`.
+            name: Optional[str] = 'Tafra'
+                The name for the :class:`NamedTuple`. If ``None``, construct a
+                :class:`Tuple` instead.
 
         Returns
         -------
@@ -1190,7 +1191,8 @@ class Tafra:
         """
         return (fn(tf, *args, **kwargs) for tf in self.__iter__())
 
-    def tuple_map(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Iterator[Any]:
+    def tuple_map(self, fn: Callable[..., Any], name: Optional[str] = 'Tafra',
+                  *args: Any, **kwargs: Any) -> Iterator[Any]:
         """
         Map a function over rows. This is faster than :meth:`row_map`. To apply
         to specific columns, use :meth:`select` first. The function must operate
@@ -1200,6 +1202,10 @@ class Tafra:
         ----------
             fn: Callable[..., Any]
                 The function to map.
+
+            name: Optional[str] = 'Tafra'
+                The name for the :class:`NamedTuple`. If ``None``, construct a
+                :class:`Tuple` instead.
 
             *args: Any
                 Additional positional arguments to ``fn``.
@@ -1212,10 +1218,9 @@ class Tafra:
             iter_tf: Iterator[Any]
                 An iterator to map the function.
         """
-        return (fn(tf, *args, **kwargs) for tf in self.itertuples())
+        return (fn(tf, *args, **kwargs) for tf in self.itertuples(name))
 
-    def col_map(self, fn: Callable[..., Any], name: bool = True,
-                *args: Any, **kwargs: Any) -> Iterator[_Union[Any, Tuple[str, Any]]]:
+    def col_map(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Iterator[_Union[Any, Tuple[str, Any]]]:
         """
         Map a function over columns. To apply to specific columns, use
         :meth:`select` first. The function must operate on :class:`Tuple[str, np.ndarray]`.
@@ -1224,9 +1229,6 @@ class Tafra:
         ----------
             fn: Callable[..., Any]
                 The function to map.
-
-            name: bool
-                Return the column name.
 
             *args: Any
                 Additional positional arguments to ``fn``.
