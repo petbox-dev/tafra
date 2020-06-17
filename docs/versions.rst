@@ -10,8 +10,7 @@ Version History
 ------
 
 * Additional validations in constructor, primary to evaluate Iterables of values
-* Split ``col_map`` to ``col_map`` and ``key_map`` as the original function's
-return signature depending upon an argument.
+* Split ``col_map`` to ``col_map`` and ``key_map`` as the original function's return signature depending upon an argument.
 * Fix some documentation typos
 
 
@@ -21,8 +20,7 @@ return signature depending upon an argument.
 * Add ``tuple_map`` method
 * Refactor all iterators and ``..._map`` functions to improve performance
 * Unpack ``np.ndarray`` if given as keys to constructor
-* Add ``validate=False`` in ``__post_init__`` if inputs are **known** to be
-   valid to improve performance
+* Add ``validate=False`` in ``__post_init__`` if inputs are **known** to be valid to improve performance
 
 
 1.0.4
