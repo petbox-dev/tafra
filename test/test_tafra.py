@@ -105,10 +105,16 @@ def check_tafra(t: Tafra) -> bool:
     _ = t.to_list(columns=columns, inner=True)
     _ = t.to_tuple()
     _ = t.to_tuple(columns=columns)
+    _ = t.to_tuple(name=None)
     _ = t.to_tuple(name='tf')
+    _ = t.to_tuple(columns=columns, name=None)
     _ = t.to_tuple(columns=columns, name='tf')
     _ = t.to_tuple(inner=True)
+    _ = t.to_tuple(inner=True, name=None)
+    _ = t.to_tuple(inner=True, name='tf')
     _ = t.to_tuple(columns=columns, inner=True)
+    _ = t.to_tuple(columns=columns, inner=True, name=None)
+    _ = t.to_tuple(columns=columns, inner=True, name='tf')
     _ = t.to_array()
     _ = t.to_array(columns=columns)
     df = t.to_pandas()
@@ -422,6 +428,10 @@ def test_assignment() -> None:
     t['x'] = 6
     t['x'] = 'test'
     t['x'] = list(range(6))
+    t['x'] = np.array(6)
+    t['x'] = np.array([6])
+    t['x'] = iter([1, 2, 3, 4, 5, 6])
+    t['x'] = range(6)
     check_tafra(t)
 
     with pytest.raises(ValueError) as e:
@@ -690,8 +700,8 @@ def test_map() -> None:
     t = build_tafra()
     _ = list(t.row_map(np.repeat, 6))
     _ = list(t.tuple_map(np.repeat, 6))
-    _ = Tafra(t.col_map(np.repeat, name=True, repeats=6))
-    _ = list(t.col_map(np.repeat, name=False, repeats=6))
+    _ = list(t.col_map(np.repeat, repeats=6))
+    _ = Tafra(t.key_map(np.repeat, repeats=6))
 
 def test_union() -> None:
     t = build_tafra()
@@ -836,7 +846,6 @@ def test_invalid_assignment() -> None:
         t['x'] = np.arange(6)[:, None]
         assert str(w[0].message) == '`np.squeeze(ndarray)` applied to set ndim == 1.'
 
-    # with warnings.catch_warnings(record=True) as w:
     with warnings.catch_warnings(record=True) as w:
         t['x'] = np.atleast_2d(np.arange(6))
         assert str(w[0].message) == '`np.squeeze(ndarray)` applied to set ndim == 1.'

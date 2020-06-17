@@ -6,6 +6,15 @@ Version History
    :noindex:
 
 
+1.0.6
+------
+
+* Additional validations in constructor, primary to evaluate Iterables of values
+* Split ``col_map`` to ``col_map`` and ``key_map`` as the original function's
+return signature depending upon an argument.
+* Fix some documentation typos
+
+
 1.0.5
 -----
 
