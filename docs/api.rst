@@ -69,6 +69,7 @@ Methods
     row_map
     tuple_map
     col_map
+    key_map
     select
     copy
     update
@@ -166,6 +167,7 @@ Methods
     .. automethod:: row_map
     .. automethod:: tuple_map
     .. automethod:: col_map
+    .. automethod:: key_map
     .. automethod:: select
     .. automethod:: copy
     .. automethod:: update

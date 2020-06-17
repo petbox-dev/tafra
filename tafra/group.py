@@ -1,6 +1,7 @@
 """
 Tafra: a minimalist dataframe
 
+Copyright (c) 2020 Derrick W. Turk and David S. Fulford
 
 Author
 ------
@@ -654,8 +655,8 @@ class CrossJoin(Join):
             left_cols = list(left_t._data.keys())
             right_cols = list(right_t._data.keys())
 
-        left_new = Tafra(left_t[left_cols].col_map(np.tile, reps=right_rows))
-        right_new = Tafra(right_t[right_cols].col_map(np.tile, reps=left_rows))
+        left_new = Tafra(left_t[left_cols].key_map(np.tile, reps=right_rows))
+        right_new = Tafra(right_t[right_cols].key_map(np.tile, reps=left_rows))
 
         left_new.update_inplace(right_new)
 

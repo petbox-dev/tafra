@@ -1,6 +1,7 @@
 """
 Tafra: a minimalist dataframe
 
+Copyright (c) 2020 Derrick W. Turk and David S. Fulford
 
 Author
 ------
