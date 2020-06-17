@@ -12,7 +12,7 @@ Notes
 -----
 Created on April 25, 2020
 """
-__version__ = '1.0.5'
+__version__ = '1.0.6'
 
 from .base import Tafra, object_formatter
 from .group import GroupBy, Transform, IterateBy, InnerJoin, LeftJoin
