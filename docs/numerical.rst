@@ -11,7 +11,7 @@ as `generator expressions <https://www.python.org/dev/peps/pep-0289/>`_ wherever
 possible.
 
 Additionally, because the :attr:``data`` contains values of ndarrays, the
-``map`` functions may also take functions that operator on ndarrays. This means
+``map`` functions may also take functions that operate on ndarrays. This means
 that they are able to take `numba <http://numba.pydata.org/>`_ ``@jit``'ed
 functions as well.
 
@@ -56,7 +56,7 @@ dtype  int32  float64 float64 float64
 ====== ====== ======= ======= =======
 
 
-Next, we define our hyperbolic function and the time array to evalute:
+Next, we define our hyperbolic function and the time array to evaluate:
 
 .. code-block:: python
 
@@ -100,7 +100,7 @@ versions, so this is the recommended way. Let's time each approach:
     3.38 ms ± 129 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
 
 
-    >>> pdcs = pd.DataFrame(dict(df.apply(mapper, axis=1).to_list())))
+    >>> %timeit pdcs = pd.DataFrame(dict(df.apply(mapper, axis=1).to_list())))
     6.86 ms ± 408 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
 
 
@@ -136,19 +136,20 @@ possible:
 .. code-block:: python
 
     >>> from numba import jit
+    >>> jit_kw = {'fastmath': True}
 
-    >>> @jit
+    >>> @jit(**jit_kw)
     ...  def tan_to_nominal(D: float) -> float:
-    ...     return -np.log1p(-D)
+    ...     return -math.log1p(-D)
 
-    >>> @jit
+    >>> @jit(**jit_kw)
     ... def sec_to_nominal(D: float, b: float) -> float:
     ...     if b <= 1e-4:
     ...         return tan_to_nominal(D)
     ...
     ...     return ((1.0 - D) ** -b - 1.0) / b
 
-    >>> @jit
+    >>> @jit(**jit_kw)
     ... def hyp(qi: float, Di: float, bi: float, t: np.ndarray) -> np.ndarray:
     ...     Dn = sec_to_nominal(Di, bi)
     ...

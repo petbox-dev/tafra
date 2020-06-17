@@ -152,7 +152,7 @@ A short example
      [array([1, 2, 3, 4]), array(['one', 'two', 'one', 'two'], dtype=object)]
 
     >>> print('Records:', '\n', tuple(t.to_records()))
-    Record:
+    Records:
      ((1, 'one'), (2, 'two'), (3, 'one'), (4, 'two'))
 
     >>> gb = t.group_by(
@@ -197,9 +197,9 @@ Timings
 In this case, lightweight also means performant. Beyond any additional
 features added to the library, ``tafra`` should provide the necessary
 base for organizing data structures for numerical processing. One of the
-most important aspects is fast access to the data itself. By minizing
+most important aspects is fast access to the data itself. By minimizing
 abstraction to access the underlying ``numpy`` arrays, ``tafra`` provides
-over an order of magnitude increase in performance.
+an order of magnitude increase in performance.
 
 -   **Import note** If you assign directly to the ``Tafra.data`` or
     ``Tafra._data`` attributes, you *must* call ``Tafra._coalesce_dtypes``
@@ -307,6 +307,6 @@ preserve immutability.
     2.5 ms ± 177 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
 
     >>> %%timeit
-    >>> tdf = df.copy()
-    >>> tdf['x'] = df.groupby(['y', 'z'])[['x']].transform(sum)
+    ... tdf = df.copy()
+    ... tdf['x'] = df.groupby(['y', 'z'])[['x']].transform(sum)
     2.81 ms ± 143 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
