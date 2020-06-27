@@ -1507,7 +1507,14 @@ class Tafra:
 
         for column in dtypes.keys():
             if self._format_dtype(self._data[column].dtype) != self._dtypes[column]:
-                self._data[column] = self._data[column].astype(self._dtypes[column])
+                try:
+                    self._data[column] = self._data[column].astype(self._dtypes[column])
+                except ValueError:
+                    REPL_VALS = ['', ]
+                    for repl_val in REPL_VALS:
+                        where_repl = np.equal(self._data[column], repl_val)
+                        self._data[column][where_repl] = None
+                    self._data[column] = self._data[column].astype(self._dtypes[column])
 
     def rename(self, renames: Dict[str, str]) -> 'Tafra':
         """
