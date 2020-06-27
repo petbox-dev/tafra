@@ -227,7 +227,8 @@ def test_constructions() -> None:
     class SequenceIterable2:
         def __iter__(self) -> Iterator[Any]:
             yield (np.array(['x']), np.array([1, 2, 3, 4, 5, 6]))
-            yield [np.array(['y']), np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object')]
+            yield [np.array(['y']), np.array(['one', 'two', 'one', 'two', 'one', 'two'],
+                                             dtype='object')]
             yield (np.array(['z']), np.array([0, 0, 0, 1, 1, 1]))
 
     t = Tafra(SequenceIterable2())
@@ -485,7 +486,7 @@ def test_formatter() -> None:
     del object_formatter['Decimal']
 
     with pytest.raises(ValueError) as e:
-        object_formatter['Decimal'] = lambda x: 'int'  # type: ignore
+        object_formatter['Decimal'] = lambda x: 'int'
 
     _ = str(object_formatter)
 
@@ -805,19 +806,19 @@ def test_slice() -> None:
         _ = t[(1, 2)]  # noqa
 
     with pytest.raises(IndexError) as e:
-        _ = t[(1, 2.)]  # type: ignore # noqa
+        _ = t[(1, 2.)] # noqa
 
     with pytest.raises(ValueError) as e:
         _ = t[['x', 2]]
 
     with pytest.raises(TypeError) as e:
-        _ = t[{'x': [1, 2]}]  # type: ignore
+        _ = t[{'x': [1, 2]}]
 
     with pytest.raises(TypeError) as e:
-        _ = t[TestClass()]  # type: ignore # noqa
+        _ = t[TestClass()] # noqa
 
     with pytest.raises(IndexError) as e:
-        _ = t[[1, 2.]]  # type: ignore
+        _ = t[[1, 2.]]
 
     with pytest.raises(IndexError) as e:
         _ = t[np.array([1, 2.])]
@@ -884,21 +885,21 @@ def test_object_parse() -> None:
 
 def test_coalesce() -> None:
     t = Tafra({'x': np.array([1, 2, None, 4, None])})
-    t['x'] = t.coalesce('x', [[1, 2, 3, None, 5], [None, None, None, None, 'five']])  # type: ignore
-    t['y'] = t.coalesce('y', [[1, 2, 3, None, 5], [None, None, None, None, 'five']])  # type: ignore
+    t['x'] = t.coalesce('x', [[1, 2, 3, None, 5], [None, None, None, None, 'five']])
+    t['y'] = t.coalesce('y', [[1, 2, 3, None, 5], [None, None, None, None, 'five']])
     assert np.all(t['x'] != np.array(None))
     assert t['y'][3] == np.array(None)
     check_tafra(t)
 
     t = Tafra({'x': np.array([1, 2, None, 4, None])})
-    t.coalesce_inplace('x', [[1, 2, 3, None, 5], [None, None, None, None, 'five']])  # type: ignore
-    t.coalesce_inplace('y', [[1, 2, 3, None, 5], [None, None, None, None, 'five']])  # type: ignore
+    t.coalesce_inplace('x', [[1, 2, 3, None, 5], [None, None, None, None, 'five']])
+    t.coalesce_inplace('y', [[1, 2, 3, None, 5], [None, None, None, None, 'five']])
     assert np.all(t['x'] != np.array(None))
     assert t['y'][3] == np.array(None)
     check_tafra(t)
 
     t = Tafra({'x': np.array([None])})
-    t.coalesce('x', [[1], [None]])  # type: ignore
+    t.coalesce('x', [[1], [None]])
     check_tafra(t)
 
 def test_left_join_equi() -> None:
