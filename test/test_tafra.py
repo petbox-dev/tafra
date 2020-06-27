@@ -1142,6 +1142,28 @@ def test_csv() -> None:
     with pytest.raises(ValueError) as e:
         t = Tafra.read_csv('test/ex5.csv', guess_rows=2)
 
+    # missing column, override dtypes
+    t = Tafra.read_csv('test/ex6.csv')
+    assert t.dtypes['dp'] == 'float64'
+    assert t.dtypes['dp_prime'] == 'object'
+    assert t.dtypes['dp_prime_te'] == 'object'
+    assert t.dtypes['t'] == 'float64'
+    assert t.dtypes['te'] == 'float64'
+    check_tafra(t)
+
+    t.update_dtypes_inplace({'dp_prime': float, 'dp_prime_te': 'float64'})
+    assert t.dtypes['dp_prime'] == 'float64'
+    assert t.dtypes['dp_prime_te'] == 'float64'
+    check_tafra(t)
+
+    t = Tafra.read_csv('test/ex6.csv', dtypes={'dp_prime': np.float, 'dp_prime_te': np.float32})
+    assert t.dtypes['dp'] == 'float64'
+    assert t.dtypes['dp_prime'] == 'float64'
+    assert t.dtypes['dp_prime_te'] == 'float32'
+    assert t.dtypes['t'] == 'float64'
+    assert t.dtypes['te'] == 'float64'
+    check_tafra(t)
+
     # override a column type
     t = Tafra.read_csv('test/ex4.csv', dtypes={'a': 'float32'})
     assert t.dtypes['a'] == 'float32'
