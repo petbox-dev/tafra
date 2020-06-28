@@ -350,15 +350,13 @@ class Tafra:
                 An iterator of :class:`NamedTuple`.
         """
         if name is None:
-            return (tuple(value[i] for value in self._data.values())
-                    for i in range(self._rows))
+            return (tuple(values) for values in zip(*self._data.values()))
 
         TafraNT = NamedTuple(name, **{  # type: ignore
             to_field_name(column): NAMEDTUPLE_TYPE[self._reduce_dtype(dtype)]
             for column, dtype in self._dtypes.items()})
 
-        return (TafraNT(*(value[i] for value in self._data.values()))
-                for i in range(self._rows))
+        return (TafraNT(*values) for values in zip(*self._data.values()))
 
     def itercols(self) -> Iterator[Tuple[str, np.ndarray]]:
         """
