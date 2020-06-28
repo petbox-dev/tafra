@@ -67,7 +67,7 @@ class CSVReader:
             self._stream = open(source, newline='')
             self._should_close = True
         elif isinstance(source, TextIOWrapper):
-            source.reconfigure(newline='')
+            source.reconfigure(newline='')  # type: ignore
             self._stream = source
             self._should_close = False
         self._reader = csv.reader(self._stream, dialect='excel', **csvkw)
