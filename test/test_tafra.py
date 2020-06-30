@@ -1143,11 +1143,11 @@ def test_csv() -> None:
     with pytest.raises(ValueError) as e:
         t = Tafra.read_csv('test/ex5.csv', guess_rows=2)
 
-    # missing column, override dtypes
+    # missing column - but numpy will automatically convert missing (None) to nan
     t = Tafra.read_csv('test/ex6.csv')
     assert t.dtypes['dp'] == 'float64'
-    assert t.dtypes['dp_prime'] == 'object'
-    assert t.dtypes['dp_prime_te'] == 'object'
+    assert t.dtypes['dp_prime'] == 'float64'
+    assert t.dtypes['dp_prime_te'] == 'float64'
     assert t.dtypes['t'] == 'float64'
     assert t.dtypes['te'] == 'float64'
     check_tafra(t)
