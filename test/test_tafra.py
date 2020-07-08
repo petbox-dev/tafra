@@ -511,17 +511,14 @@ def test_dunder() -> None:
 def test_update() -> None:
     t = build_tafra()
     t2 = build_tafra()
-    _ = t2.union(t)
+    _ = t2.update(t2)
     check_tafra(_)
 
-    t2.union_inplace(t)
-    check_tafra(t2)
-    assert len(t2) == 2 * len(t)
+    t.update_inplace(t2)
+    check_tafra(t)
 
-    t2 = build_tafra()
-    _ = t2.union(t)
+    _ = t.update(t2._data)  # type: ignore
     check_tafra(_)
-    assert len(_) == len(t) + len(t2)
 
 def test_coalesce_dtypes() -> None:
     t = build_tafra()
@@ -707,8 +704,14 @@ def test_map() -> None:
 def test_union() -> None:
     t = build_tafra()
     t2 = build_tafra()
-    t.union_inplace(t2)
-    check_tafra(t)
+
+    _ = t2.union(t)
+    check_tafra(_)
+    assert len(_) == len(t) + len(t2)
+
+    t2.union_inplace(t)
+    check_tafra(t2)
+    assert len(t2) == 2 * len(t)
 
     t = build_tafra()
     t2 = build_tafra()
@@ -1143,8 +1146,17 @@ def test_csv() -> None:
     with pytest.raises(ValueError) as e:
         t = Tafra.read_csv('test/ex5.csv', guess_rows=2)
 
-    # missing column, override dtypes
+    # missing column - but numpy will automatically convert missing (None) to nan
     t = Tafra.read_csv('test/ex6.csv')
+    assert t.dtypes['dp'] == 'float64'
+    assert t.dtypes['dp_prime'] == 'float64'
+    assert t.dtypes['dp_prime_te'] == 'float64'
+    assert t.dtypes['t'] == 'float64'
+    assert t.dtypes['te'] == 'float64'
+    check_tafra(t)
+
+    # missing column - do not automatically cast
+    t = Tafra.read_csv('test/ex6.csv', missing=None)
     assert t.dtypes['dp'] == 'float64'
     assert t.dtypes['dp_prime'] == 'object'
     assert t.dtypes['dp_prime_te'] == 'object'
@@ -1157,7 +1169,8 @@ def test_csv() -> None:
     assert t.dtypes['dp_prime_te'] == 'float64'
     check_tafra(t)
 
-    t = Tafra.read_csv('test/ex6.csv', dtypes={'dp_prime': np.float, 'dp_prime_te': np.float32})
+    # force dtypes on missing columns
+    t = Tafra.read_csv('test/ex6.csv', missing=None, dtypes={'dp_prime': np.float, 'dp_prime_te': np.float32})
     assert t.dtypes['dp'] == 'float64'
     assert t.dtypes['dp_prime'] == 'float64'
     assert t.dtypes['dp_prime_te'] == 'float32'
