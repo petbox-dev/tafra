@@ -486,7 +486,7 @@ def test_formatter() -> None:
     del object_formatter['Decimal']
 
     with pytest.raises(ValueError) as e:
-        object_formatter['Decimal'] = lambda x: 'int'
+        object_formatter['Decimal'] = lambda x: 'int'  # type: ignore
 
     _ = str(object_formatter)
 
@@ -806,19 +806,19 @@ def test_slice() -> None:
         _ = t[(1, 2)]  # noqa
 
     with pytest.raises(IndexError) as e:
-        _ = t[(1, 2.)] # noqa
+        _ = t[(1, 2.)]  # type: ignore # noqa
 
     with pytest.raises(ValueError) as e:
         _ = t[['x', 2]]
 
     with pytest.raises(TypeError) as e:
-        _ = t[{'x': [1, 2]}]
+        _ = t[{'x': [1, 2]}]  # type: ignore
 
     with pytest.raises(TypeError) as e:
-        _ = t[TestClass()] # noqa
+        _ = t[TestClass()]  # type: ignore # noqa
 
     with pytest.raises(IndexError) as e:
-        _ = t[[1, 2.]]
+        _ = t[[1, 2.]]  # type: ignore
 
     with pytest.raises(IndexError) as e:
         _ = t[np.array([1, 2.])]

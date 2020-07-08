@@ -1012,7 +1012,7 @@ class Tafra:
 
     @classmethod
     def read_csv(cls, csv_file: _Union[str, Path, TextIOWrapper, IO[str]], guess_rows: int = 5,
-                 dtypes: Optional[Dict[str, str]] = None, **csvkw: Dict[str, Any]
+                 dtypes: Optional[Dict[str, Any]] = None, **csvkw: Dict[str, Any]
                  ) -> 'Tafra':
         """
         Read a CSV file with a header row, infer the types of each column,
@@ -1637,8 +1637,9 @@ class Tafra:
             validate=False
         )
 
-    def coalesce(self, column: str,
-                 fills: Iterable[_Union[None, str, int, float, bool, np.ndarray]]) -> np.ndarray:
+    def coalesce(self, column: str, fills: Iterable[
+        Iterable[_Union[None, str, int, float, bool, np.ndarray]]
+    ]) -> np.ndarray:
         """
         Fill ``None`` values from ``fills``. Analogous to ``SQL COALESCE`` or
         :meth:`pandas.fillna`.
@@ -1682,8 +1683,9 @@ class Tafra:
 
         return value
 
-    def coalesce_inplace(self, column: str,
-                         fills: Iterable[_Union[None, str, int, float, bool, np.ndarray]]) -> None:
+    def coalesce_inplace(self, column: str, fills: Iterable[
+        Iterable[_Union[None, str, int, float, bool, np.ndarray]]
+    ]) -> None:
         """
         In-place version.
 
