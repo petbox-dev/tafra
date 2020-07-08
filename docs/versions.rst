@@ -6,8 +6,14 @@ Version History
    :noindex:
 
 
+1.0.7
+-----
+
+* Cast empty elements to None when updating dtypes to avoid failure of ``np.astype()``.
+
+
 1.0.6
-------
+-----
 
 * Additional validations in constructor, primary to evaluate Iterables of values
 * Split ``col_map`` to ``col_map`` and ``key_map`` as the original function's return signature depending upon an argument.
