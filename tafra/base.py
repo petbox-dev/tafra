@@ -672,7 +672,7 @@ class Tafra:
         tr = chain(
             [self._html_tr(chain(
                 ['dtype'],
-                self._dtypes.values()
+                (self._dtypes[column] for column in self._data.keys())
             ))],
             (self._html_tr(chain(
                 [i],
@@ -1048,7 +1048,17 @@ class Tafra:
                 The constructed :class:`Tafra`.
         """
         reader = CSVReader(cast(_Union[str, Path, TextIOWrapper], csv_file), guess_rows, **csvkw)
-        return Tafra(reader.read(), dtypes=dtypes)
+        tf = Tafra(reader.read(), dtypes=dtypes)
+
+        # patch for handling NULLs
+        for column, dtype in tf._dtypes.items():
+            if dtype != 'str':
+                continue
+
+            where_none = tf._data[column] == 'None'
+            tf._data[column][where_none] = ''
+
+        return tf
 
     @classmethod
     def as_tafra(cls, maybe_tafra: _Union['Tafra', DataFrame, Series, Dict[str, Any], Any]
@@ -1443,6 +1453,10 @@ class Tafra:
         -------
             None: None
         """
+        if not isinstance(other, Tafra):
+            # should be a Tafra, but if not let's construct one
+            other = Tafra(other)  # type: ignore
+
         rows = self._rows
 
         for column, value in other._data.items():
