@@ -1012,7 +1012,8 @@ class Tafra:
 
     @classmethod
     def read_csv(cls, csv_file: _Union[str, Path, TextIOWrapper, IO[str]], guess_rows: int = 5,
-                 dtypes: Optional[Dict[str, Any]] = None, **csvkw: Dict[str, Any]
+                 missing: Optional[str] = '', dtypes: Optional[Dict[str, Any]] = None,
+                 **csvkw: Dict[str, Any]
                  ) -> 'Tafra':
         """
         Read a CSV file with a header row, infer the types of each column,
@@ -1038,18 +1039,9 @@ class Tafra:
             tafra: Tafra
                 The constructed :class:`Tafra`.
         """
-        reader = CSVReader(cast(_Union[str, Path, TextIOWrapper], csv_file), guess_rows, **csvkw)
-        tf = Tafra(reader.read(), dtypes=dtypes)
-
-        # patch for handling NULLs
-        for column, dtype in tf._dtypes.items():
-            if dtype != 'str':
-                continue
-
-            where_none = tf._data[column] == 'None'
-            tf._data[column][where_none] = ''
-
-        return tf
+        reader = CSVReader(cast(_Union[str, Path, TextIOWrapper], csv_file),
+                           guess_rows, missing, **csvkw)
+        return Tafra(reader.read(), dtypes=dtypes)
 
     @classmethod
     def as_tafra(cls, maybe_tafra: _Union['Tafra', DataFrame, Series, Dict[str, Any], Any]
@@ -1924,7 +1916,7 @@ class Tafra:
             f = filename
             should_close = False
 
-            f.reconfigure(newline='')  # type: ignore
+            f.reconfigure(newline='')
 
         writer = csv.writer(f, delimiter=',', quotechar='"')
         writer.writerow((column for column in self._data.keys() if column in columns))
