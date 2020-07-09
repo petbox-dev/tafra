@@ -9,7 +9,9 @@ Version History
 1.0.7
 -----
 
+* Handle missing or NULL values in ``read_csv()``.
 * Cast empty elements to None when updating dtypes to avoid failure of ``np.astype()``.
+* Update some typing, minor refactoring for performance
 
 
 1.0.6
