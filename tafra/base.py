@@ -22,6 +22,7 @@ import csv
 import pprint as pprint
 from datetime import date, datetime
 from itertools import chain, islice
+from collections import namedtuple
 import dataclasses as dc
 
 import numpy as np
@@ -350,15 +351,10 @@ class Tafra:
                 An iterator of :class:`NamedTuple`.
         """
         if name is None:
-            return (tuple(value[i] for value in self._data.values())
-                    for i in range(self._rows))
+            return (tuple(values) for values in zip(*self._data.values()))
 
-        TafraNT = NamedTuple(name, **{  # type: ignore
-            to_field_name(column): NAMEDTUPLE_TYPE[self._reduce_dtype(dtype)]
-            for column, dtype in self._dtypes.items()})
-
-        return (TafraNT(*(value[i] for value in self._data.values()))
-                for i in range(self._rows))
+        TafraNT = namedtuple(name, self._data.keys())  # type: ignore
+        return map(TafraNT._make, zip(*self._data.values()))
 
     def itercols(self) -> Iterator[Tuple[str, np.ndarray]]:
         """
@@ -370,7 +366,7 @@ class Tafra:
             tuples: Iterator[Tuple[str, np.ndarray]]
                 An iterator of :class:`Tafra`.
         """
-        return ((column, value) for column, value in self._data.items())
+        return map(tuple, self.data.items())  # type: ignore
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -672,7 +668,7 @@ class Tafra:
         tr = chain(
             [self._html_tr(chain(
                 ['dtype'],
-                self._dtypes.values()
+                (self._dtypes[column] for column in self._data.keys())
             ))],
             (self._html_tr(chain(
                 [i],
@@ -812,14 +808,9 @@ class Tafra:
                 The validated types.
         """
         msg = ''
-        _dtypes: Dict[str, Any] = {}
 
         self._validate_columns(dtypes.keys())
-
-        for column, _dtype in dtypes.items():
-            _dtypes[column] = self._format_dtype(_dtype)
-
-        return _dtypes
+        return {column: self._format_dtype(dtype) for column, dtype in dtypes.items()}
 
     @staticmethod
     def _format_dtype(dtype: Any) -> str:
@@ -1021,7 +1012,8 @@ class Tafra:
 
     @classmethod
     def read_csv(cls, csv_file: _Union[str, Path, TextIOWrapper, IO[str]], guess_rows: int = 5,
-                 dtypes: Optional[Dict[str, str]] = None, **csvkw: Dict[str, Any]
+                 missing: Optional[str] = '', dtypes: Optional[Dict[str, Any]] = None,
+                 **csvkw: Dict[str, Any]
                  ) -> 'Tafra':
         """
         Read a CSV file with a header row, infer the types of each column,
@@ -1047,7 +1039,8 @@ class Tafra:
             tafra: Tafra
                 The constructed :class:`Tafra`.
         """
-        reader = CSVReader(cast(_Union[str, Path, TextIOWrapper], csv_file), guess_rows, **csvkw)
+        reader = CSVReader(cast(_Union[str, Path, TextIOWrapper], csv_file),
+                           guess_rows, missing, **csvkw)
         return Tafra(reader.read(), dtypes=dtypes)
 
     @classmethod
@@ -1282,8 +1275,7 @@ class Tafra:
                 An iterator to map the function.
         """
 
-        return (fn(value, *args, **kwargs)
-                for column, value in self.itercols())
+        return (fn(value, *args, **kwargs) for column, value in self.itercols())
 
     def key_map(self, fn: Callable[..., Any], keys: bool = True,
                 *args: Any, **kwargs: Any) -> Iterator[Tuple[str, Any]]:
@@ -1443,6 +1435,10 @@ class Tafra:
         -------
             None: None
         """
+        if not isinstance(other, Tafra):
+            # should be a Tafra, but if not let's construct one
+            other = Tafra(other)  # type: ignore
+
         rows = self._rows
 
         for column, value in other._data.items():
@@ -1507,7 +1503,14 @@ class Tafra:
 
         for column in dtypes.keys():
             if self._format_dtype(self._data[column].dtype) != self._dtypes[column]:
-                self._data[column] = self._data[column].astype(self._dtypes[column])
+                try:
+                    self._data[column] = self._data[column].astype(self._dtypes[column])
+                except ValueError:
+                    REPL_VALS = ['', ]
+                    for repl_val in REPL_VALS:
+                        where_repl = np.equal(self._data[column], repl_val)
+                        self._data[column][where_repl] = None
+                    self._data[column] = self._data[column].astype(self._dtypes[column])
 
     def rename(self, renames: Dict[str, str]) -> 'Tafra':
         """
@@ -1626,8 +1629,9 @@ class Tafra:
             validate=False
         )
 
-    def coalesce(self, column: str,
-                 fills: Iterable[_Union[None, str, int, float, bool, np.ndarray]]) -> np.ndarray:
+    def coalesce(self, column: str, fills: Iterable[
+        Iterable[_Union[None, str, int, float, bool, np.ndarray]]
+    ]) -> np.ndarray:
         """
         Fill ``None`` values from ``fills``. Analogous to ``SQL COALESCE`` or
         :meth:`pandas.fillna`.
@@ -1671,8 +1675,9 @@ class Tafra:
 
         return value
 
-    def coalesce_inplace(self, column: str,
-                         fills: Iterable[_Union[None, str, int, float, bool, np.ndarray]]) -> None:
+    def coalesce_inplace(self, column: str, fills: Iterable[
+        Iterable[_Union[None, str, int, float, bool, np.ndarray]]
+    ]) -> None:
         """
         In-place version.
 
@@ -1823,14 +1828,11 @@ class Tafra:
                 return tuple(tuple(self._data[c]) for c in columns)  # type: ignore
             return tuple(self._data[c] for c in columns)  # type: ignore
 
-        # note: mypy does not support dynamically constructed NamedTuple as return type
-        TafraNT = NamedTuple(name, **{  # type: ignore
-            to_field_name(column): NAMEDTUPLE_TYPE[self._reduce_dtype(self._dtypes[column])]
-            for column in columns})
+        TafraNT = namedtuple(name, columns, rename=True)  # type: ignore
 
         if inner:
-            return TafraNT(*(tuple(self._data[c]) for c in columns))  # type: ignore
-        return TafraNT(*(self._data[c] for c in columns))  # type: ignore
+            return TafraNT._make((tuple(self._data[c]) for c in columns))  # type: ignore
+        return TafraNT._make((self._data[c] for c in columns))  # type: ignore
 
     def to_array(self, columns: Optional[Iterable[str]] = None) -> np.ndarray:
         """
@@ -2146,7 +2148,7 @@ class Tafra:
         """
         return CrossJoin([], select).apply(self, right)
 
-def to_field_name(maybe_text: _Union[str, int, float]) -> str:
+def to_field_name(maybe_text: _Union[str, int, float]) -> str:  # pragma: no cover
     text = str(maybe_text)
 
     # Remove invalid characters

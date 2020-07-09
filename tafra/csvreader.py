@@ -21,9 +21,8 @@ import numpy as np
 
 from enum import Enum, auto
 from io import TextIOWrapper
-from typing import Any, Callable, Dict, List, Tuple, Type, IO
-from typing import Union
-from typing import cast
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Type
+from typing import IO, Union, cast
 
 # this doesn't type well in Python
 @dc.dataclass(frozen=True)
@@ -61,7 +60,8 @@ class ReaderState(Enum):
     DONE = auto()
 
 class CSVReader:
-    def __init__(self, source: Union[str, Path, TextIOWrapper], guess_rows: int = 5,
+    def __init__(self, source: Union[str, Path, TextIOWrapper],
+                 guess_rows: int = 5, missing: Optional[str] = '',
                  **csvkw: Dict[str, Any]):
         if isinstance(source, (str, Path)):
             self._stream = open(source, newline='')
@@ -70,8 +70,9 @@ class CSVReader:
             source.reconfigure(newline='')
             self._stream = source
             self._should_close = False
-        self._reader = csv.reader(self._stream, dialect='excel', **csvkw)
-        self._header = _unique_header(next(self._reader))
+        reader = csv.reader(self._stream, dialect='excel', **csvkw)
+        self._header = _unique_header(next(reader))
+        self._reader = (self._decode_missing(t) for t in reader)
         self._guess_types = {
             col: _TYPE_PRECEDENCE[0] for col in self._header
         }
@@ -80,6 +81,7 @@ class CSVReader:
         }
         self._data: Dict[str, List[Any]] = dict()
         self._guess_rows = guess_rows
+        self._missing = missing
         self._rows = 0
         self._state = ReaderState.AWAIT_GUESSABLE
 
@@ -173,10 +175,10 @@ class CSVReader:
             self._stream.close()
         self._state = ReaderState.DONE
 
-    def _promote(self, col: str, val: str) -> None:
+    def _promote(self, col: str, val: Optional[str]) -> None:
         ty_ix = _TYPE_PRECEDENCE.index(self._guess_types[col])
         try_next = _TYPE_PRECEDENCE[ty_ix + 1:]
-        stringized = list(map(str, self._data[col]))
+        stringized = self._encode_missing(self._data[col])
         stringized.append(val)
         ty, parsed = _guess_column(try_next, stringized)
         self._guess_types[col] = ty
@@ -188,6 +190,14 @@ class CSVReader:
             col: np.array(self._data[col], dtype=self._guess_types[col].dtype)
             for col in self._header
         }
+
+    def _decode_missing(self, row: List[str]) -> Sequence[Optional[str]]:
+        if self._missing is None:
+            return row
+        return [v if v != self._missing else None for v in row]
+
+    def _encode_missing(self, row: Sequence[Optional[Any]]) -> List[Optional[str]]:
+        return [str(v) if v is not None else self._missing for v in row]
 
 def _unique_header(header: List[str]) -> List[str]:
     uniq: List[str] = list()
@@ -201,7 +211,7 @@ def _unique_header(header: List[str]) -> List[str]:
     return uniq
 
 # the "real" return type is a dependent pair (t: ReadableType ** List[t.dtype])
-def _guess_column(precedence: List[ReadableType], vals: List[str]
+def _guess_column(precedence: List[ReadableType], vals: List[Optional[str]]
                   ) -> Tuple[ReadableType, List[Any]]:
     for ty in precedence:
         try:
