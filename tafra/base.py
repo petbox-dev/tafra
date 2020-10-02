@@ -14,7 +14,6 @@ Created on April 25, 2020
 """
 __all__ = ['Tafra']
 
-import sys
 from pathlib import Path
 import re
 import warnings
@@ -29,12 +28,10 @@ import numpy as np
 from .protocol import Series, DataFrame, Cursor  # just for mypy...
 
 from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union as _Union, Sequence,
-                    NamedTuple, Sized, Iterable, Iterator, Type, KeysView, ValuesView, ItemsView,
+                    Sized, Iterable, Iterator, Type, KeysView, ValuesView, ItemsView,
                     IO)
 from typing import cast
-from typing_extensions import Protocol
 from io import TextIOWrapper
-from os import PathLike
 
 from .formatter import ObjectFormatter
 from .csvreader import CSVReader
@@ -163,7 +160,7 @@ class Tafra:
                 if rows is None:
                     rows = n_rows
 
-                if  self.check_rows and rows != n_rows:
+                if self.check_rows and rows != n_rows:
                     raise ValueError('`Tafra` must have consistent row counts.')
                 elif rows < n_rows:  # pragma: no cover
                     rows = n_rows
@@ -828,7 +825,6 @@ class Tafra:
             dtypes: Dict[str, str]
                 The validated types.
         """
-        msg = ''
 
         self._validate_columns(dtypes.keys())
         return {column: self._format_dtype(dtype) for column, dtype in dtypes.items()}
@@ -1671,7 +1667,7 @@ class Tafra:
             data: np.ndarray
                 The coalesced data.
         """
-        #TODO: handle dtype?
+        # TODO: handle dtype?
         iter_fills = iter(fills)
         head = next(iter_fills)
 
@@ -1680,21 +1676,19 @@ class Tafra:
         else:
             value = np.empty(self._rows, np.asarray(head).dtype)
 
-        for fill in chain([head], iter_fills):
-            f = np.atleast_1d(fill)
+        for _fill in chain([head], iter_fills):
+            fill = np.atleast_1d(_fill)
             where_na = np.full(self._rows, False)
             where_na |= value == np.array([None])
             try:
                 where_na |= np.isnan(value)
             except:
                 pass
-                # pass
 
-            for w in where_na:
-                if len(f) == 1:
-                    value[where_na] = f
-                else:
-                    value[where_na] = f[where_na]
+            if len(fill) == 1:
+                value[where_na] = fill
+            else:
+                value[where_na] = fill[where_na]
 
         return value
 
