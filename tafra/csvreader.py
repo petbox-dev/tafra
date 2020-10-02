@@ -16,13 +16,12 @@ from pathlib import Path
 import csv
 import dataclasses as dc
 
-from datetime import date, datetime
 import numpy as np
 
 from enum import Enum, auto
 from io import TextIOWrapper
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Type
-from typing import IO, Union, cast
+from typing import Union, cast
 
 # this doesn't type well in Python
 @dc.dataclass(frozen=True)
