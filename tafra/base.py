@@ -1877,7 +1877,7 @@ class Tafra:
                 columns = [columns]
             self._validate_columns(columns)
 
-        return np.array(list(self._data[c] for c in columns)).T
+        return np.array([self._data[c] for c in columns], dtype=object).T
 
     def to_pandas(self, columns: Optional[Iterable[str]] = None) -> DataFrame:
         """
