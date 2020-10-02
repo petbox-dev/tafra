@@ -84,7 +84,7 @@ def build_tafra() -> Tafra:
     })
 
 
-def check_tafra(t: Tafra) -> bool:
+def check_tafra(t: Tafra, check_rows: bool = True) -> bool:
     assert len(t._data) == len(t._dtypes)
     for c in t.columns:
         assert isinstance(t[c], np.ndarray)
@@ -92,7 +92,8 @@ def check_tafra(t: Tafra) -> bool:
         assert isinstance(t._data[c], np.ndarray)
         assert isinstance(t.dtypes[c], str)
         assert isinstance(t._dtypes[c], str)
-        assert t._rows == len(t._data[c])
+        if check_rows:
+            assert t._rows == len(t._data[c])
         pd.Series(t._data[c])
 
     columns = [c for c in t.columns][:-1]
@@ -119,10 +120,10 @@ def check_tafra(t: Tafra) -> bool:
     _ = t.to_array(columns=columns)
     df = t.to_pandas()
     df = t.to_pandas(columns=columns)
+    assert isinstance(df, pd.DataFrame)
     write_path = Path('test/test_to_csv.csv')
     t.to_csv(write_path)
     # t.to_csv(write_path, columns=columns)
-    assert isinstance(df, pd.DataFrame)
 
     return True
 
@@ -136,6 +137,13 @@ def test_constructions() -> None:
         'z': np.array([0, 0, 0, 1, 1, 1])
     }, validate=False)
     check_tafra(t)
+
+    t = Tafra({
+        'x': np.array([1, 2, 3, 4, 5, 6]),
+        'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
+        'z': np.array([0, 0, 0, 1, 1, 1, 2, 2, 2])
+    }, validate=False, check_rows=False)
+    check_tafra(t, check_rows=False)
 
     with pytest.raises(TypeError) as e:
         t = Tafra()  # type: ignore # noqa
