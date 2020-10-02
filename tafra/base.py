@@ -106,6 +106,22 @@ class Tafra:
 
         ``_Element = Union[Tuple[Union[str, int, float, np.ndarray], Any], List[Any], Mapping]``
 
+    Parameters
+    ----------
+    data: InitVar
+        The data of the Tafra.
+
+    dtypes: InitVar
+        The dtypes of the columns.
+
+    validate: bool = True
+        Run validation checks of the data. False will improve performance, but `data` and `dtypes`
+        will not be validated for conformance to expected data structures.
+
+    check_rows: bool = True
+        Run row count checks. False will allow columns of differing lengths, which may break several
+        methods.
+
     Returns
     -------
         tafra: Tafra
@@ -115,6 +131,7 @@ class Tafra:
     data: dc.InitVar[InitVar]
     dtypes: dc.InitVar[Optional[InitVar]] = None
     validate: dc.InitVar[bool] = True
+    check_rows: bool = True
 
     _data: Dict[str, np.ndarray] = dc.field(init=False)
     _dtypes: Dict[str, str] = dc.field(init=False)
@@ -142,10 +159,14 @@ class Tafra:
             for column, value in self._data.items():
                 self._ensure_valid(column, value, check_rows=False)
 
+                n_rows = len(self._data[column])
                 if rows is None:
-                    rows = len(self._data[column])
-                elif rows != len(self._data[column]):
+                    rows = n_rows
+
+                if  self.check_rows and rows != n_rows:
                     raise ValueError('`Tafra` must have consistent row counts.')
+                elif rows < n_rows:  # pragma: no cover
+                    rows = n_rows
 
             if rows is None:
                 raise ValueError('No data provided in constructor statement.')
@@ -381,7 +402,7 @@ class Tafra:
         """
         iter_values = iter(self._data.values())
         self._rows = len(next(iter_values))
-        if not all(len(v) == self._rows for v in iter_values):
+        if self.check_rows and not all(len(v) == self._rows for v in iter_values):
             raise TypeError('Uneven length of data.')
 
     def _slice(self, _slice: slice) -> 'Tafra':
@@ -860,7 +881,7 @@ class Tafra:
 
     @classmethod
     def from_records(cls, records: Iterable[Iterable[Any]], columns: Iterable[str],
-                     dtypes: Optional[Iterable[Any]] = None) -> 'Tafra':
+                     dtypes: Optional[Iterable[Any]] = None, **kwargs: Any) -> 'Tafra':
         """
         Construct a :class:`Tafra` from an Iterator of records, e.g. from a SQL query. The
         records should be a nested Iterable, but can also be fed a cursor method such as
@@ -883,15 +904,16 @@ class Tafra:
                 The constructed :class:`Tafra`.
         """
         if dtypes is None:
-            return Tafra({column: value for column, value in zip(columns, zip(*records))})
+            return Tafra({column: value for column, value in zip(columns, zip(*records))}, **kwargs)
 
         return Tafra(
             {column: value for column, value in zip(columns, zip(*records))},
-            {column: value for column, value in zip(columns, dtypes)}
+            {column: value for column, value in zip(columns, dtypes)},
+            **kwargs
         )
 
     @classmethod
-    def from_series(cls, s: Series, dtype: Optional[str] = None) -> 'Tafra':
+    def from_series(cls, s: Series, dtype: Optional[str] = None, **kwargs: Any) -> 'Tafra':
         """
         Construct a :class:`Tafra` from a :class:`pandas.Series`. If ``dtype`` is not
         given, take from :attr:`pandas.Series.dtype`.
@@ -915,11 +937,13 @@ class Tafra:
 
         return cls(
             {s.name: s.values.astype(dtypes[s.name])},
-            dtypes
+            dtypes,
+            **kwargs
         )
 
     @classmethod
-    def from_dataframe(cls, df: DataFrame, dtypes: Optional[Dict[str, Any]] = None) -> 'Tafra':
+    def from_dataframe(cls, df: DataFrame, dtypes: Optional[Dict[str, Any]] = None,
+                       **kwargs: Any) -> 'Tafra':
         """
         Construct a :class:`Tafra` from a :class:`pandas.DataFrame`. If ``dtypes`` are not
         given, take from :attr:`pandas.DataFrame.dtypes`.
@@ -943,7 +967,8 @@ class Tafra:
 
         return cls(
             {c: df[c].values.astype(dtypes[c]) for c in df.columns},
-            {c: dtypes[c] for c in df.columns}
+            {c: dtypes[c] for c in df.columns},
+            **kwargs
         )
 
     @classmethod
@@ -1337,13 +1362,13 @@ class Tafra:
             tafra: Tafra
                 the :class:`Tafra` with the sliced columns.
         """
+        if isinstance(columns, str):
+            columns = [columns]
         self._validate_columns(columns)
 
         return Tafra(
-            {column: value for column, value in self._data.items()
-             if column in columns},
-            {column: value for column, value in self._dtypes.items()
-             if column in columns},
+            {column: self._data[column] for column in columns},
+            {column: self._dtypes[column] for column in columns},
             validate=False
         )
 
@@ -1570,7 +1595,6 @@ class Tafra:
         """
         if isinstance(columns, str):
             columns = [columns]
-
         self._validate_columns(columns)
 
         return Tafra(
@@ -1599,7 +1623,6 @@ class Tafra:
         """
         if isinstance(columns, str):
             columns = [columns]
-
         self._validate_columns(columns)
 
         for column in columns:
@@ -1755,7 +1778,7 @@ class Tafra:
             self._validate_columns(columns)
 
         return (tuple(
-            self._cast_record(
+            None if len(self._data[c]) <= row else self._cast_record(
                 self._dtypes[c], self._data[c][[row]],
                 cast_null
             )
@@ -1882,7 +1905,7 @@ class Tafra:
             self._validate_columns(columns)
 
         return pd.DataFrame({
-            column: value for column, value in self._data.items()
+            column: pd.Series(value) for column, value in self._data.items()
             if column in columns
         })
 
