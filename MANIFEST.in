@@ -8,6 +8,7 @@ include docs/_static/*
 include docs/img/*
 include docs/requirements.txt
 include test/*.py
+include test/ex*.csv
 include test/test.bat
 include test/test.sh
 include .coveragerc
