@@ -10,7 +10,7 @@ for numerical computing. To achieve this, all function returns are written
 as `generator expressions <https://www.python.org/dev/peps/pep-0289/>`_ wherever
 possible.
 
-Additionally, because the :attr:``data`` contains values of ndarrays, the
+Additionally, because the :attr:`data` contains values of ndarrays, the
 ``map`` functions may also take functions that operate on ndarrays. This means
 that they are able to take `numba <http://numba.pydata.org/>`_ ``@jit``'ed
 functions as well.
@@ -109,7 +109,7 @@ convenient, but there is some indirection occuring that we can do away with to
 obtain direct access to the data of the ``Tafra``, and there is a faster
 method for ``pandas`` as well as opposed to :meth:`pandas.DataFrame.apply`.
 Instead of constructing a new ``Tafra`` or ``pd.DataFrame`` for each row, we
-can instead return a :class`NamedTuple`, which is faster to construct. Doing so:
+can instead return a :class:`NamedTuple`, which is faster to construct. Doing so:
 
 .. code-block:: python
 
@@ -181,9 +181,9 @@ construction step:
 
 Last, we might as the question "If ``pandas`` is incurring some performance
 penalty, what is the performance penalty of ``Tafra``?" We'll write a function
-that operates on the :class:`numpy.ndarray`s themselves rather than using the
-helper :meth:`Tafra.tuple_map`. We can also use ``numpy``'s built in apply
-function, :meth:`numpy.apply_along_axis`, but it is considerably slower than
+that operates on the :class:`numpy.ndarray`\s themselves rather than using the
+helper :meth:`Tafra.tuple_map()`. We can also use ``numpy``'s built in apply
+function, :meth:`numpy.apply_along_axis()`, but it is considerably slower than
 a ``@jit``'ed function.
 
 .. code-block:: python
@@ -198,5 +198,5 @@ a ``@jit``'ed function.
     81.2 µs ± 9.7 µs per loop (mean ± std. dev. of 7 runs, 1 loop each)
 
 
-And the timing is neglible, meaning ``Tafra``'s :meth:`Tafra.tuple_map` is
+And the timing is neglible, meaning ``Tafra``'s :meth:`Tafra.tuple_map()` is
 essentially as performant as we are able to achieve in Python.
