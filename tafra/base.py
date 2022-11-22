@@ -29,7 +29,7 @@ from .protocol import Series, DataFrame, Cursor  # just for mypy...
 
 from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union as _Union, Sequence,
                     Sized, Iterable, Iterator, Type, KeysView, ValuesView, ItemsView,
-                    IO)
+                    IO, Concatenate, ParamSpec)
 from typing import cast
 from io import TextIOWrapper
 
@@ -37,9 +37,11 @@ from .formatter import ObjectFormatter
 from .csvreader import CSVReader
 
 
-object_formatter = ObjectFormatter()
+P = ParamSpec('P')
+
 
 # default object formats
+object_formatter = ObjectFormatter()
 object_formatter['Decimal'] = lambda x: x.astype(float)
 
 
@@ -333,6 +335,14 @@ class Tafra:
     def __setitem__(self, item: str, value: _Union[np.ndarray, Sequence[Any], Any]) -> None:
         self._ensure_valid(item, value, set_item=True)
 
+    def __repr__(self) -> str:
+        if not hasattr(self, '_rows'):
+            return f'Tafra(data={self._data}, dtypes={self._dtypes}, rows=n/a)'
+        return f'Tafra(data={self._data}, dtypes={self._dtypes}, rows={self._rows})'
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
     def __len__(self) -> int:
         assert self._data is not None, \
             'Interal error: Cannot construct a Tafra with no data.'
@@ -340,6 +350,9 @@ class Tafra:
 
     def __iter__(self) -> Iterator['Tafra']:
         return (self._iindex(i) for i in range(self._rows))
+
+    def __rshift__(self, other: Callable[['Tafra'], 'Tafra']) -> 'Tafra':
+        return self.pipe(other)
 
     def iterrows(self) -> Iterator['Tafra']:
         """
@@ -385,12 +398,6 @@ class Tafra:
                 An iterator of :class:`Tafra`.
         """
         return map(tuple, self.data.items())  # type: ignore
-
-    def __str__(self) -> str:
-        return self.__repr__()
-
-    def __repr__(self) -> str:
-        return f'Tafra(data={self._data}, dtypes={self._dtypes}, rows={self._rows})'
 
     def _update_rows(self) -> None:
         """
@@ -756,7 +763,7 @@ class Tafra:
                 value = sq_value
 
         assert value.ndim >= 1, \
-            'Interal error: `Tafra` only supports assigning ndim >= 1.'
+            'Interal error: `Tafra` only supports assigning ndim == 1.'
 
         if check_rows and len(value) != rows:
             raise ValueError(
@@ -1326,6 +1333,28 @@ class Tafra:
         """
         return ((column, fn(value, *args, **kwargs))
                 for column, value in self.itercols())
+
+    def pipe(self, fn: Callable[Concatenate['Tafra', P], 'Tafra'], *args: Any, **kwargs: Any) -> 'Tafra':
+        """
+        Apply a function to the :class:`Tafra` and return the result.
+
+        Parameters
+        ----------
+            fn: Callable[[], 'Tafra']
+                The function to apply.
+
+            *args: Any
+                Additional positional arguments to ``fn``.
+
+            **kwargs: Any
+                Additional keyword arguments to ``fn``.
+
+        Returns
+        -------
+            tafra: Tafra
+                A new :class:`Tafra` result of the function.
+        """
+        return fn(self, *args, **kwargs)
 
     def head(self, n: int = 5) -> 'Tafra':
         """
