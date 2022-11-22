@@ -170,6 +170,7 @@ Methods
     .. automethod:: col_map
     .. automethod:: key_map
     .. automethod:: pipe
+    .. automethod:: __rshift__
     .. automethod:: select
     .. automethod:: copy
     .. automethod:: update
