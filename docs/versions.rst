@@ -5,6 +5,20 @@ Version History
 .. automodule:: tafra
    :noindex:
 
+1.0.10
+------
+
+* Add ``pipe`` and overload ``>>`` operator for Tafra objects
+
+1.0.9
+-----
+
+* Add test files to build
+
+1.0.8
+-----
+
+* Check rows in constructor to ensure equal data length
 
 1.0.7
 -----

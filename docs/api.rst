@@ -70,6 +70,7 @@ Methods
     tuple_map
     col_map
     key_map
+    pipe
     select
     copy
     update
@@ -168,6 +169,8 @@ Methods
     .. automethod:: tuple_map
     .. automethod:: col_map
     .. automethod:: key_map
+    .. automethod:: pipe
+    .. automethod:: __rshift__
     .. automethod:: select
     .. automethod:: copy
     .. automethod:: update

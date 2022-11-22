@@ -542,13 +542,13 @@ def test_update_dtypes() -> None:
     t.update_dtypes_inplace({'x': float})
     check_tafra(t)
     assert t['x'].dtype == 'float'
-    assert isinstance(t['x'][0], np.float)
+    assert isinstance(t['x'][0], np.float64)
 
     t = build_tafra()
     _ = t.update_dtypes({'x': float})
     check_tafra(_)
     assert _['x'].dtype == 'float'
-    assert isinstance(_['x'][0], np.float)
+    assert isinstance(_['x'][0], np.float64)
 
 def test_rename() -> None:
     t = build_tafra()
@@ -704,10 +704,33 @@ def test_invalid_agg() -> None:
 
 def test_map() -> None:
     t = build_tafra()
-    _ = list(t.row_map(np.repeat, 6))
-    _ = list(t.tuple_map(np.repeat, 6))
-    _ = list(t.col_map(np.repeat, repeats=6))
+
+    def repeat(tf: Tafra, repeats: int) -> Tafra:
+        return [tf for _ in range(repeats)]
+
+    _ = list(t.row_map(repeat, 6))
+    _ = list(t.tuple_map(repeat, 6))
+    _ = list(t.col_map(repeat, repeats=6))
     _ = Tafra(t.key_map(np.repeat, repeats=6))
+
+def test_pipe() -> None:
+    def fn1(t: Tafra) -> Tafra:
+        return t[t['y'] == 'one']
+    def fn2(t: Tafra) -> Tafra:
+        return t[t['z'] == 0]
+
+    t = build_tafra()
+    check_tafra(t.pipe(fn1))
+    check_tafra(t >> fn1)
+    check_tafra(t.pipe(fn1).pipe(fn2))
+    check_tafra(t >> fn1 >> fn2)
+
+    def fn3(t: Tafra, i: int) -> Tafra:
+        return t[t['x'] == i]
+
+    check_tafra(t.pipe(fn3, 1))
+    check_tafra(t.pipe(fn3, i=1))
+    check_tafra(t >> (lambda t: fn3(t, i=1)))
 
 def test_union() -> None:
     t = build_tafra()
@@ -1178,7 +1201,7 @@ def test_csv() -> None:
     check_tafra(t)
 
     # force dtypes on missing columns
-    t = Tafra.read_csv('test/ex6.csv', missing=None, dtypes={'dp_prime': np.float, 'dp_prime_te': np.float32})
+    t = Tafra.read_csv('test/ex6.csv', missing=None, dtypes={'dp_prime': np.float64, 'dp_prime_te': np.float32})
     assert t.dtypes['dp'] == 'float64'
     assert t.dtypes['dp_prime'] == 'float64'
     assert t.dtypes['dp_prime_te'] == 'float32'
