@@ -67,10 +67,10 @@ def get_long_description() -> str:
     return readme + '\n\n' + version_history
 
 
-__version__ = find_version()
+version = find_version()
 
 if sys.argv[-1] == 'build':
-    print(f'\nBuilding __version__ {__version__}...\n')
+    print(f'\nBuilding version {version}...\n')
     os.system('rm -r dist\\')  # clean out dist/
     os.system('python setup.py sdist bdist_wheel')
     sys.exit()
@@ -78,7 +78,7 @@ if sys.argv[-1] == 'build':
 
 setup(
     name='tafra',
-    __version__=__version__,
+    version=version,
     description='Tafra: innards of a dataframe',
     long_description=get_long_description(),
     long_description_content_type="text/x-rst",
