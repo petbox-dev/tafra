@@ -17,12 +17,18 @@ import os
 import sys
 import re
 
-from tafra import __version__
-
 try:
     from setuptools import setup
 except ImportError:
     from distutils.core import setup
+
+
+def find_version() -> str:
+    v = {}
+    with open('tafra/version.py', 'r') as f:
+        exec(f.read(), globals(), v)
+
+    return v['__version__']
 
 
 def get_long_description() -> str:
@@ -60,8 +66,11 @@ def get_long_description() -> str:
 
     return readme + '\n\n' + version_history
 
+
+__version__ = find_version()
+
 if sys.argv[-1] == 'build':
-    print(f'\nBuilding version {__version__}...\n')
+    print(f'\nBuilding __version__ {__version__}...\n')
     os.system('rm -r dist\\')  # clean out dist/
     os.system('python setup.py sdist bdist_wheel')
     sys.exit()
@@ -69,7 +78,7 @@ if sys.argv[-1] == 'build':
 
 setup(
     name='tafra',
-    version=__version__,
+    __version__=__version__,
     description='Tafra: innards of a dataframe',
     long_description=get_long_description(),
     long_description_content_type="text/x-rst",
