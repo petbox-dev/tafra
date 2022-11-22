@@ -29,7 +29,7 @@ from .protocol import Series, DataFrame, Cursor  # just for mypy...
 
 from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union as _Union, Sequence,
                     Sized, Iterable, Iterator, Type, KeysView, ValuesView, ItemsView,
-                    IO)
+                    IO, Concatenate, ParamSpec)
 from typing import cast
 from io import TextIOWrapper
 
@@ -37,9 +37,11 @@ from .formatter import ObjectFormatter
 from .csvreader import CSVReader
 
 
-object_formatter = ObjectFormatter()
+P = ParamSpec('P')
+
 
 # default object formats
+object_formatter = ObjectFormatter()
 object_formatter['Decimal'] = lambda x: x.astype(float)
 
 
@@ -333,6 +335,14 @@ class Tafra:
     def __setitem__(self, item: str, value: _Union[np.ndarray, Sequence[Any], Any]) -> None:
         self._ensure_valid(item, value, set_item=True)
 
+    def __repr__(self) -> str:
+        if not hasattr(self, '_rows'):
+            return f'Tafra(data={self._data}, dtypes={self._dtypes}, rows=n/a)'
+        return f'Tafra(data={self._data}, dtypes={self._dtypes}, rows={self._rows})'
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
     def __len__(self) -> int:
         assert self._data is not None, \
             'Interal error: Cannot construct a Tafra with no data.'
@@ -340,6 +350,9 @@ class Tafra:
 
     def __iter__(self) -> Iterator['Tafra']:
         return (self._iindex(i) for i in range(self._rows))
+
+    def __rshift__(self, other: Callable[['Tafra'], 'Tafra']) -> 'Tafra':
+        return self.pipe(other)
 
     def iterrows(self) -> Iterator['Tafra']:
         """
@@ -385,12 +398,6 @@ class Tafra:
                 An iterator of :class:`Tafra`.
         """
         return map(tuple, self.data.items())  # type: ignore
-
-    def __str__(self) -> str:
-        return self.__repr__()
-
-    def __repr__(self) -> str:
-        return f'Tafra(data={self._data}, dtypes={self._dtypes}, rows={self._rows})'
 
     def _update_rows(self) -> None:
         """
@@ -756,7 +763,7 @@ class Tafra:
                 value = sq_value
 
         assert value.ndim >= 1, \
-            'Interal error: `Tafra` only supports assigning ndim >= 1.'
+            'Interal error: `Tafra` only supports assigning ndim == 1.'
 
         if check_rows and len(value) != rows:
             raise ValueError(
@@ -1270,8 +1277,7 @@ class Tafra:
         name = kwargs.pop('name', 'Tafra')
         return (fn(tf, *args, **kwargs) for tf in self.itertuples(name))
 
-    def col_map(self, fn: Callable[..., Any], keys: bool = True,
-                *args: Any, **kwargs: Any) -> Iterator[Any]:
+    def col_map(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Iterator[Any]:
         """
         Map a function over columns. To apply to specific columns, use :meth:`select`
         first. The function must operate on :class:`Tuple[str, np.ndarray]`.
@@ -1280,9 +1286,6 @@ class Tafra:
         ----------
             fn: Callable[..., Any]
                 The function to map.
-
-            keys: bool = True
-                Return a tuple
 
             *args: Any
                 Additional positional arguments to ``fn``.
@@ -1298,7 +1301,7 @@ class Tafra:
 
         return (fn(value, *args, **kwargs) for column, value in self.itercols())
 
-    def key_map(self, fn: Callable[..., Any], keys: bool = True,
+    def key_map(self, fn: Callable[..., Any],
                 *args: Any, **kwargs: Any) -> Iterator[Tuple[str, Any]]:
         """
         Map a function over columns like :meth:col_map, but return :class:`Tuple` of the
@@ -1309,9 +1312,6 @@ class Tafra:
         ----------
             fn: Callable[..., Any]
                 The function to map.
-
-            keys: bool = True
-                Return a tuple
 
             *args: Any
                 Additional positional arguments to ``fn``.
@@ -1324,23 +1324,31 @@ class Tafra:
             iter_tf: Iterator[Any]
                 An iterator to map the function.
         """
-        return ((column, fn(value, *args, **kwargs))
-                for column, value in self.itercols())
+        return ((column, fn(value, *args, **kwargs)) for column, value in self.itercols())
 
-    def head(self, n: int = 5) -> 'Tafra':
+    def pipe(self, fn: Callable[Concatenate['Tafra', P], 'Tafra'],
+             *args: Any, **kwargs: Any) -> 'Tafra':
         """
-        Display the head of the :class:`Tafra`.
+        Apply a function to the :class:`Tafra` and return the resulting :class:`Tafra`. Primarily
+        used to build a tranformer pipeline.
 
         Parameters
         ----------
-            n: int = 5
-                The number of rows to display.
+            fn: Callable[[], 'Tafra']
+                The function to apply.
+
+            *args: Any
+                Additional positional arguments to ``fn``.
+
+            **kwargs: Any
+                Additional keyword arguments to ``fn``.
 
         Returns
         -------
-            None: None
+            tafra: Tafra
+                A new :class:`Tafra` result of the function.
         """
-        return self._slice(slice(n))
+        return fn(self, *args, **kwargs)
 
     def select(self, columns: Iterable[str]) -> 'Tafra':
         """
@@ -1367,6 +1375,21 @@ class Tafra:
             {column: self._dtypes[column] for column in columns},
             validate=False
         )
+
+    def head(self, n: int = 5) -> 'Tafra':
+        """
+        Display the head of the :class:`Tafra`.
+
+        Parameters
+        ----------
+            n: int = 5
+                The number of rows to display.
+
+        Returns
+        -------
+            None: None
+        """
+        return self._slice(slice(n))
 
     def keys(self) -> KeysView[str]:
         """
