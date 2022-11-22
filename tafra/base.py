@@ -1277,8 +1277,7 @@ class Tafra:
         name = kwargs.pop('name', 'Tafra')
         return (fn(tf, *args, **kwargs) for tf in self.itertuples(name))
 
-    def col_map(self, fn: Callable[..., Any], keys: bool = True,
-                *args: Any, **kwargs: Any) -> Iterator[Any]:
+    def col_map(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Iterator[Any]:
         """
         Map a function over columns. To apply to specific columns, use :meth:`select`
         first. The function must operate on :class:`Tuple[str, np.ndarray]`.
@@ -1287,9 +1286,6 @@ class Tafra:
         ----------
             fn: Callable[..., Any]
                 The function to map.
-
-            keys: bool = True
-                Return a tuple
 
             *args: Any
                 Additional positional arguments to ``fn``.
@@ -1305,7 +1301,7 @@ class Tafra:
 
         return (fn(value, *args, **kwargs) for column, value in self.itercols())
 
-    def key_map(self, fn: Callable[..., Any], keys: bool = True,
+    def key_map(self, fn: Callable[..., Any],
                 *args: Any, **kwargs: Any) -> Iterator[Tuple[str, Any]]:
         """
         Map a function over columns like :meth:col_map, but return :class:`Tuple` of the
@@ -1316,9 +1312,6 @@ class Tafra:
         ----------
             fn: Callable[..., Any]
                 The function to map.
-
-            keys: bool = True
-                Return a tuple
 
             *args: Any
                 Additional positional arguments to ``fn``.
@@ -1331,12 +1324,13 @@ class Tafra:
             iter_tf: Iterator[Any]
                 An iterator to map the function.
         """
-        return ((column, fn(value, *args, **kwargs))
-                for column, value in self.itercols())
+        return ((column, fn(value, *args, **kwargs)) for column, value in self.itercols())
 
-    def pipe(self, fn: Callable[Concatenate['Tafra', P], 'Tafra'], *args: Any, **kwargs: Any) -> 'Tafra':
+    def pipe(self, fn: Callable[Concatenate['Tafra', P], 'Tafra'],
+             *args: Any, **kwargs: Any) -> 'Tafra':
         """
-        Apply a function to the :class:`Tafra` and return the result.
+        Apply a function to the :class:`Tafra` and return the resulting :class:`Tafra`. Primarily
+        used to build a tranformer pipeline.
 
         Parameters
         ----------
@@ -1355,21 +1349,6 @@ class Tafra:
                 A new :class:`Tafra` result of the function.
         """
         return fn(self, *args, **kwargs)
-
-    def head(self, n: int = 5) -> 'Tafra':
-        """
-        Display the head of the :class:`Tafra`.
-
-        Parameters
-        ----------
-            n: int = 5
-                The number of rows to display.
-
-        Returns
-        -------
-            None: None
-        """
-        return self._slice(slice(n))
 
     def select(self, columns: Iterable[str]) -> 'Tafra':
         """
@@ -1396,6 +1375,21 @@ class Tafra:
             {column: self._dtypes[column] for column in columns},
             validate=False
         )
+
+    def head(self, n: int = 5) -> 'Tafra':
+        """
+        Display the head of the :class:`Tafra`.
+
+        Parameters
+        ----------
+            n: int = 5
+                The number of rows to display.
+
+        Returns
+        -------
+            None: None
+        """
+        return self._slice(slice(n))
 
     def keys(self) -> KeysView[str]:
         """

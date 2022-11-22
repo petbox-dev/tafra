@@ -8,7 +8,7 @@ Version History
 1.0.10
 ------
 
-* Add .pipe() method and overload >> operator for Tafra objects
+* Add ``pipe`` and overload ``>>`` operator for Tafra objects
 
 1.0.9
 -----
