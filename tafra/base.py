@@ -29,7 +29,8 @@ from .protocol import Series, DataFrame, Cursor  # just for mypy...
 
 from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union as _Union, Sequence,
                     Sized, Iterable, Iterator, Type, KeysView, ValuesView, ItemsView,
-                    IO, Concatenate, ParamSpec)
+                    IO)
+from typing_extensions import Concatenate, ParamSpec
 from typing import cast
 from io import TextIOWrapper
 
