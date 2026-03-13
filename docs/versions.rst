@@ -5,6 +5,28 @@ Version History
 .. automodule:: tafra
    :noindex:
 
+1.1.0
+-----
+
+* Fix ``LeftJoin`` dtype merge order (right was overwriting left)
+* Fix ``_parse_iterable`` re-iterating consumed iterable
+* Fix ``to_csv`` ``UnboundLocalError`` for unsupported file types
+* Fix ``CSVReader`` file handle leak on empty files
+* Fix ``IterateBy`` yielding inconsistent types (always tuple now)
+* Fix ``ObjectFormatter.__setitem__`` catching its own ``ValueError``
+* Fix ``ndim`` returning column count instead of 2
+* Fix ``_parse_sequence``/``_parse_iterable``/``_parse_iterator`` mutating caller's dicts
+* Replace bare ``except`` clauses with specific exception types
+* Remove ``warnings.resetwarnings()`` global side effect
+* Fix mutable default arguments in function signatures
+* Migrate to ``pyproject.toml`` (remove ``setup.py``, ``setup.cfg``, ``.coveragerc``)
+* Version now in ``pyproject.toml``, read via ``importlib.metadata``
+* Replace ``flake8`` with ``ruff``
+* Fix all 68 ``mypy`` errors (strict mode)
+* Parameterize all ``np.ndarray`` type annotations
+* Add 9 new tests covering all bug fixes (48 tests, 99% coverage)
+
+
 1.0.10
 ------
 

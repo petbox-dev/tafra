@@ -20,7 +20,7 @@ import tafra
 # -- Project information -----------------------------------------------------
 
 project = 'tafra'
-copyright = '2020, David S. Fulford'
+copyright = '2020-2026, David S. Fulford'
 author = 'David S. Fulford'
 
 # The full version, including alpha/beta/rc tags
@@ -66,7 +66,4 @@ html_theme = 'sphinx_rtd_theme'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
-html_context = {
-    # https://rackerlabs.github.io/docs-rackspace/tools/rtd-tables.html
-    'css_files': ['_static/theme_overrides.css'],
-}
+html_css_files = ['theme_overrides.css']

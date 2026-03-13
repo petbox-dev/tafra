@@ -10,6 +10,11 @@ for numerical computing. To achieve this, all function returns are written
 as `generator expressions <https://www.python.org/dev/peps/pep-0289/>`_ wherever
 possible.
 
+.. note::
+
+    The benchmarks on this page were collected circa 2020. Updated timings on
+    current hardware and dependency versions are forthcoming.
+
 Additionally, because the :attr:`data` contains values of ndarrays, the
 ``map`` functions may also take functions that operate on ndarrays. This means
 that they are able to take `numba <http://numba.pydata.org/>`_ ``@jit``'ed
