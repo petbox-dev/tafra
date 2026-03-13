@@ -1,0 +1,115 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tafra"
+version = "1.1.0"
+description = "Tafra: innards of a dataframe"
+readme = {file = "README.rst", content-type = "text/x-rst"}
+license = "MIT"
+requires-python = ">=3.7"
+authors = [
+    {name = "David S. Fulford", email = "petbox.dev@gmail.com"},
+]
+dependencies = [
+    "numpy>=1.17",
+    "typing_extensions",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Software Development :: Libraries",
+    "Typing :: Typed",
+]
+keywords = [
+    "tafra", "dataframe", "sql", "group-by", "aggregation",
+    "performance", "minimalist",
+]
+
+[project.urls]
+Homepage = "https://github.com/petbox-dev/tafra"
+
+[tool.setuptools.packages.find]
+include = ["tafra*"]
+
+[tool.setuptools.package-data]
+tafra = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+exclude = [
+    ".git",
+    "__pycache__",
+    "docs/conf.py",
+    "docs/source/conf.py",
+    "old",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+    "F401",   # unused import
+    "F841",   # local variable assigned but never used
+    "E116",   # unexpected indentation (comment)
+    "E251",   # unexpected spaces around keyword / parameter default
+    "E261",   # at least two spaces before inline comment
+    "E265",   # block comment should start with '# '
+    "E266",   # too many leading '#' for block comment
+    "E302",   # expected 2 blank lines
+    "E305",   # expected 2 blank lines after class or function definition
+    "E402",   # module level import not at top of file
+    "E741",   # ambiguous variable name
+    "F811",   # redefinition of unused name (dataclass InitVar shadowed by property)
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 20
+
+[tool.mypy]
+check_untyped_defs = true
+disallow_any_generics = true
+disallow_incomplete_defs = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+show_error_codes = true
+strict_equality = true
+warn_redundant_casts = true
+warn_unreachable = true
+warn_unused_configs = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+addopts = "--cov=tafra --cov-report=term-missing --hypothesis-show-statistics -v test"
+
+[tool.coverage.run]
+# branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "pass",
+    "def __repr__",
+    "if self\\.debug",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+]
+ignore_errors = true
+
+[tool.coverage.html]
+directory = "test/htmlcov"

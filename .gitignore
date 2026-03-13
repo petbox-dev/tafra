@@ -1,3 +1,6 @@
+# Claude
+.claude/
+
 # Other things
 *.ipynb
 test/test*.csv

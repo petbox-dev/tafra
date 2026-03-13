@@ -478,10 +478,7 @@ def test_formatter() -> None:
 
     object_formatter['Decimal'] = lambda x: x.astype(int)
     t = Tafra({'x': Decimal(1.2345)})
-    if platform.system() == 'Windows':
-        assert t._dtypes['x'] == 'int32'
-    elif platform.system() == 'Linux':
-        assert t._dtypes['x'] == 'int64'
+    assert t._dtypes['x'] == np.dtype(int).name
     assert t['x'].dtype == np.dtype(int)
 
     _ = str(object_formatter)
@@ -1218,3 +1215,110 @@ def test_csv() -> None:
     assert len(t.columns) == 3
     check_tafra(t)
     write_reread(t)
+
+
+def test_left_join_dtype_preserves_left() -> None:
+    """Left dtypes should win over right dtypes for shared column names."""
+    l = Tafra({
+        'key': np.array([1, 2, 3]),
+        'val': np.array([1.0, 2.0, 3.0]),
+    })
+    r = Tafra({
+        'key': np.array([1, 2, 3]),
+        'other': np.array([10, 20, 30]),
+    })
+    t = l.left_join(r, [('key', 'key', '==')])
+    assert t._dtypes['key'] == l._dtypes['key']
+
+    t2 = l.inner_join(r, [('key', 'key', '==')])
+    assert t2._dtypes['key'] == l._dtypes['key']
+
+    # both joins should produce the same dtype for shared columns
+    assert t._dtypes['key'] == t2._dtypes['key']
+
+
+def test_to_csv_unsupported_type() -> None:
+    """to_csv should raise TypeError for unsupported file argument types."""
+    t = build_tafra()
+    with pytest.raises(TypeError):
+        t.to_csv(123)  # type: ignore
+
+
+def test_parse_iterable_true_iterable() -> None:
+    """Constructing from a non-rewindable iterable should not skip/duplicate elements."""
+    def gen_pairs() -> Iterator[Tuple[str, np.ndarray]]:
+        yield ('a', np.array([1, 2, 3]))
+        yield ('b', np.array([4, 5, 6]))
+        yield ('c', np.array([7, 8, 9]))
+
+    class PairIterable:
+        def __iter__(self) -> Iterator[Tuple[str, np.ndarray]]:
+            return gen_pairs()
+
+    t = Tafra(PairIterable())
+    assert list(t.columns) == ['a', 'b', 'c']
+    assert np.array_equal(t['a'], np.array([1, 2, 3]))
+    assert np.array_equal(t['b'], np.array([4, 5, 6]))
+    assert np.array_equal(t['c'], np.array([7, 8, 9]))
+
+
+def test_iterate_by_single_column_yields_tuple() -> None:
+    """IterateBy should always yield a tuple for group values, even with one column."""
+    t = build_tafra()
+    for u, ix, grouped in t.iterate_by(['y']):
+        assert isinstance(u, tuple), f'Expected tuple, got {type(u)}'
+
+
+def test_csv_reader_empty_file() -> None:
+    """CSVReader should raise ValueError on an empty file."""
+    import tempfile, os
+    fd, path = tempfile.mkstemp(suffix='.csv')
+    os.close(fd)
+    try:
+        with pytest.raises(ValueError, match='empty'):
+            Tafra.read_csv(path)
+    finally:
+        os.unlink(path)
+
+
+def test_csv_reader_unsupported_source_type() -> None:
+    """CSVReader should raise TypeError for unsupported source types."""
+    from tafra.csvreader import CSVReader
+    with pytest.raises(TypeError):
+        CSVReader(123)  # type: ignore
+
+
+def test_ndim_always_two() -> None:
+    """ndim should always be 2 regardless of column count."""
+    t1 = Tafra({'a': np.array([1])})
+    assert t1.ndim == 2
+
+    t2 = build_tafra()  # 3 columns
+    assert t2.ndim == 2
+
+    t3 = Tafra({f'c{i}': np.arange(3) for i in range(10)})
+    assert t3.ndim == 2
+
+
+def test_object_formatter_validation() -> None:
+    """ObjectFormatter should reject functions that don't return ndarray."""
+    # function that returns wrong type
+    with pytest.raises(ValueError):
+        object_formatter['Bad'] = lambda x: 'not an array'  # type: ignore
+
+    # function that raises an exception
+    with pytest.raises(ValueError):
+        object_formatter['Bad'] = lambda x: x.no_such_method()  # type: ignore
+
+
+def test_parse_sequence_no_mutation() -> None:
+    """Constructing from a list of dicts should not mutate the input dicts."""
+    d1 = {'x': np.array([1, 2, 3])}
+    d2 = {'y': np.array([4, 5, 6])}
+    d1_keys_before = set(d1.keys())
+    d2_keys_before = set(d2.keys())
+
+    _ = Tafra([d1, d2])
+
+    assert set(d1.keys()) == d1_keys_before
+    assert set(d2.keys()) == d2_keys_before

@@ -20,7 +20,7 @@ from typing_extensions import Protocol, runtime_checkable
 @runtime_checkable
 class Series(Protocol):
     name: str
-    values: np.ndarray
+    values: np.ndarray[Any, Any]
     dtype: str
 
 
@@ -36,7 +36,7 @@ class DataFrame(Protocol):
     def __getitem__(self, column: str) -> Series:
         raise NotImplementedError
 
-    def __setitem__(self, column: str, value: np.ndarray) -> None:
+    def __setitem__(self, column: str, value: np.ndarray[Any, Any]) -> None:
         raise NotImplementedError
 
 @runtime_checkable

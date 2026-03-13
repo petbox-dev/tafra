@@ -17,8 +17,8 @@ from typing import Callable, Dict, Tuple, Any, Iterator, MutableMapping, Type, O
 import numpy as np
 
 
-class ObjectFormatter(Dict[str, Callable[[np.ndarray], np.ndarray]],
-                      MutableMapping[str, Callable[[np.ndarray], np.ndarray]]):
+class ObjectFormatter(Dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]]],
+                      MutableMapping[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]]]):
     """
     A dictionary that contains mappings for formatting objects. Some numpy objects
     should be cast to other types, e.g. the :class:`decimal.Decimal` type cannot
@@ -33,23 +33,27 @@ class ObjectFormatter(Dict[str, Callable[[np.ndarray], np.ndarray]],
     """
     test_array = np.arange(4)
 
-    def __setitem__(self, dtype: str, value: Callable[[np.ndarray], np.ndarray]) -> None:
+    def __setitem__(self, dtype: str,
+                    value: Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]],
+                    ) -> None:
         """
         Set the dtype formatter.
         """
         try:
-            if not isinstance(value(self.test_array), np.ndarray):
-                raise ValueError(
-                    'Must provide a function that takes an ``np.ndarray`` and returns '
-                    'an np.ndarray.')
+            result = value(self.test_array)
         except Exception as e:
+            raise ValueError(
+                'Must provide a function that takes an ``np.ndarray`` and returns '
+                'an np.ndarray.') from e
+
+        if not isinstance(result, np.ndarray):
             raise ValueError(
                 'Must provide a function that takes an ``np.ndarray`` and returns '
                 'an np.ndarray.')
 
         dict.__setitem__(self, dtype, value)
 
-    def __getitem__(self, dtype: str) -> Callable[[np.ndarray], np.ndarray]:
+    def __getitem__(self, dtype: str) -> Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]]:
         """
         Get the dtype formatter.
         """
@@ -78,7 +82,7 @@ class ObjectFormatter(Dict[str, Callable[[np.ndarray], np.ndarray]],
     def copy(self) -> Dict[str, Any]:
         return {k: dict.__getitem__(self, k) for k in self}
 
-    def parse_dtype(self, value: np.ndarray) -> Optional[np.ndarray]:
+    def parse_dtype(self, value: np.ndarray[Any, Any]) -> Optional[np.ndarray[Any, Any]]:
         """
         Parse an object dtype.
 

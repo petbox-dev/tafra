@@ -30,7 +30,7 @@ from .protocol import Series, DataFrame, Cursor  # just for mypy...
 from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union as _Union, Sequence,
                     Sized, Iterable, Iterator, Type, KeysView, ValuesView, ItemsView,
                     IO)
-from typing_extensions import Concatenate, ParamSpec
+from typing_extensions import Concatenate, Literal, ParamSpec
 from typing import cast
 from io import TextIOWrapper
 
@@ -74,14 +74,14 @@ _Mapping = _Union[
     Mapping[float, Any],
     Mapping[bool, Any],
 ]
-_Element = _Union[Tuple[_Union[str, int, float, np.ndarray], Any], List[Any], _Mapping]
+_Element = _Union[Tuple[_Union[str, int, float, np.ndarray[Any, Any]], Any], List[Any], _Mapping]
 InitVar = _Union[
     Tuple[str, Any],
     _Mapping,
     Sequence[_Element],
     Iterable[_Element],
     Iterator[_Element],
-    enumerate
+    enumerate[Any]
 ]
 
 
@@ -133,7 +133,7 @@ class Tafra:
     validate: dc.InitVar[bool] = True
     check_rows: bool = True
 
-    _data: Dict[str, np.ndarray] = dc.field(init=False)
+    _data: Dict[str, np.ndarray[Any, Any]] = dc.field(init=False)
     _dtypes: Dict[str, str] = dc.field(init=False)
 
     def __post_init__(self, data: InitVar, dtypes: Optional[InitVar], validate: bool) -> None:
@@ -177,7 +177,7 @@ class Tafra:
             self._coalesce_dtypes()
 
         else:
-            self._data = cast(Dict[str, np.ndarray], data)
+            self._data = cast(Dict[str, np.ndarray[Any, Any]], data)
             if dtypes is None or isinstance(dtypes, property):
                 self._dtypes = {}
                 self._coalesce_dtypes()
@@ -196,17 +196,17 @@ class Tafra:
             _values = cast(Dict[str, Any], values)
 
         elif isinstance(values, Sequence):
-            _values = self._parse_sequence(values)
+            _values = self._parse_sequence(values)  # type: ignore[arg-type]
 
         elif isinstance(values, (Iterator, enumerate)):
             _values = self._parse_iterator(cast(Iterator[_Element], values))
 
         elif isinstance(values, Iterable):
-            _values = self._parse_iterable(cast(Iterable[_Element], values))
+            _values = self._parse_iterable(values)
 
         else:
             # last ditch attempt
-            _values = cast(Dict[Any, Any], values)
+            _values = cast(Dict[Any, Any], values)  # type: ignore[unreachable]
 
         if not isinstance(_values, Dict):
             raise TypeError('Must contain `Dict`, `Mapping`, `Sequence`, Iterable, or Iterator, '
@@ -226,9 +226,9 @@ class Tafra:
         """
         head = values[0]
         if isinstance(head, Dict):
+            _values = {}
             for _dict in values:
-                head.update(cast(Dict[Any, Any], _dict))
-            _values = head
+                _values.update(cast(Dict[Any, Any], _dict))
 
         # maybe a Sequence of 2-tuples or 2-lists? Cast and try it.
         elif isinstance(head, Sequence) and len(head) == 2:
@@ -236,7 +236,7 @@ class Tafra:
             if isinstance(head[0], np.ndarray) and len(np.atleast_1d(head[0])) == 1:
                 # mypy doesn't get that we've checked the head of values as an ndarray
                 _values = {key.item(): value for key, value in
-                           cast(Iterable[Tuple[np.ndarray, Any]], values)}
+                           cast(Iterable[Tuple[np.ndarray[Any, Any], Any]], values)}
             else:
                 _values = dict(cast(Iterable[Tuple[Any, Any]], values))
 
@@ -253,22 +253,22 @@ class Tafra:
         iter_values = iter(values)
         head = next(iter_values)
         if isinstance(head, Dict):
+            _values = dict(head)
             for _dict in iter_values:
-                head.update(cast(Dict[Any, Any], _dict))
-            _values = head
+                _values.update(cast(Dict[Any, Any], _dict))
 
         # maybe an Iterable of 2-tuples or 2-lists? Cast and try it.
         elif isinstance(head, Sequence) and len(head) == 2:
             # is the key an ndarray? turn it into a scalar
             if isinstance(head[0], np.ndarray) and len(np.atleast_1d(head[0])) == 1:
                 # mypy doesn't get that we've checked the head of values as an ndarray
-                _values = _values = {key.item(): value for key, value in chain(
-                    cast(Iterable[Tuple[np.ndarray, Any]], [head]),
-                    cast(Iterator[Tuple[np.ndarray, Any]], values))}
+                _values = {key.item(): value for key, value in chain(
+                    cast(Iterable[Tuple[np.ndarray[Any, Any], Any]], [head]),
+                    cast(Iterator[Tuple[np.ndarray[Any, Any], Any]], iter_values))}
             else:
                 _values = dict(chain(
                     cast(Iterable[Tuple[Any, Any]], [head]),
-                    cast(Iterator[Tuple[Any, Any]], values)))
+                    cast(Iterator[Tuple[Any, Any]], iter_values)))
 
         else:
             raise TypeError('Iterable must contain `Dict`, `Mapping`, or `Sequence`, '
@@ -284,9 +284,9 @@ class Tafra:
 
         if isinstance(head, Dict):
             # consume the iterator if its a dict
+            _values = dict(head)
             for _dict in values:
-                head.update(cast(Dict[Any, Any], _dict))
-            _values = head
+                _values.update(cast(Dict[Any, Any], _dict))
 
             # maybe an Iterator of 2-tuples or 2-lists? Cast and try it.
         elif isinstance(head, Sequence) and len(head) == 2:
@@ -294,8 +294,8 @@ class Tafra:
             if isinstance(head[0], np.ndarray) and len(np.atleast_1d(head[0])) == 1:
                 # mypy doesn't get that we've checked the head of values as an ndarray
                 _values = {key.item(): value for key, value in chain(
-                    cast(Iterable[Tuple[np.ndarray, Any]], [head]),
-                    cast(Iterator[Tuple[np.ndarray, Any]], values))}
+                    cast(Iterable[Tuple[np.ndarray[Any, Any], Any]], [head]),
+                    cast(Iterator[Tuple[np.ndarray[Any, Any], Any]], values))}
             else:
                 _values = dict(chain(
                     cast(Iterable[Tuple[Any, Any]], [head]),
@@ -309,7 +309,9 @@ class Tafra:
 
     def __getitem__(
             self,
-            item: _Union[str, int, slice, Sequence[_Union[str, int, bool]], np.ndarray]) -> Any:
+            item: _Union[
+                str, int, slice, Sequence[_Union[str, int, bool]], np.ndarray[Any, Any]
+            ]) -> Any:
         # return type is actually Union[np.ndarray, 'Tafra'] but mypy requires user to type check
         # in either case, what we return is a "slice" of the :class:`Tafra`
         if isinstance(item, str):
@@ -333,7 +335,8 @@ class Tafra:
         else:
             raise TypeError(f'Type {type(item)} not supported.')
 
-    def __setitem__(self, item: str, value: _Union[np.ndarray, Sequence[Any], Any]) -> None:
+    def __setitem__(self, item: str,
+                    value: _Union[np.ndarray[Any, Any], Sequence[Any], Any]) -> None:
         self._ensure_valid(item, value, set_item=True)
 
     def __repr__(self) -> str:
@@ -388,7 +391,7 @@ class Tafra:
         TafraNT = namedtuple(name, self._data.keys())  # type: ignore
         return map(TafraNT._make, zip(*self._data.values()))
 
-    def itercols(self) -> Iterator[Tuple[str, np.ndarray]]:
+    def itercols(self) -> Iterator[Tuple[str, np.ndarray[Any, Any]]]:
         """
         Yield columns as :class:`Tuple[str, np.ndarray]`, where the ``str`` is the column
         name.
@@ -471,7 +474,7 @@ class Tafra:
             validate=False
         )
 
-    def _ndindex(self, index: np.ndarray) -> 'Tafra':
+    def _ndindex(self, index: np.ndarray[Any, Any]) -> 'Tafra':
         """
         Use :class:`numpy.ndarray` indexing to slice the :class:`Tafra`.
 
@@ -705,7 +708,7 @@ class Tafra:
         tbody = self._html_tbody(tr)
         return self._html_table(thead, tbody)
 
-    def _ensure_valid(self, column: str, value: _Union[np.ndarray, Sequence[Any], Any],
+    def _ensure_valid(self, column: str, value: _Union[np.ndarray[Any, Any], Sequence[Any], Any],
                       check_rows: bool = True, set_item: bool = False) -> None:
         """
         Validate values as an :class:`np.ndarray` of equal length to :attr:`rows` before
@@ -747,7 +750,7 @@ class Tafra:
         elif isinstance(value, Iterable):
             value = np.asarray(value)
 
-        elif not isinstance(value, Sized):
+        elif not isinstance(value, Sized):  # type: ignore[unreachable]
             value = np.full(rows, value)
 
         assert isinstance(value, np.ndarray), \
@@ -760,7 +763,6 @@ class Tafra:
             elif sq_value.ndim == 1:
                 # if value was a single item, squeeze returns zero length item
                 warnings.warn('`np.squeeze(ndarray)` applied to set ndim == 1.')
-                warnings.resetwarnings()
                 value = sq_value
 
         assert value.ndim >= 1, \
@@ -1147,7 +1149,7 @@ class Tafra:
         raise ValueError('Assignment to `rows` is forbidden.')
 
     @property  # type: ignore
-    def data(self) -> Dict[str, np.ndarray]:
+    def data(self) -> Dict[str, np.ndarray[Any, Any]]:
         """
         The :class:`Tafra` data.
 
@@ -1204,7 +1206,7 @@ class Tafra:
             ndim: int
                 The number of dimensions.
         """
-        return max(2, len(self.columns))
+        return 2
 
     @ndim.setter
     def ndim(self, value: Any) -> None:
@@ -1403,7 +1405,7 @@ class Tafra:
         """
         return self._data.keys()
 
-    def values(self) -> ValuesView[np.ndarray]:
+    def values(self) -> ValuesView[np.ndarray[Any, Any]]:
         """
         Return the values of :attr:`data`, i.e. like :meth:`dict.values()`.
 
@@ -1414,7 +1416,7 @@ class Tafra:
         """
         return self._data.values()
 
-    def items(self) -> ItemsView[str, np.ndarray]:
+    def items(self) -> ItemsView[str, np.ndarray[Any, Any]]:
         """
         Return the items of :attr:`data`, i.e. like :meth:`dict.items()`.
 
@@ -1649,7 +1651,7 @@ class Tafra:
             _ = self._data.pop(column, None)
             _ = self._dtypes.pop(column, None)
 
-    def copy(self, order: str = 'C') -> 'Tafra':
+    def copy(self, order: 'Literal["K", "A", "C", "F"]' = 'C') -> 'Tafra':
         """
         Create a copy of a :class:`Tafra`.
 
@@ -1673,8 +1675,8 @@ class Tafra:
         )
 
     def coalesce(self, column: str, fills: Iterable[
-        Iterable[_Union[None, str, int, float, bool, np.ndarray]]
-    ]) -> np.ndarray:
+        Iterable[_Union[None, str, int, float, bool, np.ndarray[Any, Any]]]
+    ]) -> np.ndarray[Any, Any]:
         """
         Fill ``None`` values from ``fills``. Analogous to ``SQL COALESCE`` or
         :meth:`pandas.fillna`.
@@ -1701,12 +1703,12 @@ class Tafra:
             value = np.empty(self._rows, np.asarray(head).dtype)
 
         for _fill in chain([head], iter_fills):
-            fill = np.atleast_1d(_fill)
+            fill = np.atleast_1d(np.asarray(_fill))
             where_na = np.full(self._rows, False)
             where_na |= value == np.array([None])
             try:
                 where_na |= np.isnan(value)
-            except:
+            except (TypeError, ValueError):
                 pass
 
             if len(fill) == 1:
@@ -1717,7 +1719,7 @@ class Tafra:
         return value
 
     def coalesce_inplace(self, column: str, fills: Iterable[
-        Iterable[_Union[None, str, int, float, bool, np.ndarray]]
+        Iterable[_Union[None, str, int, float, bool, np.ndarray[Any, Any]]]
     ]) -> None:
         """
         In-place version.
@@ -1740,7 +1742,8 @@ class Tafra:
         self._data[column] = self.coalesce(column, fills)
         self.update_dtypes_inplace({column: self._data[column].dtype})
 
-    def _cast_record(self, dtype: str, data: np.ndarray, cast_null: bool) -> Optional[float]:
+    def _cast_record(self, dtype: str, data: np.ndarray[Any, Any],
+                     cast_null: bool) -> Optional[float]:
         """
         Casts needed to generate records for database insert.
 
@@ -1804,7 +1807,7 @@ class Tafra:
             for row in range(self._rows))
 
     def to_list(self, columns: Optional[Iterable[str]] = None,
-                inner: bool = False) -> _Union[List[np.ndarray], List[List[Any]]]:
+                inner: bool = False) -> _Union[List[np.ndarray[Any, Any]], List[List[Any]]]:
         """
         Return a list of homogeneously typed columns (as :class:`numpy.ndarray`). If a
         generator is needed, use :meth:`to_records`. If ``inner == True`` each column
@@ -1834,7 +1837,8 @@ class Tafra:
         return [self._data[c] for c in columns]
 
     def to_tuple(self, columns: Optional[Iterable[str]] = None, name: Optional[str] = 'Tafra',
-                 inner: bool = False) -> _Union[Tuple[np.ndarray], Tuple[Tuple[Any, ...]]]:
+                 inner: bool = False,
+                 ) -> _Union[Tuple[np.ndarray[Any, Any]], Tuple[Tuple[Any, ...]]]:
         """
         Return a :class:`NamedTuple` or :class:`Tuple`. If a generator is needed, use
         :meth:`to_records`. If ``inner == True`` each column will be cast from
@@ -1875,7 +1879,7 @@ class Tafra:
             return TafraNT._make((tuple(self._data[c]) for c in columns))  # type: ignore
         return TafraNT._make((self._data[c] for c in columns))  # type: ignore
 
-    def to_array(self, columns: Optional[Iterable[str]] = None) -> np.ndarray:
+    def to_array(self, columns: Optional[Iterable[str]] = None) -> np.ndarray[Any, Any]:
         """
         Return an object array.
 
@@ -1959,6 +1963,10 @@ class Tafra:
 
             f.reconfigure(newline='')
 
+        else:
+            raise TypeError(
+                f'`filename` must be `str`, `Path`, or `TextIOWrapper`, got `{type(filename)}`')
+
         writer = csv.writer(f, delimiter=',', quotechar='"')
         writer.writerow((column for column in self._data.keys() if column in columns))
         writer.writerows(self.to_records(columns))
@@ -2006,8 +2014,9 @@ class Tafra:
         """
         Union().apply_inplace(self, other)
 
-    def group_by(self, columns: Iterable[str], aggregation: 'InitAggregation' = {},
-                 iter_fn: Mapping[str, Callable[[np.ndarray], Any]] = dict()) -> 'Tafra':
+    def group_by(self, columns: Iterable[str], aggregation: Optional['InitAggregation'] = None,
+                 iter_fn: Optional[Mapping[str, Callable[[np.ndarray[Any, Any]], Any]]] = None,
+                 ) -> 'Tafra':
         """
         Helper function to implement :meth:`tafra.group.GroupBy.apply`.
 
@@ -2020,12 +2029,12 @@ class Tafra:
             columns: Iterable[str]
                 The column names to group by.
 
-            aggregation: Mapping[str, Union[Callable[[np.ndarray], Any], \
-            Tuple[Callable[[np.ndarray], Any], str]]]
+            aggregation: Mapping[str, Union[Callable[[np.ndarray[Any, Any]], Any], \
+            Tuple[Callable[[np.ndarray[Any, Any]], Any], str]]]
                 Optional. A mapping for columns and aggregation functions. Should be
                 given as {'column': fn} or {'new_column': (fn, 'column')}.
 
-            iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
+            iter_fn: Mapping[str, Callable[[np.ndarray[Any, Any]], Any]]
                 Optional. A mapping for new columns names to the function to apply to
                 the enumeration. Should be given as {'new_column': fn}.
 
@@ -2034,10 +2043,15 @@ class Tafra:
             tafra: Tafra
                 The aggregated :class:`Tafra`.
         """
+        if aggregation is None:
+            aggregation = {}
+        if iter_fn is None:
+            iter_fn = {}
         return GroupBy(columns, aggregation, iter_fn).apply(self)
 
-    def transform(self, columns: Iterable[str], aggregation: 'InitAggregation' = {},
-                  iter_fn: Dict[str, Callable[[np.ndarray], Any]] = dict()) -> 'Tafra':
+    def transform(self, columns: Iterable[str], aggregation: Optional['InitAggregation'] = None,
+                  iter_fn: Optional[Dict[str, Callable[[np.ndarray[Any, Any]], Any]]] = None,
+                  ) -> 'Tafra':
         """
         Helper function to implement :meth:`tafra.group.Transform.apply`.
 
@@ -2050,12 +2064,12 @@ class Tafra:
             group_by: Iterable[str]
                 The column names to group by.
 
-            aggregation: Mapping[str, Union[Callable[[np.ndarray], Any], \
-            Tuple[Callable[[np.ndarray], Any], str]]]
+            aggregation: Mapping[str, Union[Callable[[np.ndarray[Any, Any]], Any], \
+            Tuple[Callable[[np.ndarray[Any, Any]], Any], str]]]
                 Optional. A mapping for columns and aggregation functions. Should be
                 given as {'column': fn} or {'new_column': (fn, 'column')}.
 
-            iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
+            iter_fn: Mapping[str, Callable[[np.ndarray[Any, Any]], Any]]
                 Optional. A mapping for new columns names to the function to apply to
                 the enumeration. Should be given as {'new_column': fn}.
 
@@ -2064,6 +2078,10 @@ class Tafra:
             tafra: Tafra
                 The transformed :class:`Tafra`.
         """
+        if aggregation is None:
+            aggregation = {}
+        if iter_fn is None:
+            iter_fn = {}
         return Transform(columns, aggregation, iter_fn).apply(self)
 
     def iterate_by(self, columns: Iterable[str]) -> Iterator['GroupDescription']:
@@ -2089,7 +2107,7 @@ class Tafra:
         yield from IterateBy(columns).apply(self)
 
     def inner_join(self, right: 'Tafra', on: Iterable[Tuple[str, str, str]],
-                   select: Iterable[str] = list()) -> 'Tafra':
+                   select: Optional[Iterable[str]] = None) -> 'Tafra':
         """
         Helper function to implement :meth:`tafra.group.InnerJoin.apply`.
 
@@ -2123,10 +2141,12 @@ class Tafra:
             tafra: Tafra
                 The joined :class:`Tafra`.
         """
+        if select is None:
+            select = []
         return InnerJoin(on, select).apply(self, right)
 
     def left_join(self, right: 'Tafra', on: Iterable[Tuple[str, str, str]],
-                  select: Iterable[str] = list()) -> 'Tafra':
+                  select: Optional[Iterable[str]] = None) -> 'Tafra':
         """
         Helper function to implement :meth:`tafra.group.LeftJoin.apply`.
 
@@ -2160,10 +2180,12 @@ class Tafra:
             tafra: Tafra
                 The joined :class:`Tafra`.
         """
+        if select is None:
+            select = []
         return LeftJoin(on, select).apply(self, right)
 
     def cross_join(self, right: 'Tafra',
-                   select: Iterable[str] = list()) -> 'Tafra':
+                   select: Optional[Iterable[str]] = None) -> 'Tafra':
         """
         Helper function to implement :meth:`tafra.group.CrossJoin.apply`.
 
@@ -2187,6 +2209,8 @@ class Tafra:
             tafra: Tafra
                 The joined :class:`Tafra`.
         """
+        if select is None:
+            select = []
         return CrossJoin([], select).apply(self, right)
 
 def to_field_name(maybe_text: _Union[str, int, float]) -> str:  # pragma: no cover
@@ -2212,8 +2236,8 @@ def _in_notebook() -> bool:  # pragma: no cover
         in_notebook: bool
     """
     try:
-        from IPython import get_ipython  # type: ignore
-        if 'IPKernelApp' in get_ipython().config:
+        from IPython import get_ipython
+        if 'IPKernelApp' in get_ipython().config:  # type: ignore[no-untyped-call]
             return True
     except Exception as e:
         pass
