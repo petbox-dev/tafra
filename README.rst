@@ -5,16 +5,12 @@ Tafra: a minimalist dataframe
 .. image:: https://img.shields.io/pypi/v/tafra.svg
     :target: https://pypi.org/project/tafra/
 
-.. image:: https://travis-ci.org/petbox-dev/tafra.svg?branch=master
-    :target: https://travis-ci.org/petbox-dev/tafra
+.. image:: https://img.shields.io/pypi/pyversions/tafra.svg
+    :target: https://pypi.org/project/tafra/
 
 .. image:: https://readthedocs.org/projects/tafra/badge/?version=latest
     :target: https://tafra.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
-
-.. image:: https://coveralls.io/repos/github/petbox-dev/tafra/badge.svg
-    :target: https://coveralls.io/github/petbox-dev/tafra
-    :alt: Coverage Status
 
 
 The ``tafra`` began life as a thought experiment: how could we reduce the idea
@@ -194,6 +190,11 @@ And going back is just as simple:
 
 Timings
 =======
+
+.. note::
+
+    The benchmarks below were collected circa 2020. Updated timings on
+    current hardware and dependency versions are forthcoming.
 
 In this case, lightweight also means performant. Beyond any additional
 features added to the library, ``tafra`` should provide the necessary
