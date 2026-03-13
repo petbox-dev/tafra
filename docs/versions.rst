@@ -5,6 +5,18 @@ Version History
 .. automodule:: tafra
    :noindex:
 
+2.0.0
+-----
+
+* **Breaking**: Require Python >=3.9 (was >=3.7)
+* **Breaking**: Require numpy >=2.1 (was >=1.17)
+* Replace Travis CI with GitHub Actions (lint, test matrix 3.9-3.13, docs)
+* Modernize ``.readthedocs.yml`` for current RTD build system
+* Bump Sphinx >=7.0, sphinx-rtd-theme >=2.0
+* Fix deprecated Sphinx ``html_context`` CSS configuration
+* Update README badges (remove Travis/Coveralls, add Python versions)
+
+
 1.1.0
 -----
 
