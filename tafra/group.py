@@ -39,8 +39,8 @@ JOIN_OPS: Dict[str, Callable[[Any, Any], Any]] = {
 InitAggregation = Mapping[
     str,
     _Union[
-        Callable[[np.ndarray], Any],
-        Tuple[Callable[[np.ndarray], Any], str]
+        Callable[[np.ndarray[Any, Any]], Any],
+        Tuple[Callable[[np.ndarray[Any, Any]], Any], str]
     ]
 ]
 
@@ -48,7 +48,7 @@ InitAggregation = Mapping[
 # for the result type of IterateBy
 GroupDescription = Tuple[
     Tuple[Any, ...],  # tuple of unique values from group-by columns
-    np.ndarray,  # int array of row indices into original tafra for this group
+    np.ndarray[Any, Any],  # int array of row indices into original tafra for this group
     'Tafra'  # sub-tafra for the group
 ]
 
@@ -65,9 +65,9 @@ class Union:
         """
         # These should be unreachable unless attributes were directly modified
         if len(left._data) != len(left._dtypes):
-            assert 0, 'This `Tafra` length of data and dtypes do not match'
+            raise ValueError('This `Tafra` length of data and dtypes do not match')
         if len(right._data) != len(right._dtypes):
-            assert 0, 'right `Tafra` length of data and dtypes do not match'
+            raise ValueError('right `Tafra` length of data and dtypes do not match')
 
         # ensure same number of columns
         if len(left._data) != len(right._data) or len(left._dtypes) != len(right._dtypes):
@@ -163,7 +163,8 @@ class GroupSet:
         """
         Validate the :class:`Tafra` before applying.
         """
-        assert tafra._rows >= 1, 'No rows exist in `tafra`.'
+        if tafra._rows < 1:
+            raise ValueError('No rows exist in `tafra`.')
         tafra._validate_columns(columns)
 
 
@@ -174,8 +175,10 @@ class AggMethod(GroupSet):
     """
     group_by_cols: Iterable[str]
     aggregation: dc.InitVar[InitAggregation]
-    _aggregation: Mapping[str, Tuple[Callable[[np.ndarray], Any], str]] = dc.field(init=False)
-    iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
+    _aggregation: Mapping[
+        str, Tuple[Callable[[np.ndarray[Any, Any]], Any], str]
+    ] = dc.field(init=False)
+    iter_fn: Mapping[str, Callable[[np.ndarray[Any, Any]], Any]]
 
     def __post_init__(self, aggregation: InitAggregation) -> None:
         self._aggregation = dict()
@@ -183,7 +186,7 @@ class AggMethod(GroupSet):
             if callable(agg):
                 self._aggregation[rename] = (agg, rename)
             elif (isinstance(agg, Sequence) and len(agg) == 2
-                  and callable(cast(Tuple[Callable[[np.ndarray], Any], str], agg)[0])):
+                  and callable(agg[0])):
                 self._aggregation[rename] = agg
             else:
                 raise ValueError(f'{rename}: {agg} is not a valid aggregation argument')
@@ -192,7 +195,9 @@ class AggMethod(GroupSet):
             if not callable(agg):
                 raise ValueError(f'{rename}: {agg} is not a valid aggregation argument')
 
-    def result_factory(self, fn: Callable[[str, str], np.ndarray]) -> Dict[str, np.ndarray]:
+    def result_factory(
+        self, fn: Callable[[str, str], np.ndarray[Any, Any]]
+    ) -> Dict[str, np.ndarray[Any, Any]]:
         """
         Factory function to generate the dict for the results set.
         A function to take the new column name and source column name
@@ -205,7 +210,9 @@ class AggMethod(GroupSet):
             )
         }
 
-    def iter_fn_factory(self, fn: Callable[[], np.ndarray]) -> Dict[str, np.ndarray]:
+    def iter_fn_factory(
+        self, fn: Callable[[], np.ndarray[Any, Any]]
+    ) -> Dict[str, np.ndarray[Any, Any]]:
         return {rename: fn() for rename in self.iter_fn.keys()}
 
     def apply(self, tafra: 'Tafra') -> 'Tafra':
@@ -374,9 +381,6 @@ class IterateBy(GroupSet):
             which_rows = np.full(tafra._rows, True)
             for val, col in zip(u, self.group_by_cols):
                 which_rows &= tafra._data[col] == val
-
-            if len(u) == 1:
-                u = u[0]
 
             yield (u, which_rows, tafra._ndindex(which_rows))
 
@@ -568,9 +572,10 @@ class LeftJoin(Join):
         ) if not self.select
             or (self.select and column in self.select)}
 
+        # right-to-left so left dtypes overwrite
         dtypes: Dict[str, str] = {column: dtype for column, dtype in chain(
-            left_t._dtypes.items(),
-            right_t._dtypes.items()
+            right_t._dtypes.items(),
+            left_t._dtypes.items()
         ) if column in join.keys()}
 
         for i in range(left_t._rows):

@@ -61,7 +61,7 @@ class ReaderState(Enum):
 class CSVReader:
     def __init__(self, source: Union[str, Path, TextIOWrapper],
                  guess_rows: int = 5, missing: Optional[str] = '',
-                 **csvkw: Dict[str, Any]):
+                 **csvkw: Any):
         if isinstance(source, (str, Path)):
             self._stream = open(source, newline='')
             self._should_close = True
@@ -69,8 +69,16 @@ class CSVReader:
             source.reconfigure(newline='')
             self._stream = source
             self._should_close = False
+        else:
+            raise TypeError(
+                f'`source` must be `str`, `Path`, or `TextIOWrapper`, got `{type(source)}`')
         reader = csv.reader(self._stream, dialect='excel', **csvkw)
-        self._header = _unique_header(next(reader))
+        try:
+            self._header = _unique_header(next(reader))
+        except StopIteration:
+            if self._should_close:
+                self._stream.close()
+            raise ValueError('CSV source is empty: no header row found')
         self._reader = (self._decode_missing(t) for t in reader)
         self._guess_types = {
             col: _TYPE_PRECEDENCE[0] for col in self._header
@@ -84,7 +92,7 @@ class CSVReader:
         self._rows = 0
         self._state = ReaderState.AWAIT_GUESSABLE
 
-    def read(self) -> Dict[str, np.ndarray]:
+    def read(self) -> Dict[str, np.ndarray[Any, Any]]:
         while self._state != ReaderState.DONE:
             self._step()
         return self._finalize()
@@ -154,7 +162,7 @@ class CSVReader:
         for col, val in zip(self._header, row):
             try:
                 self._data[col].append(self._guess_types[col].parse(val)) # type: ignore
-            except:
+            except Exception:
                 self._promote(col, val)
 
     def state_early_eof(self) -> None:
@@ -183,7 +191,7 @@ class CSVReader:
         self._guess_types[col] = ty
         self._data[col] = parsed
 
-    def _finalize(self) -> Dict[str, np.ndarray]:
+    def _finalize(self) -> Dict[str, np.ndarray[Any, Any]]:
         assert self._state == ReaderState.DONE, 'CSVReader is not in DONE state.'
         return {
             col: np.array(self._data[col], dtype=self._guess_types[col].dtype)
@@ -218,6 +226,6 @@ def _guess_column(precedence: List[ReadableType], vals: List[Optional[str]]
             #   on `ty` but a data member
             typed = list(map(ty.parse, vals)) # type: ignore
             return ty, typed
-        except:
-            next
+        except Exception:
+            continue
     return _TYPE_OBJECT, vals

@@ -13,7 +13,8 @@ Notes
 Created on April 25, 2020
 """
 
-from .version import __version__
+from importlib.metadata import version as _version
+__version__ = _version('tafra')
 
 from .base import Tafra, object_formatter
 from .group import GroupBy, Transform, IterateBy, InnerJoin, LeftJoin
