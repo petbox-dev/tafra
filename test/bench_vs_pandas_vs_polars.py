@@ -186,6 +186,8 @@ def bench_groupby():
         (10_000, 500, "10k rows, 500 grp"),
         (100_000, 100, "100k rows, 100 grp"),
         (100_000, 1000, "100k rows, 1k grp"),
+        (1_000_000, 100, "1M rows, 100 grp"),
+        (1_000_000, 10000, "1M rows, 10k grp"),
     ]:
         tf = Tafra({
             'group': rng.integers(0, n_groups, size=n_rows).astype('int64'),
@@ -207,22 +209,23 @@ def bench_groupby():
         print_row(label, t_accel, t_pure, t_pandas, t_polars)
 
     # multi-column
-    tf = Tafra({
-        'g1': rng.integers(0, 100, size=100_000).astype('int64'),
-        'g2': rng.choice(['x', 'y', 'z'], size=100_000),
-        'value': rng.standard_normal(100_000),
-    })
-    df = pd.DataFrame(tf.data)
-    t_accel, t_pure = _tafra_time(lambda: tf.group_by(
-        ['g1', 'g2'], {'mean_val': (np.mean, 'value')}))
-    t_pandas = median_of(
-        lambda: df.groupby(['g1', 'g2'])['value'].agg('mean').reset_index())
-    t_polars = None
-    if HAS_POLARS:
-        plf = pl.DataFrame(tf.data)
-        t_polars = median_of(lambda: plf.group_by('g1', 'g2').agg(
-            pl.col('value').mean().alias('mean_val')))
-    print_row("100k, 2 col, ~300 grp", t_accel, t_pure, t_pandas, t_polars)
+    for n_rows, label in [(100_000, "100k, 2 col, ~300 grp"), (1_000_000, "1M, 2 col, ~300 grp")]:
+        tf = Tafra({
+            'g1': rng.integers(0, 100, size=n_rows).astype('int64'),
+            'g2': rng.choice(['x', 'y', 'z'], size=n_rows),
+            'value': rng.standard_normal(n_rows),
+        })
+        df = pd.DataFrame(tf.data)
+        t_accel, t_pure = _tafra_time(lambda: tf.group_by(
+            ['g1', 'g2'], {'mean_val': (np.mean, 'value')}))
+        t_pandas = median_of(
+            lambda: df.groupby(['g1', 'g2'])['value'].agg('mean').reset_index())
+        t_polars = None
+        if HAS_POLARS:
+            plf = pl.DataFrame(tf.data)
+            t_polars = median_of(lambda: plf.group_by('g1', 'g2').agg(
+                pl.col('value').mean().alias('mean_val')))
+        print_row(label, t_accel, t_pure, t_pandas, t_polars)
 
 
 def bench_transform():
@@ -233,6 +236,7 @@ def bench_transform():
     for n_rows, n_groups, label in [
         (10_000, 50, "10k rows, 50 grp"),
         (100_000, 100, "100k rows, 100 grp"),
+        (1_000_000, 1000, "1M rows, 1k grp"),
     ]:
         tf = Tafra({
             'group': rng.integers(0, n_groups, size=n_rows).astype('int64'),
@@ -257,7 +261,8 @@ def bench_joins():
     print_header()
     rng = np.random.default_rng(42)
 
-    for n, label in [(1000, "1k x 1k"), (5000, "5k x 5k"), (10000, "10k x 10k")]:
+    for n, label in [(1000, "1k x 1k"), (5000, "5k x 5k"), (10000, "10k x 10k"),
+                     (50000, "50k x 50k")]:
         left_tf = Tafra({
             'key': rng.integers(0, 100, size=n).astype('int64'),
             'left_val': rng.standard_normal(n),
@@ -282,7 +287,7 @@ def bench_joins():
 
     print("\n--- Left Join (equi) ---")
     print_header()
-    for n, label in [(1000, "1k x 1k"), (5000, "5k x 5k")]:
+    for n, label in [(1000, "1k x 1k"), (5000, "5k x 5k"), (50000, "50k x 50k")]:
         left_tf = Tafra({
             'key': rng.integers(0, 100, size=n).astype('int64'),
             'left_val': rng.standard_normal(n),
