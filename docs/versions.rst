@@ -100,7 +100,8 @@ Version History
 * Replace bare ``except`` clauses with specific exception types
 * Remove ``warnings.resetwarnings()`` global side effect
 * Fix mutable default arguments in function signatures
-* Migrate to ``pyproject.toml`` (remove ``setup.py``, ``setup.cfg``, ``.coveragerc``)
+* Migrate to ``pyproject.toml`` (remove ``setup.cfg``, ``.coveragerc``; ``setup.py``
+  retained for C extension builds in 2.1.0)
 * Version now in ``pyproject.toml``, read via ``importlib.metadata``
 * Replace ``flake8`` with ``ruff``
 * Fix all 68 ``mypy`` errors (strict mode)
