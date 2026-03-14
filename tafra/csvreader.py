@@ -26,7 +26,7 @@ from typing import Union, cast
 # this doesn't type well in Python
 @dc.dataclass(frozen=True)
 class ReadableType:
-    dtype: Type[Any]
+    dtype: Any
     parse: Callable[[str], Any]
 
 def _parse_bool(val: str) -> bool:
@@ -48,7 +48,7 @@ _TYPE_PRECEDENCE: List[ReadableType] = [
     # TODO: datetime,
 ]
 
-_TYPE_OBJECT: ReadableType = ReadableType(object, lambda x: x)
+_TYPE_OBJECT: ReadableType = ReadableType(np.dtypes.StringDType(), lambda x: x)
 
 class ReaderState(Enum):
     AWAIT_GUESSABLE = auto()

@@ -5,6 +5,75 @@ Version History
 .. automodule:: tafra
    :noindex:
 
+2.1.0
+-----
+
+* **Performance**: Rewrite ``GroupBy``, ``Transform``, ``IterateBy`` to use
+  index-based grouping (``_build_group_indices``) instead of per-group boolean
+  masks — up to 23x faster on multi-column groups
+* **Performance**: Add numpy-native sort-merge join for equi-joins in
+  ``InnerJoin`` and ``LeftJoin`` — up to 20x faster than pre-2.1, now faster
+  than ``pandas`` (1.4–7.6x) across all tested sizes
+* **Performance**: Fix ``_validate_columns`` to use O(1) dict lookup instead of
+  O(n) ``.keys()`` view
+* **Performance**: Skip redundant ``np.dtype()`` call in ``_format_dtype`` when
+  input is already ``np.dtype``
+* **Performance**: Use ``dtype.kind`` check instead of ``np.dtype(object)``
+  allocation in ``ObjectFormatter.parse_dtype``
+* **Breaking**: Adopt numpy ``StringDType`` for string columns — string data
+  previously stored as ``dtype=object`` now uses ``np.dtypes.StringDType()``
+  (dtype kind ``'T'``); internal dtype name is ``'str'`` instead of ``'object'``
+* Auto-convert object arrays of Python strings to ``StringDType`` during
+  construction and column assignment
+* ``CSVReader`` string columns now produce ``StringDType`` instead of ``object``
+* Fix ``Transform.apply`` correctness: group-by column data was being copied
+  before the boolean mask was fully constructed
+* Fix ``update_dtypes_inplace`` to handle ``StringDType`` columns when replacing
+  empty strings for numeric conversion
+* **Performance**: Add vectorized fast path for ``GroupBy`` when aggregation
+  functions are recognized numpy reducers — uses ``np.bincount`` /
+  ``ufunc.reduceat`` instead of per-group Python loops; now faster than
+  ``pandas`` at small-to-medium scales. Recognized functions: ``np.sum``,
+  ``np.mean``, ``np.std``, ``np.var``, ``np.min``, ``np.max``, ``np.ptp``,
+  ``np.prod``, ``np.median``, ``np.any``, ``np.all``, ``np.count_nonzero``,
+  ``len``, ``sum``, plus all nan-variants
+* Add ``percentile(q)`` aggregation factory for use in ``group_by`` — creates
+  vectorized fast-path callables for arbitrary percentiles
+* Add ``geomean`` and ``harmean`` aggregation functions (geometric and harmonic
+  means) with vectorized fast path
+* **Performance**: Replace ``np.unique`` (O(n log n) sort) with direct array
+  mapping (O(n)) for group label assignment — GroupBy is now 4–8x faster than
+  both pandas and polars at ≤10k rows
+* **Performance**: String/object columns auto-encoded to integer codes for
+  grouping — eliminates the Python dict fallback for multi-column groups
+* Add ``chunks(n, sort_by=)``: split into ``n`` equal-sized :class:`Tafra`
+  chunks with optional pre-sort
+* Add ``chunk_rows(size, sort_by=)``: split by maximum row count
+* Add ``partition(columns, sort_by=)``: split by group values (like
+  ``GroupBy`` but returns sub-:class:`Tafra` instances for parallel dispatch);
+  supports sorting within each partition
+* Add ``Tafra.concat(tafras)``: concatenate multiple :class:`Tafra` row-wise
+* Add ``tail(n)``: return last n rows (complement to ``head``)
+* Add ``sort(columns, reverse=)``: public sort API with multi-column and
+  descending support
+* Add ``sample(n, seed=)``: random row sampling with reproducible seed
+* Add ``drop_duplicates(columns)``: deduplicate rows by column values
+* Add ``value_counts(column)``: count occurrences of each unique value
+* Add ``describe()``: summary statistics (count, mean, std, min, quartiles,
+  max) for all numeric columns
+* Add ``shift(n)``: lag/lead rows by n positions, filling with NaN/None
+* Optional C extension (``tafra/_accel.c``) for single-pass grouped
+  aggregation (Welford variance, sum, mean, min, max, count) and O(n)
+  hash-based equi-joins — falls back to pure Python + numpy if not compiled
+* Fix join codebook bug: string-key joins now use shared codebook across
+  left/right tables via ``_encode_columns_paired``
+* ``Tafra.concat()`` validates that all tafras have matching column sets
+* Add 40 new tests (88 total)
+* Add ``test/bench_tafra.py`` performance benchmark suite
+* Add ``test/bench_vs_pandas_vs_polars.py`` — 5-way comparison (Tafra+C,
+  Tafra pure, pandas 2.3, pandas 3.0, polars 1.39)
+
+
 2.0.0
 -----
 

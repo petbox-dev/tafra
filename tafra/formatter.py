@@ -96,12 +96,16 @@ class ObjectFormatter(Dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any,
             value, modified: Tuple(np.ndarray, bool)
                 The :class:`np.ndarray` and whether it was modified or not.
         """
-        if value.dtype != np.dtype(object):
+        if value.dtype.kind != 'O':
             return None
 
         type_name = type(value[0]).__name__
-        if type_name in self.keys():
+        if type_name in self:
             value = self[type_name](value)
             return value
+
+        # convert object arrays of strings to StringDType
+        if type_name == 'str':
+            return value.astype(np.dtypes.StringDType())
 
         return None

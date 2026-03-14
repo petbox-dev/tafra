@@ -13,16 +13,27 @@ Tafra is a minimalist Python dataframe library — a lightweight alternative to 
 pip install -e .
 
 # Lint
-flake8 tafra
+ruff check tafra
 
 # Type check (strict mode)
 mypy tafra
 
-# Run all tests (coverage enabled via setup.cfg)
+# Run all tests (coverage enabled via pyproject.toml)
 pytest
 
 # Run a single test
 pytest test/test_tafra.py::test_constructions
+
+# Build C extension (optional — requires C compiler)
+python setup.py build_ext --inplace
+# On Windows with MinGW: python setup.py build_ext --inplace --compiler=mingw32
+
+# Build distributable wheel
+python -m build
+
+# Run benchmarks
+python test/bench_tafra.py
+python test/bench_vs_pandas_vs_polars.py
 
 # Build docs
 sphinx-build -W -b html docs docs/_build/html
@@ -30,17 +41,31 @@ sphinx-build -W -b html docs docs/_build/html
 
 ## Architecture
 
-The library has one core abstraction and a set of aggregation operations.
+The library has one core abstraction and a set of aggregation/partitioning operations.
 
-**`Tafra`** (`tafra/base.py`) — The dataframe class. Wraps `Dict[str, np.ndarray]` where every column must share the same row count. Tracks dtypes separately in `_dtypes`. Implements dict-like access (keys, values, items, get, update). Decorated with `@dataclass`.
+**`Tafra`** (`tafra/base.py`) — The dataframe class. Wraps `Dict[str, np.ndarray]` where every column must share the same row count. Tracks dtypes separately in `_dtypes`. Implements dict-like access (keys, values, items, get, update). Decorated with `@dataclass`. String columns use numpy `StringDType`.
 
 **Aggregation classes** (`tafra/group.py`) — SQL-style operations that operate on `Tafra` instances:
 - `Union`, `GroupBy`, `Transform`, `IterateBy`, `InnerJoin`, `LeftJoin`, `CrossJoin`
 
+**Vectorized aggregations** (`tafra/group.py`) — `GroupBy` detects known numpy reducers (`np.sum`, `np.mean`, `np.std`, `np.var`, `np.min`, `np.max`, `np.median`, `np.prod`, `np.ptp`, `np.any`, `np.all`, `len`, `np.count_nonzero`) and uses `np.bincount`/`ufunc.reduceat` instead of per-group Python loops. Custom aggregations: `percentile(q)`, `geomean`, `harmean`.
+
+**C extension** (`tafra/_accel.c`) — Optional compiled acceleration. Single-pass grouped aggregation (Welford variance, sum, mean, min, max, count) and O(n) hash-based equi-joins. Falls back to pure Python + numpy if not compiled. Build with `python setup.py build_ext --inplace --compiler=mingw32` (or omit `--compiler` for MSVC).
+
+**Chunking/partitioning** (`tafra/base.py`):
+- `chunks(n, sort_by=)` — split into n equal pieces
+- `chunk_rows(size, sort_by=)` — split by max row count
+- `partition(columns, sort_by=)` — split by group values for parallel dispatch
+- `Tafra.concat(tafras)` — concatenate row-wise
+
+**group_by vs partition:**
+- `group_by` **reduces**: one row per group, applies aggregation functions (sum, mean, etc.)
+- `partition` **splits**: returns all original rows grouped into sub-Tafras, no aggregation — designed for `multiprocessing.Pool.map()` dispatch
+
 **Supporting modules:**
 - `protocol.py` — Typing protocols for duck-typing compatibility (Series, DataFrame, Cursor)
-- `formatter.py` — `ObjectFormatter` for custom dtype parsing (e.g., Decimal → float)
-- `csvreader.py` — CSV reader with type inference
+- `formatter.py` — `ObjectFormatter` for custom dtype parsing (e.g., Decimal → float); auto-converts object arrays of strings to `StringDType`
+- `csvreader.py` — CSV reader with type inference; string columns produce `StringDType`
 
 ## Testing
 
@@ -48,9 +73,9 @@ The library has one core abstraction and a set of aggregation operations.
 - `build_tafra()` helper creates a standard 6-row test fixture
 - `check_tafra()` validates structural integrity of a Tafra instance
 - Mock `Series`, `DataFrame`, `Cursor` classes in tests match the protocol definitions
+- `test/bench_tafra.py` — internal performance benchmarks
+- `test/bench_vs_pandas_vs_polars.py` — comparison vs pandas and polars
 
 ## Configuration
 
-- `setup.cfg` — flake8 (max-line-length=100, extensive ignore list), mypy (strict), pytest addopts
-- `.coveragerc` — coverage exclusion rules
-- `.travis.yml` — CI runs flake8, mypy, pytest, sphinx-build on Python 3.7/3.8
+- `pyproject.toml` — ruff (max-line-length=100), mypy (strict), pytest addopts, coverage
