@@ -64,7 +64,7 @@ and SQL-style "group by" and join operations.
 |                            | `from_records <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.from_records>`_                             |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
 | SQL Readers                | `read_sql <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.read_sql>`_,                                    |
-|                            | `read_sql_chunks <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.read_sql_chucnks>`_                      |
+|                            | `read_sql_chunks <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.read_sql_chunks>`_                      |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
 | Destructors                | `to_records <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.to_records>`_,                                |
 |                            | `to_list <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.to_list>`_,                                      |

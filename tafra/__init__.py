@@ -17,7 +17,7 @@ from importlib.metadata import version as _version
 __version__ = _version('tafra')
 
 from .base import Tafra, object_formatter
-from .group import GroupBy, Transform, IterateBy, InnerJoin, LeftJoin
+from .group import Union, GroupBy, Transform, IterateBy, InnerJoin, LeftJoin, CrossJoin
 from .group import percentile, geomean, harmean
 
 read_sql = Tafra.read_sql

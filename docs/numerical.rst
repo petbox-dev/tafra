@@ -247,11 +247,17 @@ hidden dispatch or "silent" dtype changes.
 Joins
 =====
 
-``Tafra`` 2.1.0 uses a numpy-native sort-merge join for equality joins:
-``argsort`` + ``searchsorted`` to find match ranges, then ``np.repeat`` with
-offset arithmetic to build index arrays — no Python-level per-row iteration.
-For non-equality operators (``<``, ``<=``, ``>``, ``>=``, ``!=``), it falls
-back to a nested-loop approach.
+``Tafra`` 2.1.0 uses two join algorithms for equality joins:
+
+- **With C extension**: O(n) hash join implemented in C (``_accel.c``) —
+  builds a hash table on the right key, probes with the left key, and
+  constructs output index arrays in a single pass.
+- **Without C extension**: numpy-native sort-merge join — ``argsort`` +
+  ``searchsorted`` to find match ranges, then ``np.repeat`` with offset
+  arithmetic to build index arrays.
+
+For non-equality operators (``<``, ``<=``, ``>``, ``>=``, ``!=``), both paths
+fall back to a nested-loop approach.
 
 .. code-block:: python
 
