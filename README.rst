@@ -191,17 +191,7 @@ Windows SDK include/lib paths are not set. Two options:
    Prompt for VS" or "Developer PowerShell for VS" from the Start menu. This
    runs ``vcvarsall.bat`` automatically and sets all required paths.
 
-2. **Set environment variables manually** before building:
-
-   .. code-block:: shell
-
-       set INCLUDE=C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\ucrt;C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\shared;C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um;C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include
-       set LIB=C:\Program Files (x86)\Windows Kits\10\Lib\10.0.19041.0\ucrt\x64;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.19041.0\um\x64;C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\lib\x64
-       set PATH=C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x64;%PATH%
-
-   Adjust version numbers to match your installed VS and Windows SDK versions.
-
-3. **Use MinGW-w64** instead of MSVC:
+2. **Use MinGW-w64** instead of MSVC:
 
    .. code-block:: shell
 
