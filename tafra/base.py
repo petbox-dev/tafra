@@ -742,7 +742,7 @@ class Tafra:
                 value = np.full(rows, value)
 
         elif isinstance(value, str):
-            value = np.full(rows, value)
+            value = np.full(rows, value, dtype=np.dtypes.StringDType())
 
         elif isinstance(value, Iterator):
             value = np.asarray(tuple(value))
@@ -817,7 +817,7 @@ class Tafra:
             None: None
         """
         for column in columns:
-            if column not in self._data.keys():
+            if column not in self._data:
                 raise ValueError(f'Column {column} does not exist in `tafra`.')
 
     def _validate_dtypes(self, dtypes: Dict[str, Any]) -> Dict[str, str]:
@@ -855,7 +855,7 @@ class Tafra:
             dtype: str
                 The parsed dtype.
         """
-        _dtype = np.dtype(dtype)
+        _dtype = dtype if isinstance(dtype, np.dtype) else np.dtype(dtype)
         name = _dtype.type.__name__
         if 'str' in name:
             return 'str'
@@ -1394,6 +1394,210 @@ class Tafra:
         """
         return self._slice(slice(n))
 
+    def tail(self, n: int = 5) -> 'Tafra':
+        """
+        Return the last ``n`` rows.
+
+        Parameters
+        ----------
+            n: int = 5
+                The number of rows to return.
+
+        Returns
+        -------
+            tafra: Tafra
+                The last ``n`` rows.
+        """
+        return self._slice(slice(-n, None))
+
+    def sort(self, columns: _Union[str, Iterable[str]],
+             reverse: bool = False) -> 'Tafra':
+        """
+        Return a new :class:`Tafra` sorted by the given columns.
+
+        Parameters
+        ----------
+            columns: Union[str, Iterable[str]]
+                Column(s) to sort by. First column is the primary sort key.
+
+            reverse: bool = False
+                Sort in descending order.
+
+        Returns
+        -------
+            tafra: Tafra
+                The sorted :class:`Tafra`.
+        """
+        if isinstance(columns, str):
+            columns = [columns]
+        result = self._sorted(columns)
+        if reverse:
+            return result._slice(slice(None, None, -1))
+        return result
+
+    def sample(self, n: int, seed: Optional[int] = None) -> 'Tafra':
+        """
+        Return a random sample of ``n`` rows.
+
+        Parameters
+        ----------
+            n: int
+                Number of rows to sample.
+
+            seed: Optional[int]
+                Random seed for reproducibility.
+
+        Returns
+        -------
+            tafra: Tafra
+                The sampled :class:`Tafra`.
+        """
+        if n > self._rows:
+            raise ValueError(f'Cannot sample {n} rows from {self._rows} rows.')
+        rng = np.random.default_rng(seed)
+        idx = rng.choice(self._rows, size=n, replace=False)
+        return self._ndindex(idx)
+
+    def drop_duplicates(self, columns: Optional[Iterable[str]] = None) -> 'Tafra':
+        """
+        Remove duplicate rows, keeping the first occurrence.
+
+        Parameters
+        ----------
+            columns: Optional[Iterable[str]]
+                Columns to check for duplicates. If ``None``, use all columns.
+
+        Returns
+        -------
+            tafra: Tafra
+                The deduplicated :class:`Tafra`.
+        """
+        cols = list(columns) if columns is not None else list(self._data.keys())
+        self._validate_columns(cols)
+
+        if len(cols) == 1:
+            _, idx = np.unique(self._data[cols[0]], return_index=True)
+        else:
+            col_arrays = [self._data[c] for c in cols]
+            # check for StringDType — can't use structured array
+            if any(c.dtype.kind == 'T' for c in col_arrays):
+                seen: Dict[Any, int] = {}
+                idx_list: List[int] = []
+                for i, k in enumerate(zip(*col_arrays)):
+                    if k not in seen:
+                        seen[k] = i
+                        idx_list.append(i)
+                idx = np.array(idx_list, dtype=np.intp)
+            else:
+                dt = np.dtype([(f'f{i}', c.dtype) for i, c in enumerate(col_arrays)])
+                key = np.empty(self._rows, dtype=dt)
+                for i, c in enumerate(col_arrays):
+                    key[f'f{i}'] = c
+                _, idx = np.unique(key, return_index=True)
+
+        idx.sort()
+        return self._ndindex(idx)
+
+    def value_counts(self, column: str) -> 'Tafra':
+        """
+        Count occurrences of each unique value in a column.
+
+        Parameters
+        ----------
+            column: str
+                The column to count.
+
+        Returns
+        -------
+            tafra: Tafra
+                A :class:`Tafra` with columns ``column`` and ``'count'``,
+                sorted by count descending.
+        """
+        self._validate_columns([column])
+        data = self._data[column]
+        unique, counts = np.unique(data, return_counts=True)
+        order = np.argsort(-counts)
+        return Tafra(
+            {column: unique[order], 'count': counts[order]},
+            validate=False
+        )
+
+    def describe(self) -> 'Tafra':
+        """
+        Summary statistics for numeric columns: count, mean, std, min,
+        25%, 50%, 75%, max.
+
+        Returns
+        -------
+            tafra: Tafra
+                A :class:`Tafra` with a ``'stat'`` column and one column per
+                numeric column in the original.
+        """
+        stats = ['count', 'mean', 'std', 'min', '25%', '50%', '75%', 'max']
+        result: Dict[str, np.ndarray[Any, Any]] = {
+            'stat': np.array(stats, dtype=np.dtypes.StringDType())
+        }
+        for col, val in self._data.items():
+            if val.dtype.kind in ('i', 'u', 'f'):
+                fval = val.astype(float)
+                result[col] = np.array([
+                    float(len(fval)),
+                    np.mean(fval),
+                    np.std(fval),
+                    np.min(fval),
+                    np.percentile(fval, 25),
+                    np.percentile(fval, 50),
+                    np.percentile(fval, 75),
+                    np.max(fval),
+                ])
+        return Tafra(result, validate=False)
+
+    def shift(self, n: int = 1) -> 'Tafra':
+        """
+        Shift all columns by ``n`` rows. Positive shifts forward (lag),
+        negative shifts backward (lead). Vacated rows are filled with
+        ``NaN`` for numeric columns, ``None`` for object/string columns.
+
+        .. note::
+
+            Integer columns are cast to ``float64`` to accommodate ``NaN``
+            fill values, since numpy integer arrays cannot represent missing
+            data. This matches ``pandas`` behavior.
+
+        Parameters
+        ----------
+            n: int = 1
+                Number of rows to shift. Positive = lag, negative = lead.
+
+        Returns
+        -------
+            tafra: Tafra
+                The shifted :class:`Tafra`.
+        """
+        if n == 0:
+            return self.copy()
+
+        result: Dict[str, np.ndarray[Any, Any]] = {}
+        for col, val in self._data.items():
+            if val.dtype.kind in ('i', 'u', 'f'):
+                shifted = np.empty(self._rows, dtype=float)
+                shifted[:] = np.nan
+                if n > 0:
+                    shifted[n:] = val[:self._rows - n]
+                else:
+                    shifted[:self._rows + n] = val[-n:]
+                result[col] = shifted
+            else:
+                shifted_obj = np.empty(self._rows, dtype=object)
+                shifted_obj[:] = None
+                if n > 0:
+                    shifted_obj[n:] = val[:self._rows - n]
+                else:
+                    shifted_obj[:self._rows + n] = val[-n:]
+                result[col] = shifted_obj
+
+        return Tafra(result, validate=False)
+
     def keys(self) -> KeysView[str]:
         """
         Return the keys of :attr:`data`, i.e. like :meth:`dict.keys()`.
@@ -1554,10 +1758,11 @@ class Tafra:
                     self._data[column] = self._data[column].astype(self._dtypes[column])
                 except ValueError:
                     REPL_VALS = ['', ]
+                    col_data = self._data[column].astype(object)
                     for repl_val in REPL_VALS:
-                        where_repl = np.equal(self._data[column], repl_val)
-                        self._data[column][where_repl] = None
-                    self._data[column] = self._data[column].astype(self._dtypes[column])
+                        where_repl = np.equal(col_data, repl_val)
+                        col_data[where_repl] = None
+                    self._data[column] = col_data.astype(self._dtypes[column])
 
     def rename(self, renames: Dict[str, str]) -> 'Tafra':
         """
@@ -2212,6 +2417,146 @@ class Tafra:
         if select is None:
             select = []
         return CrossJoin([], select).apply(self, right)
+
+    def chunks(self, n: int, sort_by: Optional[Iterable[str]] = None) -> List['Tafra']:
+        """
+        Split into ``n`` roughly equal-sized :class:`Tafra` chunks.
+
+        Parameters
+        ----------
+            n: int
+                Number of chunks.
+
+            sort_by: Optional[Iterable[str]]
+                Columns to sort by before splitting.
+
+        Returns
+        -------
+            chunks: List[Tafra]
+                The chunked :class:`Tafra` instances.
+        """
+        if n < 1:
+            raise ValueError('n must be >= 1')
+
+        source = self._sorted(sort_by) if sort_by else self
+        splits = np.array_split(np.arange(source._rows), n)
+        return [
+            Tafra(
+                {col: val[idx] for col, val in source._data.items()},
+                source._dtypes.copy(),
+                validate=False
+            )
+            for idx in splits if len(idx) > 0
+        ]
+
+    def chunk_rows(self, size: int, sort_by: Optional[Iterable[str]] = None) -> List['Tafra']:
+        """
+        Split into chunks of at most ``size`` rows each.
+
+        Parameters
+        ----------
+            size: int
+                Maximum rows per chunk.
+
+            sort_by: Optional[Iterable[str]]
+                Columns to sort by before splitting.
+
+        Returns
+        -------
+            chunks: List[Tafra]
+                The chunked :class:`Tafra` instances.
+        """
+        if size < 1:
+            raise ValueError('size must be >= 1')
+
+        n = max(1, (self._rows + size - 1) // size)
+        return self.chunks(n, sort_by=sort_by)
+
+    def partition(
+        self, columns: Iterable[str],
+        sort_by: Optional[Iterable[str]] = None
+    ) -> List[Tuple[Tuple[Any, ...], 'Tafra']]:
+        """
+        Split by unique values in ``columns``, preserving group integrity.
+
+        Parameters
+        ----------
+            columns: Iterable[str]
+                Columns to partition by.
+
+            sort_by: Optional[Iterable[str]]
+                Columns to sort by within each partition.
+
+        Returns
+        -------
+            partitions: List[Tuple[Tuple[Any, ...], Tafra]]
+                List of (group_key, sub_tafra) pairs.
+        """
+        from .group import GroupSet
+
+        unique, group_indices = GroupSet._build_group_indices(self, columns)
+        result: List[Tuple[Tuple[Any, ...], 'Tafra']] = []
+
+        for key, rows in zip(unique, group_indices):
+            sub = Tafra(
+                {col: val[rows] for col, val in self._data.items()},
+                self._dtypes.copy(),
+                validate=False
+            )
+            if sort_by:
+                sub = sub._sorted(sort_by)
+            result.append((key, sub))
+
+        return result
+
+    def _sorted(self, sort_by: Iterable[str]) -> 'Tafra':
+        """Return a new Tafra sorted by the given columns."""
+        cols = list(sort_by)
+        self._validate_columns(cols)
+
+        # lexsort uses last key as primary, so reverse
+        keys = [self._data[c] for c in reversed(cols)]
+        order = np.lexsort(keys)
+
+        return Tafra(
+            {col: val[order] for col, val in self._data.items()},
+            self._dtypes.copy(),
+            validate=False
+        )
+
+    @classmethod
+    def concat(cls, tafras: Iterable['Tafra']) -> 'Tafra':
+        """
+        Concatenate multiple :class:`Tafra` instances row-wise.
+
+        Parameters
+        ----------
+            tafras: Iterable[Tafra]
+                The tafras to concatenate.
+
+        Returns
+        -------
+            tafra: Tafra
+                The concatenated :class:`Tafra`.
+        """
+        tafra_list = list(tafras)
+        if not tafra_list:
+            raise ValueError('No tafras to concatenate.')
+
+        columns = list(tafra_list[0]._data.keys())
+        col_set = set(columns)
+        for i, t in enumerate(tafra_list[1:], 1):
+            if set(t._data.keys()) != col_set:
+                raise ValueError(
+                    f'Tafra at index {i} has columns {list(t._data.keys())}, '
+                    f'expected {columns}.')
+        return cls(
+            {col: np.concatenate([t._data[col] for t in tafra_list])
+             for col in columns},
+            tafra_list[0]._dtypes.copy(),
+            validate=False
+        )
+
 
 def to_field_name(maybe_text: _Union[str, int, float]) -> str:  # pragma: no cover
     text = str(maybe_text)

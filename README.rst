@@ -54,6 +54,10 @@ and SQL-style "group by" and join operations.
 |                            | `left_join <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.left_join>`_,                                  |
 |                            | `cross_join <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.cross_join>`_                                 |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
+| Chunking / Partitioning    | ``chunks``, ``chunk_rows``, ``partition``, ``concat``                                                                        |
++----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
+| Custom Aggregations        | ``percentile``, ``geomean``, ``harmean``                                                                                     |
++----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
 | Constructors               | `as_tafra <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.as_tafra>`_,                                    |
 |                            | `from_dataframe <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.from_dataframe>`_,                        |
 |                            | `from_series <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.from_series>`_,                              |
@@ -94,8 +98,11 @@ and SQL-style "group by" and join operations.
 |                            | `update_dtypes <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.update_dtypes>`_,                          |
 |                            | `update_dtypes_inplace <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.update_dtypes_inplace>`_           |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
+| Data Exploration           | ``head``, ``tail``, ``sort``, ``sample``, ``describe``, ``value_counts``, ``drop_duplicates``                                |
++----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
+| Time Series                | ``shift``                                                                                                                    |
++----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
 | Other Helper Methods       | `select <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.select>`_,                                        |
-|                            | `head <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.head>`_,                                            |
 |                            | `copy <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.copy>`_,                                            |
 |                            | `rename <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.rename>`_,                                        |
 |                            | `rename_inplace <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.rename_inplace>`_,                        |
@@ -117,11 +124,99 @@ and SQL-style "group by" and join operations.
 Getting Started
 ===============
 
-Install the library with `pip <https://pip.pypa.io/en/stable/>`_:
+Install from conda-forge (includes pre-built C extension — no compiler needed):
+
+.. code-block:: shell
+
+    conda install tafra -c conda-forge
+
+Or install from PyPI with pip:
 
 .. code-block:: shell
 
     pip install tafra
+
+.. note::
+
+    ``conda install`` provides a pre-built binary with the C extension already
+    compiled for your platform. ``pip install`` from PyPI will attempt to
+    compile the C extension from source; if no C compiler is available, the
+    package installs without it and falls back to pure Python + numpy.
+
+
+Building from source
+--------------------
+
+To build from source (including the optional C extension):
+
+.. code-block:: shell
+
+    git clone https://github.com/petbox-dev/tafra.git
+    cd tafra
+    pip install -e .
+
+**Requirements:**
+
+- Python >=3.9
+- numpy >=2.1
+- A C compiler (optional, for the ``_accel`` extension):
+  - **Windows**: Visual Studio Build Tools (with Windows SDK) or MinGW-w64
+  - **Linux**: ``gcc`` (usually pre-installed, or ``apt install build-essential``)
+  - **macOS**: Xcode Command Line Tools (``xcode-select --install``)
+
+If no C compiler is available, the package installs without the extension and
+falls back to pure Python + numpy at runtime. To verify the C extension is
+active:
+
+.. code-block:: python
+
+    >>> from tafra._accel import groupby_sum
+    >>> print("C extension active")
+
+To build a distributable wheel:
+
+.. code-block:: shell
+
+    pip install build
+    python -m build
+
+Windows build notes
+^^^^^^^^^^^^^^^^^^^
+
+The C extension requires the MSVC compiler to find the Windows SDK headers.
+If you get ``fatal error C1083: Cannot open include file: 'io.h'``, the
+Windows SDK include/lib paths are not set. Two options:
+
+1. **Use a Developer Command Prompt** (recommended): Open "Developer Command
+   Prompt for VS" or "Developer PowerShell for VS" from the Start menu. This
+   runs ``vcvarsall.bat`` automatically and sets all required paths.
+
+2. **Set environment variables manually** before building:
+
+   .. code-block:: shell
+
+       set INCLUDE=C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\ucrt;C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\shared;C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um;C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include
+       set LIB=C:\Program Files (x86)\Windows Kits\10\Lib\10.0.19041.0\ucrt\x64;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.19041.0\um\x64;C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\lib\x64
+       set PATH=C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x64;%PATH%
+
+   Adjust version numbers to match your installed VS and Windows SDK versions.
+
+3. **Use MinGW-w64** instead of MSVC:
+
+   .. code-block:: shell
+
+       python setup.py build_ext --inplace --compiler=mingw32
+
+   MinGW-w64 can be installed via conda (``conda install m2w64-gcc -c
+   conda-forge``) or from `winlibs.com <https://winlibs.com/>`_.
+
+If building with ``python -m build`` (which creates an isolated environment),
+use ``--no-isolation`` to inherit your shell's environment variables, or run
+from a Developer Command Prompt:
+
+.. code-block:: shell
+
+    python -m build --no-isolation
 
 
 A short example
@@ -133,7 +228,7 @@ A short example
 
     >>> t = Tafra({
     ...    'x': np.array([1, 2, 3, 4]),
-    ...    'y': np.array(['one', 'two', 'one', 'two'], dtype='object'),
+    ...    'y': np.array(['one', 'two', 'one', 'two']),
     ... })
 
     >>> t.pformat()
@@ -141,7 +236,7 @@ A short example
      'x': array([1, 2, 3, 4]),
      'y': array(['one', 'two', 'one', 'two'])},
     dtypes = {
-     'x': 'int', 'y': 'object'},
+     'x': 'int', 'y': 'str'},
     rows = 4)
 
     >>> print('List:', '\n', t.to_list())
@@ -161,8 +256,53 @@ A short example
     Tafra(data = {
      'x': array([4, 6]), 'y': array(['one', 'two'])},
     dtypes = {
-     'x': 'int', 'y': 'object'},
+     'x': 'int', 'y': 'str'},
     rows = 2)
+
+
+group_by vs partition
+---------------------
+
+``group_by`` **reduces** — one row per group, applies aggregation functions:
+
+.. code-block:: python
+
+    >>> tf.group_by(['wellid'], {'total_oil': (np.sum, 'oil')})
+    # Returns: one row per wellid, with summed oil
+
+``partition`` **splits** — returns all original rows, grouped into sub-Tafras
+for independent processing (e.g., multiprocessing):
+
+.. code-block:: python
+
+    >>> from concurrent.futures import ProcessPoolExecutor
+
+    >>> def forecast_well(tf):
+    ...     """Run a forecast on one well's production data."""
+    ...     # tf contains all rows for a single well, sorted by date
+    ...     return compute_forecast(tf['date'], tf['oil'])
+
+    >>> parts = tf.partition(['wellid'], sort_by=['date'])
+
+    >>> with ProcessPoolExecutor(max_workers=4) as pool:
+    ...     results = list(pool.map(
+    ...         forecast_well, [sub for _, sub in parts]))
+
+    >>> combined = Tafra.concat(results)
+
+With 8 workers and ~13 ms of work per group, ``partition`` achieves ~5x
+speedup over serial execution. For light aggregations (sum, mean, std),
+``group_by`` is 10-100x faster — use it instead. See
+`numerical.rst <https://tafra.readthedocs.io/en/latest/numerical.html>`_ for
+detailed benchmarks.
+
+``chunks`` splits by row count (for data-parallel workloads where group
+integrity doesn't matter):
+
+.. code-block:: python
+
+    >>> for chunk in tf.chunks(n=4, sort_by=['date']):
+    ...     process(chunk)
 
 
 Flexibility
@@ -193,122 +333,47 @@ Timings
 
 .. note::
 
-    The benchmarks below were collected circa 2020. Updated timings on
-    current hardware and dependency versions are forthcoming.
+    Benchmarks collected with ``tafra`` 2.1.0. See
+    `numerical.rst <https://tafra.readthedocs.io/en/latest/numerical.html>`_
+    for full benchmarks against ``pandas`` 2.3/3.0 and ``polars`` 1.39.
 
-In this case, lightweight also means performant. Beyond any additional
-features added to the library, ``tafra`` should provide the necessary
-base for organizing data structures for numerical processing. One of the
-most important aspects is fast access to the data itself. By minimizing
-abstraction to access the underlying ``numpy`` arrays, ``tafra`` provides
-an order of magnitude increase in performance.
+Lightweight means performant. By minimizing abstraction to access the
+underlying ``numpy`` arrays, ``tafra`` provides dramatic speedups over
+``pandas`` and ``polars`` on construction and access:
+
+.. code-block:: python
+
+    # Construction: 100k rows, 5 columns
+    Tafra():         0.02 ms
+    pd.DataFrame():  2.80 ms   # 140x slower
+    pl.DataFrame():  0.04 ms   # 2x slower
+
+    # Column access: 100k rows, per access
+    tf['x']:         0.13 µs
+    df['x']:         1.81 µs   # 14x slower (pandas 2.3)
+    plf['x']:        0.70 µs   # 5x slower
+
+``tafra`` uses vectorized numpy operations (``np.bincount``,
+``ufunc.reduceat``) and an optional C extension (single-pass aggregation,
+hash joins) for GroupBy and joins. With the C extension:
+
+.. code-block:: python
+
+    # GroupBy: 10k rows, 50 groups, sum + mean
+    Tafra+C: 0.15 ms
+    pandas:  0.73 ms   # 5x slower
+    polars:  0.60 ms   # 4x slower
+
+    # Transform: 10k rows, 50 groups
+    Tafra+C: 0.06 ms
+    pandas:  0.60 ms   # 10x slower
+    polars:  1.67 ms   # 28x slower
+
+    # Equi inner join: 1k x 1k
+    Tafra+C: 0.08 ms
+    pandas:  0.93 ms   # 12x slower
+    polars:  1.53 ms   # 19x slower
 
 -   **Import note** If you assign directly to the ``Tafra.data`` or
     ``Tafra._data`` attributes, you *must* call ``Tafra._coalesce_dtypes``
     afterwards in order to ensure the typing is consistent.
-
-Construct a ``Tafra`` and a ``DataFrame``:
-
-.. code-block:: python
-
-    >>> tf = Tafra({
-    ...     'x': np.array([1., 2., 3., 4., 5., 6.]),
-    ...     'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype='object'),
-    ...     'z': np.array([0, 0, 0, 1, 1, 1])
-    ... })
-
-    >>> df = pd.DataFrame(t.data)
-
-Read Operations
----------------
-
-Direct access:
-
-.. code-block:: python
-
-    >>> %timemit x = t._data['x']
-    55.3 ns ± 5.64 ns per loop (mean ± std. dev. of 7 runs, 10000000 loops each)
-
-
-Indirect with some penalty to support ``Tafra`` slicing and ``numpy``'s
-advanced indexing:
-
-.. code-block:: python
-
-    >>> %timemit x = t['x']
-    219 ns ± 71.6 ns per loop (mean ± std. dev. of 7 runs, 1000000 loops each)
-
-
-``pandas`` timing:
-
-.. code-block:: python
-
-    >>> %timemit x = df['x']
-    1.55 µs ± 105 ns per loop (mean ± std. dev. of 7 runs, 1000000 loops each)
-
-
-This is the fastest methed for accessing the numpy array among alternatives of
-``df.values()``, ``df.to_numpy()``, and ``df.loc[]``.
-
-
-Assignment Operations
----------------------
-
-Direct access is not recommended as it avoids the validation steps, but it
-does provide fast access to the data attribute:
-
-.. code-block:: python
-
-    >>> x = np.arange(6)
-
-    >>> %timeit tf._data['x'] = x
-    65 ns ± 5.55 ns per loop (mean ± std. dev. of 7 runs, 10000000 loops each)
-
-
-Indidrect access has a performance penalty due to the validation checks to
-ensure consistency of the ``tafra``:
-
-.. code-block:: python
-
-    >>> %timeit tf['x'] = x
-    7.39 µs ± 950 ns per loop (mean ± std. dev. of 7 runs, 100000 loops each)
-
-Even so, there is considerable performance improvement over ``pandas``.
-
-``pandas`` timing:
-
-.. code-block:: python
-
-    >>> %timeit df['x'] = x
-    47.8 µs ± 3.53 µs per loop (mean ± std. dev. of 7 runs, 10000 loops each)
-
-
-Grouping Operations
--------------------
-
-``tafra`` also excels at aggregation methods, the primary of which are a
-SQL-like ``GROUP BY`` and the split-apply-combine equivalent to a SQL-like
-``GROUP BY`` following by a ``LEFT JOIN`` back to the original table.
-
-.. code-block:: python
-
-    >>> %timeit tf.group_by(['y', 'z'], {'x': sum})
-    138 µs ± 4.03 µs per loop (mean ± std. dev. of 7 runs, 10000 loops each)
-
-    >>> %timeit tf.transform(['y', 'z'], {'sum_x': (sum, 'x')})
-    161 µs ± 2.31 µs per loop (mean ± std. dev. of 7 runs, 10000 loops each)
-
-The equivalent ``pandas`` functions are given below. They require a chain
-of several object methods to perform the same role, and the transform requires
-a copy operation and assignment into the copied ``DataFrame`` in order to
-preserve immutability.
-
-.. code-block:: python
-
-    >>> %timeit df.groupby(['y','z']).agg({'x': 'sum'}).reset_index()
-    2.5 ms ± 177 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
-
-    >>> %%timeit
-    ... tdf = df.copy()
-    ... tdf['x'] = df.groupby(['y', 'z'])[['x']].transform(sum)
-    2.81 ms ± 143 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
