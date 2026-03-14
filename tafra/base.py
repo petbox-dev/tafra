@@ -497,8 +497,7 @@ class Tafra:
             validate=False
         )
 
-    def _repr_pretty_(self, p: 'IPython.lib.pretty.RepresentationPrinter',  # type: ignore # noqa
-                      cycle: bool) -> None:
+    def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         """
         A dunder method for IPython to pretty print.
 
