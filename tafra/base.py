@@ -2581,7 +2581,7 @@ def _in_notebook() -> bool:  # pragma: no cover
     """
     try:
         from IPython import get_ipython
-        if 'IPKernelApp' in get_ipython().config:  # type: ignore[no-untyped-call]
+        if 'IPKernelApp' in get_ipython().config:  # type: ignore[no-untyped-call,unused-ignore]
             return True
     except Exception as e:
         pass
