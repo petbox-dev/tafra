@@ -203,23 +203,31 @@ but still slower than ``pandas`` for large datasets:
     >>> %timeit plf.with_columns(pl.col('value').mean().over('group'))
     1.67 ms                                        # polars: 28x slower
 
-    # Transform: 100k rows, 100 groups
+    # Transform: 1M rows, 1k groups — Tafra+C still wins
     >>> %timeit tf.transform(...)
-    0.80 ms                                        # Tafra+C
+    8.38 ms                                        # Tafra+C
 
     >>> %timeit df ... .transform('mean')
-    2.97 ms                                        # pandas 2.3: 3.7x slower
+    32.4 ms                                        # pandas 3.0: 3.9x slower
 
     >>> %timeit plf.with_columns(...)
-    3.28 ms                                        # polars: 4.1x slower
+    9.66 ms                                        # polars: 1.2x slower
 
-With the C extension, ``Tafra`` is **4–28x faster** than both ``pandas`` and
-``polars`` for GroupBy and Transform at 10k rows. At 100k rows ``Tafra`` beats
-``pandas`` on everything and matches or beats ``polars`` except on multi-column
-groupby with many groups. Without the C extension, ``Tafra`` is still faster
-than both at 10k and competitive at 100k. The direct array mapping (O(n), no
-sort) and single-pass C aggregation eliminate both the ``np.unique`` sort
-bottleneck and multi-pass numpy overhead.
+    # GroupBy: 1M rows, 10k groups — polars pulls ahead
+    >>> %timeit tf.group_by(...)
+    28.5 ms                                        # Tafra+C
+
+    >>> %timeit df.groupby(...)
+    44.7 ms                                        # pandas 3.0: 1.6x slower
+
+    >>> %timeit plf.group_by(...)
+    9.44 ms                                        # polars: 3.0x faster
+
+At 10k rows, ``Tafra+C`` is **4–9x faster** than both ``pandas`` and
+``polars``. At 100k, ``Tafra`` beats ``pandas`` and is competitive with
+``polars``. At 1M rows, Transform still wins (8.4 ms vs polars 9.7 ms at 1k
+groups), while GroupBy with many groups sees polars' multithreaded Rust
+internals pull ahead (3x faster at 10k groups).
 
 String columns are automatically encoded to integer codes for efficient
 grouping — no performance penalty vs numeric-only groups.
@@ -277,12 +285,23 @@ back to a nested-loop approach.
     >>> %timeit left_pl.join(..., how='left')     # polars 1.39
     1.63 ms                                        # 20x slower
 
-With the C hash join, ``Tafra`` is **12–20x faster** than both ``pandas`` and
+    # Inner join: 50k x 50k rows
+    >>> %timeit left_tf.inner_join(...)           # Tafra+C
+    710 ms
+
+    >>> %timeit pd.merge(...)                     # pandas 3.0
+    1085 ms                                        # 1.5x slower
+
+    >>> %timeit left_pl.join(...)                 # polars 1.39
+    216 ms                                         # 3.3x faster
+
+With the C hash join, ``Tafra`` is **7–11x faster** than both ``pandas`` and
 ``polars`` on small-scale joins (1k x 1k). At 10k x 10k, ``polars``' Rust
-multithreaded join pulls ahead while ``Tafra`` is still 2.5x faster than
-``pandas``. ``Tafra``'s join also supports
-arbitrary comparison operators (``<``, ``<=``, ``>``, ``>=``, ``!=``) in the
-``on`` clause, which neither ``pandas`` nor ``polars`` natively offer.
+multithreaded join pulls ahead while ``Tafra`` is still 2x faster than
+``pandas``. At 50k x 50k, polars is 3.3x faster than ``Tafra``, which is
+still 1.5x faster than ``pandas``. ``Tafra``'s join also supports arbitrary
+comparison operators (``<``, ``<=``, ``>``, ``>=``, ``!=``) in the ``on``
+clause, which neither ``pandas`` nor ``polars`` natively offer.
 
 
 Partition and Multiprocessing
@@ -399,33 +418,37 @@ When to use Tafra
 
 * **Construction and teardown** — 140–320x faster than pandas, competitive
   with polars
-* **Column access** — 14–115x faster than pandas, 5–8x faster than polars
-* **Row-wise mapping** — 1.8x faster than pandas (polars has no row-wise UDF)
-* **GroupBy and Transform at ≤10k rows** — with C extension, 4–28x faster
+* **Column access** — 14–130x faster than pandas, 5–8x faster than polars
+* **Row-wise mapping** — 1.6–1.8x faster than pandas (polars has no
+  row-wise UDF)
+* **GroupBy and Transform at ≤10k rows** — with C extension, 4–9x faster
   than both pandas and polars
 * **GroupBy and Transform at 100k rows** — faster than pandas on all
   benchmarks; matches polars on single-column, polars leads on multi-column
+* **Transform at 1M rows** — Tafra+C (8.4 ms) still beats polars (9.7 ms)
+  and pandas (32–91 ms) at 1k groups
 * **Small-scale joins** — with C extension, equi-joins at 1k x 1k are
-  12–20x faster than both pandas and polars
+  7–11x faster than both pandas and polars
 * **Numba-accelerated computation** — direct ``ndarray`` access with zero
   adapter overhead
 
 ``polars`` is fastest for:
 
-* **Large-scale multi-column GroupBy** — Rust multithreaded internals at
-  100k+ rows with many groups (2–4x faster than Tafra)
-* **Large-scale joins** — Rust multithreaded hash-join at 5k+ rows
-  (2–3x faster than Tafra)
+* **Large-scale GroupBy** — Rust multithreaded internals at 1M rows
+  (3–10x faster than Tafra depending on group count)
+* **Large-scale joins** — Rust multithreaded hash-join at 50k+ rows
+  (3.3x faster than Tafra)
 
 ``pandas`` is the slowest of the three on nearly every benchmark. Version 3.0
 is significantly slower than 2.3 on column access and joins due to copy-on-write
-overhead. Its broadest feature set remains its primary advantage.
+overhead. At 1M-row Transform, pandas 2.3 (91 ms) is 11x slower than Tafra+C
+(8.4 ms).
 
-The general pattern: ``Tafra`` wins on everything up to ~10k rows and competes
-at 100k. ``polars`` pulls ahead on large-scale operations where its Rust
-multithreaded internals dominate. The optional C extension closes much of the
-remaining gap — without it, ``Tafra`` still beats pandas everywhere and is
-competitive with polars at moderate scales.
+The general pattern: ``Tafra`` wins on everything up to ~100k rows and remains
+competitive at 1M for single-column operations. ``polars`` pulls ahead at 1M+
+rows where its Rust multithreaded internals dominate. The optional C extension
+closes much of the remaining gap — without it, ``Tafra`` still beats pandas
+everywhere and is competitive with polars at moderate scales.
 
 
 Summary
@@ -438,19 +461,25 @@ Tafra+C = with optional C extension. Tafra = pure Python + numpy only.
 ===================================  =========  =========  ===========  ===========  =============
 Benchmark                            Tafra+C    Tafra      pandas 2.3   pandas 3.0   polars 1.39
 ===================================  =========  =========  ===========  ===========  =============
-Construction (100k rows)             **0.02**   0.02       2.80         6.46         0.04
-Column access (per call, µs)         **0.13**   0.13       1.81         15.7         0.70
-Row map (100 rows, tuple_map)        **0.80**   0.80       1.43         1.43         n/a
-GroupBy (10k, 50 grp, sum+mean)      **0.15**   0.18       0.73         0.90         0.60
-GroupBy (10k, 500 grp)               **0.19**   0.22       0.82         0.84         0.75
-GroupBy (100k, 100 grp)              **1.53**   1.77       2.71         4.56         1.74
-GroupBy (100k, 1k grp)               **1.75**   1.94       3.17         4.46         1.94
-GroupBy (100k, 2 col, ~300 grp)      9.12       8.99       7.19         15.6         **3.23**
-Transform (10k, 50 grp)             **0.06**    0.08       0.60         1.50         1.67
-Transform (100k, 100 grp)           **0.80**    1.11       2.97         4.55         3.28
-Inner join (1k × 1k)                **0.08**    0.30       0.93         2.53         1.53
-Inner join (5k × 5k)                 3.43       6.76       9.40         19.0         **4.14**
-Inner join (10k × 10k)               13.8       24.0       34.2         38.7         **5.50**
-Left join (1k × 1k)                 **0.08**    0.33       0.93         0.89         1.63
-Left join (5k × 5k)                  3.47       6.91       9.78         9.54         **1.60**
+Construction (100k rows)             **0.02**   0.02       2.80         3.21         0.03
+Column access (per call, µs)         **0.09**   0.09       1.81         11.8         0.57
+Row map (100 rows, tuple_map)        **0.80**   0.80       1.40         1.77         n/a
+GroupBy (10k, 50 grp, sum+mean)      **0.15**   0.17       0.83         1.28         0.91
+GroupBy (10k, 500 grp)               **0.20**   0.22       0.75         1.08         1.13
+GroupBy (100k, 100 grp)              **1.46**   1.69       2.54         4.56         2.14
+GroupBy (100k, 1k grp)               **1.72**   1.98       3.22         4.44         1.57
+GroupBy (1M, 100 grp)                24.3       32.2       17.2         27.0         **3.73**
+GroupBy (1M, 10k grp)                27.3       34.2       31.8         44.7         **9.44**
+GroupBy (100k, 2 col, ~300 grp)      **8.72**   9.21       9.46         17.8         3.39
+GroupBy (1M, 2 col, ~300 grp)        119        154        92.1         115          **11.7**
+Transform (10k, 50 grp)             **0.06**    0.08       0.60         0.97         0.58
+Transform (100k, 100 grp)           **0.80**    1.11       2.97         3.65         1.44
+Transform (1M, 1k grp)              **8.38**    15.4       90.9         32.4         9.66
+Inner join (1k × 1k)                **0.08**    0.30       0.93         1.49         0.95
+Inner join (5k × 5k)                 3.43       6.76       9.40         11.2         **2.16**
+Inner join (10k × 10k)               13.8       24.0       34.2         37.5         **4.50**
+Inner join (50k × 50k)               710        1343       1315         1085         **216**
+Left join (1k × 1k)                 **0.08**    0.33       0.93         1.01         3.78
+Left join (5k × 5k)                  3.47       6.91       9.78         12.6         **3.26**
+Left join (50k × 50k)                692        963        1296         1340         **189**
 ===================================  =========  =========  ===========  ===========  =============
