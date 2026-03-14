@@ -8,7 +8,7 @@ version = "2.1.0"
 description = "Tafra: innards of a dataframe"
 readme = {file = "README.rst", content-type = "text/x-rst"}
 license = "MIT"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
     {name = "David S. Fulford", email = "petbox.dev@gmail.com"},
 ]
@@ -22,7 +22,6 @@ classifiers = [
     "Intended Audience :: Education",
     "Intended Audience :: Developers",
     "Natural Language :: English",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -94,6 +93,10 @@ warn_redundant_casts = true
 warn_unreachable = true
 warn_unused_configs = true
 warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = "IPython.*"
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 addopts = "--cov=tafra --cov-report=term-missing --hypothesis-show-statistics -v test"
