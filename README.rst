@@ -54,9 +54,14 @@ and SQL-style "group by" and join operations.
 |                            | `left_join <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.left_join>`_,                                  |
 |                            | `cross_join <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.cross_join>`_                                 |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Chunking / Partitioning    | ``chunks``, ``chunk_rows``, ``partition``, ``concat``                                                                       |
+| Chunking / Partitioning    | `chunks <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.chunks>`_,                                        |
+|                            | `chunk_rows <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.chunk_rows>`_,                                |
+|                            | `partition <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.partition>`_,                                  |
+|                            | `concat <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.concat>`_                                         |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Custom Aggregations        | ``percentile``, ``geomean``, ``harmean``                                                                                    |
+| Custom Aggregations        | `percentile <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.percentile>`_,                                     |
+|                            | `geomean <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.geomean>`_,                                           |
+|                            | `harmean <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.harmean>`_                                            |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
 | Constructors               | `as_tafra <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.as_tafra>`_,                                    |
 |                            | `from_dataframe <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.from_dataframe>`_,                        |
@@ -98,9 +103,15 @@ and SQL-style "group by" and join operations.
 |                            | `update_dtypes <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.update_dtypes>`_,                          |
 |                            | `update_dtypes_inplace <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.update_dtypes_inplace>`_           |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Data Exploration           | ``head``, ``tail``, ``sort``, ``sample``, ``describe``, ``value_counts``, ``drop_duplicates``                               |
+| Data Exploration           | `head <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.head>`_,                                            |
+|                            | `tail <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.tail>`_,                                            |
+|                            | `sort <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.sort>`_,                                            |
+|                            | `sample <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.sample>`_,                                        |
+|                            | `describe <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.describe>`_,                                    |
+|                            | `value_counts <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.value_counts>`_,                            |
+|                            | `drop_duplicates <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.drop_duplicates>`_                       |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Time Series                | ``shift``                                                                                                                   |
+| Time Series                | `shift <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.shift>`_                                           |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
 | Other Helper Methods       | `select <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.select>`_,                                        |
 |                            | `copy <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.copy>`_,                                            |
