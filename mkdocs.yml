@@ -35,6 +35,12 @@ plugins:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - User Guide:
+    - Construction: guide/construction.md
+    - Column Operations: guide/column-ops.md
+    - GroupBy & Partition: guide/groupby-partition.md
+    - Joins: guide/joins.md
+    - Chunking: guide/chunking.md
   - API Reference: api.md
   - Benchmarks: benchmarks.md
   - Changelog: changelog.md
