@@ -1,0 +1,36 @@
+site_name: tafra
+site_url: https://petbox-dev.github.io/tafra/
+repo_url: https://github.com/petbox-dev/tafra
+repo_name: petbox-dev/tafra
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  palette:
+    scheme: default
+    primary: teal
+    accent: teal
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - content.code.copy
+
+extra_css:
+  - stylesheets/extra.css
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+
+nav:
+  - Home: index.md

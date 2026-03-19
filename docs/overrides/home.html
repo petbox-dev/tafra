@@ -1,0 +1,114 @@
+{% extends "main.html" %}
+
+{% block tabs %}
+  {{ super() }}
+{% endblock %}
+
+{% block content %}
+<!-- Hero -->
+<section class="hero">
+  <h1>The <span>innards</span> of a dataframe.</h1>
+  <p>A minimalist Python dataframe library &mdash; lightweight, fast, backed by numpy arrays.</p>
+  <div class="cta-row">
+    <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('pip install tafra')">
+      pip install tafra &nbsp;&#x1f4cb;
+    </button>
+    <a href="{{ 'index.md' | url }}" class="btn btn-primary">Get Started &rarr;</a>
+  </div>
+
+  <div class="hero-code">
+    <span class="kw">from</span> tafra <span class="kw">import</span> Tafra<br>
+    <span class="kw">import</span> numpy <span class="kw">as</span> np<br>
+    <br>
+    t <span class="op">=</span> Tafra({<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="str">'group'</span>: np.array([<span class="str">'a'</span>, <span class="str">'a'</span>, <span class="str">'b'</span>, <span class="str">'b'</span>]),<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="str">'value'</span>: np.array([<span class="num">10</span>, <span class="num">20</span>, <span class="num">30</span>, <span class="num">40</span>])<br>
+    })<br>
+    <br>
+    result <span class="op">=</span> t.<span class="fn">group_by</span>(<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;[<span class="str">'group'</span>], {<span class="str">'value'</span>: np.sum}<br>
+    )  <span class="cm"># 2 rows: a&rarr;30, b&rarr;70</span>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="features">
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">{ }</div>
+      <h3>Minimalist</h3>
+      <p>Dict of numpy arrays. No magic, no complexity. You already know the API.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#x26A1;</div>
+      <h3>Fast</h3>
+      <p>Vectorized aggregations via bincount/reduceat. Optional C extension for single-pass ops.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#x229D;</div>
+      <h3>SQL-Style Ops</h3>
+      <p>GroupBy, Transform, Inner/Left/Cross Join &mdash; familiar operations, zero overhead.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Benchmarks -->
+<section class="benchmarks">
+  <h2 class="section-title">Performance</h2>
+  <p class="section-subtitle">GroupBy sum on 1M rows &mdash; lower is better</p>
+  <table class="bench-table">
+    <thead>
+      <tr><th>Library</th><th>Time</th><th></th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="bench-fastest">tafra</td>
+        <td class="bench-fastest">4.2 ms</td>
+        <td><span class="bench-bar tafra" style="width:42px"></span></td>
+      </tr>
+      <tr>
+        <td>polars</td>
+        <td>8.1 ms</td>
+        <td><span class="bench-bar polars" style="width:81px"></span></td>
+      </tr>
+      <tr>
+        <td>pandas</td>
+        <td>24.7 ms</td>
+        <td><span class="bench-bar pandas" style="width:200px"></span></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- Comparison -->
+<section class="comparison">
+  <h2 class="section-title">Simple by Design</h2>
+  <p class="section-subtitle">Compare the same operation</p>
+  <div class="comparison-grid">
+    <div class="comparison-block">
+      <div class="label">pandas</div>
+      <pre>df = pd.DataFrame({
+    'group': ['a', 'a', 'b', 'b'],
+    'value': [10, 20, 30, 40]
+})
+result = df.groupby('group').sum()
+result = result.reset_index()</pre>
+    </div>
+    <div class="comparison-block highlight">
+      <div class="label">tafra</div>
+      <pre>t = Tafra({
+    'group': np.array(['a','a','b','b']),
+    'value': np.array([10, 20, 30, 40])
+})
+result = t.group_by(
+    ['group'], {'value': np.sum}
+)</pre>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="landing-footer">
+  MIT License &nbsp;&middot;&nbsp; <a href="https://github.com/petbox-dev/tafra">GitHub</a> &nbsp;&middot;&nbsp; <a href="https://pypi.org/project/tafra/">PyPI</a>
+</footer>
+{% endblock %}
