@@ -41,6 +41,11 @@ nav:
     - GroupBy & Partition: guide/groupby-partition.md
     - Joins: guide/joins.md
     - Chunking: guide/chunking.md
+  - Tutorials:
+    - Overview: tutorials/index.md
+    - Iris Dataset: tutorials/iris.md
+    - Titanic Analysis: tutorials/titanic.md
+    - Time Series: tutorials/timeseries.md
   - API Reference: api.md
   - Benchmarks: benchmarks.md
   - Changelog: changelog.md
