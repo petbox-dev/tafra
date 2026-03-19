@@ -20,37 +20,40 @@ that they are able to take [numba](http://numba.pydata.org/) `@jit`'ed
 functions as well.
 
 
-## Construction and Access
+## Construction & Access
 
 `Tafra` wraps a plain `dict` of `numpy` arrays, so construction and
 column access have minimal overhead compared to `pandas`:
 
 ```python
-# 100k rows, 5 columns
->>> %timeit Tafra(data)
-15 µs
+from tafra import Tafra
+import pandas as pd
+import polars as pl
+import numpy as np
 
->>> %timeit pd.DataFrame(data)               # pandas 2.3
-4.04 ms                                        # 264x slower
+data = {f'col{i}': np.random.randn(100_000) for i in range(5)}
 
->>> %timeit pd.DataFrame(data)               # pandas 3.0
-3.55 ms                                        # 309x slower
+tf = Tafra(data)          # 15 us
+df = pd.DataFrame(data)   # 4.04 ms (pandas 2.3) / 3.55 ms (pandas 3.0)
+plf = pl.DataFrame(data)  # 0.04 ms
 
->>> %timeit pl.DataFrame(data)               # polars 1.39
-0.04 ms                                        # 2.4x slower
+# Column access
+x = tf['col0']   # 0.13 us per access
+x = df['col0']   # 1.84 us (pandas 2.3) / 12.1 us (pandas 3.0)
+x = plf['col0']  # 0.84 us
+```
 
-# Column access, 10k iterations
->>> %timeit tf['x']
-0.13 µs per access
+| Operation | tafra | pandas 2.3 | pandas 3.0 | polars |
+|---|---|---|---|---|
+| Construction (100k rows, 5 cols) | **0.02 ms** | 2.80 ms (140x) | 3.21 ms (161x) | 0.03 ms (1.5x) |
+| Column access (per call) | **0.09 us** | 1.81 us (20x) | 11.8 us (131x) | 0.57 us (6.3x) |
 
->>> %timeit df['x']                          # pandas 2.3
-1.84 µs per access                             # 14x slower
-
->>> %timeit df['x']                          # pandas 3.0
-12.1 µs per access                             # 133x slower
-
->>> %timeit plf['x']                         # polars 1.39
-0.84 µs per access                             # 6.4x slower
+```mermaid
+xychart-beta horizontal
+  title "Construction: 100k rows, 5 columns (ms)"
+  x-axis ["tafra", "polars", "pandas 2.3", "pandas 3.0"]
+  y-axis "Time (ms)" 0 --> 4
+  bar [0.02, 0.03, 2.80, 3.21]
 ```
 
 `pandas` 3.0 introduced copy-on-write semantics and additional safety checks
@@ -60,168 +63,122 @@ faster than `pandas` but still 6x slower than `Tafra`'s direct dict lookup.
 
 ## Row Mapping
 
-`pandas` is essentially a standard package for anyone performing data science
-with Python, and it provides a wide variety of useful features. However, it's
-not particularly aimed at maximizing performance. Let's use an example of a
-dataframe of function arguments, and a function that maps scalar arguments into
-a vector result. Any function of time serves this purpose, so let's use a
-hyperbolic function.
-
-First, let's randomly generate some function arguments and construct both a
-`Tafra` and a `pandas.DataFrame`:
+`pandas` provides a wide variety of useful features but is not particularly
+aimed at maximizing row-mapping performance. Here we map a hyperbolic decline
+function over 100 rows of well parameters:
 
 ```python
->>> from tafra import Tafra
->>> import pandas as pd
->>> import numpy as np
+import math
 
->>> from typing import Tuple, Union, Any
+def hyp(qi: float, Di: float, bi: float, t: np.ndarray) -> np.ndarray:
+    Dn = ((1.0 - Di) ** -bi - 1.0) / bi
+    return qi / (1.0 + Dn * bi * t) ** (1.0 / bi)
 
->>> tf = Tafra({
-...     'wellid': np.arange(0, 100),
-...     'qi': np.random.lognormal(np.log(2000.), np.log(3000. / 1000.) / (2 * 1.28), 100),
-...     'Di': np.random.uniform(.5, .9, 100),
-...     'bi': np.random.normal(1.0, .2, 100)
-... })
+t = 10 ** np.linspace(0, 4, 101)
 
->>> df = pd.DataFrame(tf.data)
+# row_map returns dict-of-arrays
+result = Tafra(tf.row_map(mapper))
+
+# tuple_map is faster — uses NamedTuple access
+result = Tafra(tf.tuple_map(tuple_mapper))
 ```
 
-
-Next, we define our hyperbolic function and the time array to evaluate:
-
-```python
->>> import math
-
->>> def tan_to_nominal(D: float) -> float:
-...     return -math.log1p(-D)
-
->>> def sec_to_nominal(D: float, b: float) -> float:
-...     if b <= 1e-4:
-...         return tan_to_nominal(D)
-...
-...     return ((1.0 - D) ** -b - 1.0) / b
-
->>> def hyp(qi: float, Di: float, bi: float, t: np.ndarray) -> np.ndarray:
-...     Dn = sec_to_nominal(Di, bi)
-...
-...     if bi <= 1e-4:
-...         return qi * np.exp(-Dn * t)
-...
-...     return qi / (1.0 + Dn * bi * t) ** (1.0 / bi)
-
->>> t = 10 ** np.linspace(0, 4, 101)
-```
+| Method | tafra | pandas 2.3 | pandas 3.0 |
+|---|---|---|---|
+| row_map / apply | **1.96 ms** | 2.47 ms (1.3x) | 2.10 ms (1.1x) |
+| tuple_map / itertuples | **0.82 ms** | 1.51 ms (1.8x) | 1.19 ms (1.5x) |
 
 
-And let's build a generic `mapper` function to map over the named columns:
-
-```python
->>> def mapper(tf: Union[Tafra, pd.DataFrame]) -> Tuple[int, np.ndarray]:
-...     return tf['wellid'], hyp(tf['qi'], tf['Di'], tf['bi'], t)
-```
-
-
-We can call this with the following style and time each approach:
-
-```python
->>> %timeit Tafra(tf.row_map(mapper))
-1.96 ms
-
->>> %timeit pd.DataFrame(dict(df.apply(mapper, axis=1).to_list()))
-2.47 ms                                        # pandas 2.3: 1.3x slower
-2.10 ms                                        # pandas 3.0: 1.2x slower
-```
-
-
-We see `Tafra` is faster. Mapping a function this way is
-convenient, but there is some indirection occurring that we can do away with to
-obtain direct access to the data of the `Tafra`, and there is a faster
-method for `pandas` as well as opposed to `pandas.DataFrame.apply`.
-Instead of constructing a new `Tafra` or `pd.DataFrame` for each row, we
-can instead return a `NamedTuple`, which is faster to construct. Doing so:
-
-```python
->>> def tuple_mapper(tf: Tuple[Any, ...]) -> Tuple[int, np.ndarray]:
-...     return tf.wellid, hyp(tf.qi, tf.Di, tf.bi, t)
-
->>> %timeit Tafra(tf.tuple_map(tuple_mapper))
-820 µs
-
->>> %timeit pd.DataFrame(dict((tuple_mapper(row)) for row in df.itertuples()))
-1.51 ms                                        # pandas 2.3: 1.8x slower
-1.19 ms                                        # pandas 3.0: 1.5x slower
-```
-
-
-And once again, `Tafra` is faster.
-
-
-## GroupBy and Transform
+## GroupBy & Transform
 
 For aggregation operations, `pandas` uses optimized C/Cython internals that
 are difficult to match in pure Python + numpy. `Tafra` 2.1.0 uses
 index-based grouping (`np.unique` + `return_inverse`) rather than
-per-group boolean masks, which is considerably faster than earlier versions
-but still slower than `pandas` for large datasets:
+per-group boolean masks, which is considerably faster than earlier versions.
+
+### GroupBy
 
 ```python
-# GroupBy: 10k rows, 50 groups, 2 aggregations (C ext + vectorized fast path)
->>> %timeit tf.group_by(['group'], {'mean': (np.mean, 'value'), 'sum': (np.sum, 'value')})
-0.15 ms                                        # Tafra+C
+# GroupBy with two aggregations
+result = tf.group_by(
+    ['group'],
+    {'mean': (np.mean, 'value'), 'sum': (np.sum, 'value')}
+)
+```
 
->>> %timeit df.groupby('group')['value'].agg(['mean', 'sum']).reset_index()
-0.73 ms                                        # pandas 2.3: 5x slower
+| Scale | tafra+C | tafra | pandas 2.3 | pandas 3.0 | polars |
+|---|---|---|---|---|---|
+| 10k rows, 50 groups | **0.15 ms** | 0.17 ms | 0.83 ms | 1.28 ms | 0.91 ms |
+| 10k rows, 500 groups | **0.20 ms** | 0.22 ms | 0.75 ms | 1.08 ms | 1.13 ms |
+| 100k rows, 100 groups | **1.46 ms** | 1.69 ms | 2.54 ms | 4.56 ms | 2.14 ms |
+| 100k rows, 1k groups | **1.72 ms** | 1.98 ms | 3.22 ms | 4.44 ms | 1.57 ms |
+| 1M rows, 100 groups | 24.3 ms | 32.2 ms | 17.2 ms | 27.0 ms | **3.73 ms** |
+| 1M rows, 10k groups | 27.3 ms | 34.2 ms | 31.8 ms | 44.7 ms | **9.44 ms** |
+| 100k rows, 2 col, ~300 grp | **8.72 ms** | 9.21 ms | 9.46 ms | 17.8 ms | 3.39 ms |
+| 1M rows, 2 col, ~300 grp | 119 ms | 154 ms | 92.1 ms | 115 ms | **11.7 ms** |
 
->>> %timeit plf.group_by('group').agg(...)
-0.60 ms                                        # polars: 4x slower
+```mermaid
+xychart-beta horizontal
+  title "GroupBy: 10k rows, 50 groups (ms)"
+  x-axis ["tafra+C", "tafra", "pandas 2.3", "pandas 3.0", "polars"]
+  y-axis "Time (ms)" 0 --> 1.5
+  bar [0.15, 0.17, 0.83, 1.28, 0.91]
+```
 
-# GroupBy: 100k rows, 1000 groups
->>> %timeit tf.group_by(...)
-1.75 ms                                        # Tafra+C
+```mermaid
+xychart-beta horizontal
+  title "GroupBy: 100k rows, 1k groups (ms)"
+  x-axis ["tafra+C", "tafra", "pandas 2.3", "pandas 3.0", "polars"]
+  y-axis "Time (ms)" 0 --> 5
+  bar [1.72, 1.98, 3.22, 4.44, 1.57]
+```
 
->>> %timeit df.groupby(...)
-3.17 ms                                        # pandas 2.3: 1.8x slower
-
->>> %timeit plf.group_by(...)
-1.94 ms                                        # polars: ~equal
-
-# Transform: 10k rows, 50 groups
->>> %timeit tf.transform(['group'], {'m': (np.mean, 'value')})
-0.06 ms                                        # Tafra+C
-
->>> %timeit df.assign(m=df.groupby('group')['value'].transform('mean'))
-0.60 ms                                        # pandas 2.3: 10x slower
-
->>> %timeit plf.with_columns(pl.col('value').mean().over('group'))
-1.67 ms                                        # polars: 28x slower
-
-# Transform: 1M rows, 1k groups — Tafra+C still wins
->>> %timeit tf.transform(...)
-8.38 ms                                        # Tafra+C
-
->>> %timeit df ... .transform('mean')
-32.4 ms                                        # pandas 3.0: 3.9x slower
-
->>> %timeit plf.with_columns(...)
-9.66 ms                                        # polars: 1.2x slower
-
-# GroupBy: 1M rows, 10k groups — polars pulls ahead
->>> %timeit tf.group_by(...)
-28.5 ms                                        # Tafra+C
-
->>> %timeit df.groupby(...)
-44.7 ms                                        # pandas 3.0: 1.6x slower
-
->>> %timeit plf.group_by(...)
-9.44 ms                                        # polars: 3.0x faster
+```mermaid
+xychart-beta horizontal
+  title "GroupBy: 1M rows, 10k groups (ms)"
+  x-axis ["tafra+C", "tafra", "pandas 2.3", "pandas 3.0", "polars"]
+  y-axis "Time (ms)" 0 --> 50
+  bar [27.3, 34.2, 31.8, 44.7, 9.44]
 ```
 
 At 10k rows, `Tafra+C` is **4--9x faster** than both `pandas` and
 `polars`. At 100k, `Tafra` beats `pandas` and is competitive with
-`polars`. At 1M rows, Transform still wins (8.4 ms vs polars 9.7 ms at 1k
-groups), while GroupBy with many groups sees polars' multithreaded Rust
+`polars`. At 1M rows with many groups, polars' multithreaded Rust
 internals pull ahead (3x faster at 10k groups).
+
+### Transform
+
+```python
+# Transform broadcasts aggregation results back to original row count
+result = tf.transform(['group'], {'m': (np.mean, 'value')})
+```
+
+| Scale | tafra+C | tafra | pandas 2.3 | pandas 3.0 | polars |
+|---|---|---|---|---|---|
+| 10k rows, 50 groups | **0.06 ms** | 0.08 ms | 0.60 ms | 0.97 ms | 0.58 ms |
+| 100k rows, 100 groups | **0.80 ms** | 1.11 ms | 2.97 ms | 3.65 ms | 1.44 ms |
+| 1M rows, 1k groups | **8.38 ms** | 15.4 ms | 90.9 ms | 32.4 ms | 9.66 ms |
+
+```mermaid
+xychart-beta horizontal
+  title "Transform: 10k rows, 50 groups (ms)"
+  x-axis ["tafra+C", "tafra", "pandas 2.3", "pandas 3.0", "polars"]
+  y-axis "Time (ms)" 0 --> 1.5
+  bar [0.06, 0.08, 0.60, 0.97, 0.58]
+```
+
+```mermaid
+xychart-beta horizontal
+  title "Transform: 1M rows, 1k groups (ms)"
+  x-axis ["tafra+C", "tafra", "pandas 2.3", "pandas 3.0", "polars"]
+  y-axis "Time (ms)" 0 --> 100
+  bar [8.38, 15.4, 90.9, 32.4, 9.66]
+```
+
+Transform wins across all scales. At 1M rows, Tafra+C (8.4 ms) still beats
+polars (9.7 ms) and pandas (32--91 ms).
+
+### Vectorized fast path
 
 String columns are automatically encoded to integer codes for efficient
 grouping -- no performance penalty vs numeric-only groups.
@@ -253,45 +210,37 @@ For non-equality operators (`<`, `<=`, `>`, `>=`, `!=`), both paths
 fall back to a nested-loop approach.
 
 ```python
-# Inner join: 1k x 1k rows, equality on one key
->>> %timeit left_tf.inner_join(...)           # Tafra+C
-0.08 ms
+# Inner join on equality key
+result = left_tf.inner_join(right_tf, [('key', 'key', '==')])
 
->>> %timeit pd.merge(..., how='inner')        # pandas 2.3
-0.93 ms                                        # 12x slower
+# Left join
+result = left_tf.left_join(right_tf, [('key', 'key', '==')])
+```
 
->>> %timeit left_pl.join(..., how='inner')    # polars 1.39
-1.53 ms                                        # 19x slower
+| Benchmark | tafra+C | tafra | pandas 2.3 | pandas 3.0 | polars |
+|---|---|---|---|---|---|
+| Inner join (1k x 1k) | **0.08 ms** | 0.30 ms | 0.93 ms | 1.49 ms | 0.95 ms |
+| Inner join (5k x 5k) | 3.43 ms | 6.76 ms | 9.40 ms | 11.2 ms | **2.16 ms** |
+| Inner join (10k x 10k) | 13.8 ms | 24.0 ms | 34.2 ms | 37.5 ms | **4.50 ms** |
+| Inner join (50k x 50k) | 710 ms | 1343 ms | 1315 ms | 1085 ms | **216 ms** |
+| Left join (1k x 1k) | **0.08 ms** | 0.33 ms | 0.93 ms | 1.01 ms | 3.78 ms |
+| Left join (5k x 5k) | 3.47 ms | 6.91 ms | 9.78 ms | 12.6 ms | **3.26 ms** |
+| Left join (50k x 50k) | 692 ms | 963 ms | 1296 ms | 1340 ms | **189 ms** |
 
-# Inner join: 10k x 10k rows
->>> %timeit left_tf.inner_join(...)           # Tafra+C
-13.8 ms
+```mermaid
+xychart-beta horizontal
+  title "Inner Join: 1k x 1k rows (ms)"
+  x-axis ["tafra+C", "tafra", "pandas 2.3", "pandas 3.0", "polars"]
+  y-axis "Time (ms)" 0 --> 2
+  bar [0.08, 0.30, 0.93, 1.49, 0.95]
+```
 
->>> %timeit pd.merge(...)                     # pandas 2.3
-34.2 ms                                        # 2.5x slower
-
->>> %timeit left_pl.join(...)                 # polars 1.39
-5.50 ms                                        # 2.5x faster
-
-# Left join: 1k x 1k rows
->>> %timeit left_tf.left_join(...)            # Tafra+C
-0.08 ms
-
->>> %timeit pd.merge(..., how='left')         # pandas 2.3
-0.93 ms                                        # 12x slower
-
->>> %timeit left_pl.join(..., how='left')     # polars 1.39
-1.63 ms                                        # 20x slower
-
-# Inner join: 50k x 50k rows
->>> %timeit left_tf.inner_join(...)           # Tafra+C
-710 ms
-
->>> %timeit pd.merge(...)                     # pandas 3.0
-1085 ms                                        # 1.5x slower
-
->>> %timeit left_pl.join(...)                 # polars 1.39
-216 ms                                         # 3.3x faster
+```mermaid
+xychart-beta horizontal
+  title "Inner Join: 10k x 10k rows (ms)"
+  x-axis ["tafra+C", "tafra", "pandas 2.3", "pandas 3.0", "polars"]
+  y-axis "Time (ms)" 0 --> 40
+  bar [13.8, 24.0, 34.2, 37.5, 4.50]
 ```
 
 With the C hash join, `Tafra` is **7--11x faster** than both `pandas` and
@@ -303,7 +252,7 @@ comparison operators (`<`, `<=`, `>`, `>=`, `!=`) in the `on`
 clause, which neither `pandas` nor `polars` natively offer.
 
 
-## Partition and Multiprocessing
+## Partition & Multiprocessing
 
 `group_by` and `partition` both split data by group values, but serve
 different purposes:
@@ -318,11 +267,11 @@ it's 10-100x faster because it avoids serialization overhead entirely:
 
 ```python
 # Light work: group_by wins decisively
->>> tf.group_by(['group'], {'mean': (np.mean, 'value'), 'std': (np.std, 'value')})
-2 ms                                           # vectorized, no IPC
+tf.group_by(['group'], {'mean': (np.mean, 'value'), 'std': (np.std, 'value')})
+# 2 ms — vectorized, no IPC
 
->>> partition + serial map (same aggregations)
-10 ms                                          # partition + per-group Python calls
+# partition + serial map (same aggregations)
+# 10 ms — partition + per-group Python calls
 ```
 
 For **expensive per-group computation** (model fitting, forecasting, simulation),
@@ -371,42 +320,27 @@ Because `Tafra`'s `data` contains raw `numpy` arrays, `numba`
 `@jit`'ed functions work directly with no adapter layer:
 
 ```python
->>> from numba import jit
->>> jit_kw = {'fastmath': True}
+from numba import jit
+jit_kw = {'fastmath': True}
 
->>> @jit(**jit_kw)
-... def tan_to_nominal(D: float) -> float:
-...     return -math.log1p(-D)
+@jit(**jit_kw)
+def hyp(qi: float, Di: float, bi: float, t: np.ndarray) -> np.ndarray:
+    Dn = ((1.0 - Di) ** -bi - 1.0) / bi
+    return qi / (1.0 + Dn * bi * t) ** (1.0 / bi)
 
->>> @jit(**jit_kw)
-... def sec_to_nominal(D: float, b: float) -> float:
-...     if b <= 1e-4:
-...         return tan_to_nominal(D)
-...
-...     return ((1.0 - D) ** -b - 1.0) / b
+@jit(**jit_kw)
+def ndarray_map(qi, Di, bi, t):
+    out = np.zeros((qi.shape[0], t.shape[0]))
+    for i in range(qi.shape[0]):
+        out[i, :] = hyp(qi[i], Di[i], bi[i], t)
+    return out
 
->>> @jit(**jit_kw)
-... def hyp(qi: float, Di: float, bi: float, t: np.ndarray) -> np.ndarray:
-...     Dn = sec_to_nominal(Di, bi)
-...
-...     if bi <= 1e-4:
-...         return qi * np.exp(-Dn * t)
-...
-...     return qi / (1.0 + Dn * bi * t) ** (1.0 / bi)
-
->>> @jit(**jit_kw)
-... def ndarray_map(qi, Di, bi, t):
-...     out = np.zeros((qi.shape[0], t.shape[0]))
-...     for i in range(qi.shape[0]):
-...         out[i, :] = hyp(qi[i], Di[i], bi[i], t)
-...     return out
-
->>> %timeit ndarray_map(tf['qi'], tf['Di'], tf['bi'], t)
-# ~80 µs — essentially zero overhead from Tafra
+# ~80 us — essentially zero overhead from Tafra
+result = ndarray_map(tf['qi'], tf['Di'], tf['bi'], t)
 ```
 
 
-## When to use Tafra
+## When to Use Tafra
 
 `Tafra` is fastest when your workload is dominated by:
 
