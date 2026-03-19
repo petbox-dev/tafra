@@ -34,6 +34,7 @@ plugins:
 
 nav:
   - Home: index.md
+  - Getting Started: getting-started.md
   - API Reference: api.md
   - Benchmarks: benchmarks.md
   - Changelog: changelog.md
