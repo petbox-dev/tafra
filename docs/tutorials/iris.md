@@ -135,6 +135,20 @@ for col in summary.columns:
     petal_width   |   0.24 |       1.44 |      2.02
     ```
 
+<figure class="chart" style="margin: 2rem 0;">
+  <div class="chart-title">Mean Measurements by Species</div>
+  <table class="bench-table" style="margin-top: 1rem;">
+    <thead>
+      <tr><th>Species</th><th>Sepal Length</th><th>Sepal Width</th><th>Petal Length</th><th>Petal Width</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>setosa</td><td>5.02</td><td>3.44</td><td>1.44</td><td>0.24</td></tr>
+      <tr><td>versicolor</td><td>6.48</td><td>2.92</td><td>4.54</td><td>1.44</td></tr>
+      <tr><td>virginica</td><td>6.38</td><td>2.94</td><td>5.68</td><td>2.02</td></tr>
+    </tbody>
+  </table>
+</figure>
+
 <div class="chart">
   <div class="chart-title">Mean Sepal Length by Species (cm)</div>
   <div class="chart-row">

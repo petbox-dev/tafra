@@ -25,7 +25,7 @@
 .hero {
   padding: 3.5rem 2rem 3rem;
   text-align: center;
-  max-width: 800px;
+  max-width: 960px;
   margin: 0 auto;
 }
 
@@ -72,12 +72,12 @@
 .btn-primary,
 .btn-primary:link,
 .btn-primary:visited {
-  background: var(--accent);
+  background: var(--accent-hover);
   color: #fff !important;
 }
 
 .btn-primary:hover {
-  background: var(--accent-hover);
+  background: #115e59;
   color: #fff !important;
 }
 
@@ -95,7 +95,7 @@
 
 /* ── Code block in hero ── */
 .hero-code {
-  max-width: 620px;
+  max-width: 760px;
   margin: 2.5rem auto 0;
   background: var(--bg-code);
   border: 1px solid var(--border);
@@ -294,39 +294,47 @@
 
 /* ── Wider content area ── */
 .md-grid {
-  max-width: 1400px;
+  max-width: 1440px;
 }
 
-.md-content {
-  max-width: 1100px;
+.md-content__inner {
+  max-width: none;
 }
 
 /* ── API Reference spacing ── */
-.doc-object {
-  margin-top: 2.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border);
+.doc-object:not(.doc-object .doc-object) {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 2px solid var(--border);
 }
 
-.doc-object:first-child {
+.doc-object:not(.doc-object .doc-object):first-child {
   border-top: none;
   margin-top: 0;
   padding-top: 0;
 }
 
+/* Method-level objects within a class */
 .doc-object .doc-object {
-  margin-top: 1.5rem;
-  padding-top: 1rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
   border-top: 1px solid var(--bg-alt);
 }
 
 /* Give method signatures more visual weight */
 .doc-heading {
   font-size: 1rem;
-  padding: 0.4rem 0.6rem;
+  padding: 0.5rem 0.75rem;
   background: var(--bg-code);
   border-radius: 4px;
   border-left: 3px solid var(--accent);
+  margin-bottom: 1rem;
+}
+
+/* More breathing room for doc content */
+.doc-contents {
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 /* ── Inline bar charts ── */
