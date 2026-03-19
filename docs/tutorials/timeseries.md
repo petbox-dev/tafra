@@ -35,13 +35,29 @@ print(f'Date range: {ts["date"][0]} to {ts["date"][-1]}')
 print(f'Revenue range: {ts["revenue"].min():.1f} to {ts["revenue"].max():.1f}')
 ```
 
-Output:
+???+ example "Output"
 
-```
-Rows: 730
-Date range: 2023-01-01 to 2024-12-31
-Revenue range: 79.6 to 153.8
-```
+    ```
+    Rows: 730
+    Date range: 2023-01-01 to 2024-12-31
+    Revenue range: 79.6 to 153.8
+    ```
+
+???+ example "Data sample (first 7 rows)"
+
+    ```
+    date       | revenue
+    -----------+--------
+    2023-01-01 |  101.5
+    2023-01-02 |   99.2
+    2023-01-03 |  103.8
+    2023-01-04 |  107.1
+    2023-01-05 |   96.4
+    2023-01-06 |  102.3
+    2023-01-07 |  100.9
+    ```
+
+    *(Values are approximate -- exact output depends on the RNG seed.)*
 
 ## Extract year and month
 
@@ -57,12 +73,12 @@ print(f'Years:  {np.unique(ts["year"])}')
 print(f'Months: {np.unique(ts["month"])}')
 ```
 
-Output:
+???+ example "Output"
 
-```
-Years:  [2023 2024]
-Months: [ 1  2  3  4  5  6  7  8  9 10 11 12]
-```
+    ```
+    Years:  [2023 2024]
+    Months: [ 1  2  3  4  5  6  7  8  9 10 11 12]
+    ```
 
 ## Group by year
 
@@ -87,12 +103,12 @@ for i in range(annual.rows):
           f'  days={annual["days"][i]:.0f}')
 ```
 
-Output (values depend on RNG, shown approximately):
+???+ example "Output (approximate)"
 
-```
-2023:  total=42,066  mean=115.2  std=16.1  days=365
-2024:  total=47,371  mean=129.8  std=15.6  days=365
-```
+    ```
+    2023:  total=42,066  mean=115.2  std=16.1  days=365
+    2024:  total=47,371  mean=129.8  std=15.6  days=365
+    ```
 
 ## Group by year and month
 
@@ -119,17 +135,46 @@ for i in range(6):
           f'  days={monthly["days"][i]:.0f}')
 ```
 
-Output (approximate):
+???+ example "Output (approximate)"
 
-```
-Monthly groups: 24
+    ```
+    Monthly groups: 24
 
-2023-01:  total=3,145  mean=101.5  days=31
-2023-02:  total=2,922  mean=104.4  days=28
-2023-03:  total=3,478  mean=112.2  days=31
-2023-04:  total=3,504  mean=116.8  days=30
-2023-05:  total=3,795  mean=122.4  days=31
-2023-06:  total=3,706  mean=123.5  days=30
+    2023-01:  total=3,145  mean=101.5  days=31
+    2023-02:  total=2,922  mean=104.4  days=28
+    2023-03:  total=3,478  mean=112.2  days=31
+    2023-04:  total=3,504  mean=116.8  days=30
+    2023-05:  total=3,795  mean=122.4  days=31
+    2023-06:  total=3,706  mean=123.5  days=30
+    ```
+
+???+ example "Monthly aggregation -- table (first year)"
+
+    ```
+    period  | total_revenue | mean_revenue | days
+    --------+---------------+--------------+-----
+    2023-01 |         3,145 |        101.5 |   31
+    2023-02 |         2,922 |        104.4 |   28
+    2023-03 |         3,478 |        112.2 |   31
+    2023-04 |         3,504 |        116.8 |   30
+    2023-05 |         3,795 |        122.4 |   31
+    2023-06 |         3,706 |        123.5 |   30
+    2023-07 |         3,752 |        121.0 |   31
+    2023-08 |         3,604 |        116.3 |   31
+    2023-09 |         3,294 |        109.8 |   30
+    2023-10 |         3,321 |        107.1 |   31
+    2023-11 |         3,125 |        104.2 |   30
+    2023-12 |         3,420 |        110.3 |   31
+    ```
+
+    *(All values approximate.)*
+
+```mermaid
+xychart-beta
+    title "Mean Daily Revenue by Month (2023)"
+    x-axis ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    y-axis "Revenue ($)" 90 --> 130
+    bar [101.5, 104.4, 112.2, 116.8, 122.4, 123.5, 121.0, 116.3, 109.8, 107.1, 104.2, 110.3]
 ```
 
 ## Partition by year for parallel forecasting
@@ -145,12 +190,12 @@ for key, sub in parts:
           f' date range {sub["date"][0]} to {sub["date"][-1]}')
 ```
 
-Output:
+???+ example "Output"
 
-```
-Year 2023: 365 rows, date range 2023-01-01 to 2023-12-31
-Year 2024: 365 rows, date range 2024-01-01 to 2024-12-31
-```
+    ```
+    Year 2023: 365 rows, date range 2023-01-01 to 2023-12-31
+    Year 2024: 365 rows, date range 2024-01-01 to 2024-12-31
+    ```
 
 Process each partition and reassemble:
 
@@ -179,13 +224,13 @@ print(f'Columns: {list(combined.columns)}')
 print(f'Mean absolute residual: {np.mean(np.abs(combined["residual"])):.2f}')
 ```
 
-Output (approximate):
+???+ example "Output (approximate)"
 
-```
-Combined rows: 730
-Columns: ['date', 'actual', 'fitted', 'residual']
-Mean absolute residual: 11.42
-```
+    ```
+    Combined rows: 730
+    Columns: ['date', 'actual', 'fitted', 'residual']
+    Mean absolute residual: 11.42
+    ```
 
 ## Chunk by row count for batch processing
 
@@ -201,14 +246,22 @@ for i, chunk in enumerate(chunks):
           f' {chunk["date"][0]} to {chunk["date"][-1]}')
 ```
 
-Output:
+???+ example "Output"
 
-```
-Number of chunks: 4
-Chunk 0: 200 rows, 2023-01-01 to 2023-07-19
-Chunk 1: 200 rows, 2023-07-20 to 2024-02-04
-Chunk 2: 200 rows, 2024-02-05 to 2024-08-22
-Chunk 3: 130 rows, 2024-08-23 to 2024-12-31
+    ```
+    Number of chunks: 4
+    Chunk 0: 200 rows, 2023-01-01 to 2023-07-19
+    Chunk 1: 200 rows, 2023-07-20 to 2024-02-04
+    Chunk 2: 200 rows, 2024-02-05 to 2024-08-22
+    Chunk 3: 130 rows, 2024-08-23 to 2024-12-31
+    ```
+
+```mermaid
+pie title "Rows per Chunk"
+    "Chunk 0 (200)" : 200
+    "Chunk 1 (200)" : 200
+    "Chunk 2 (200)" : 200
+    "Chunk 3 (130)" : 130
 ```
 
 ## Split into equal chunks
@@ -223,14 +276,14 @@ for i, chunk in enumerate(equal_parts):
     print(f'Chunk {i}: {chunk.rows} rows')
 ```
 
-Output:
+???+ example "Output"
 
-```
-Number of chunks: 3
-Chunk 0: 244 rows
-Chunk 1: 243 rows
-Chunk 2: 243 rows
-```
+    ```
+    Number of chunks: 3
+    Chunk 0: 244 rows
+    Chunk 1: 243 rows
+    Chunk 2: 243 rows
+    ```
 
 ## Reassemble with Tafra.concat()
 
@@ -253,12 +306,12 @@ print(f'Final rows: {final.rows}')
 print(f'Columns: {list(final.columns)}')
 ```
 
-Output:
+???+ example "Output"
 
-```
-Final rows: 730
-Columns: ['date', 'revenue', 'cumulative_avg']
-```
+    ```
+    Final rows: 730
+    Columns: ['date', 'revenue', 'cumulative_avg']
+    ```
 
 ## Transform: broadcast monthly statistics
 
@@ -285,13 +338,13 @@ for idx in extreme:
           f' z-score={ts["z_score"][idx]:.2f}')
 ```
 
-Output (approximate):
+???+ example "Output (approximate)"
 
-```
-2024-10-15: revenue=153.8, z-score=3.12
-2023-01-08: revenue=79.6, z-score=-2.98
-2024-06-22: revenue=151.2, z-score=2.87
-```
+    ```
+    2024-10-15: revenue=153.8, z-score=3.12
+    2023-01-08: revenue=79.6, z-score=-2.98
+    2024-06-22: revenue=151.2, z-score=2.87
+    ```
 
 ## Summary
 

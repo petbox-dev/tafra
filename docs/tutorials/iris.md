@@ -35,12 +35,30 @@ print(f'Rows: {iris.rows}')
 print(f'Columns: {list(iris.columns)}')
 ```
 
-Output:
+???+ example "Output"
 
-```
-Rows: 15
-Columns: ['sepal_length', 'sepal_width', 'petal_length', 'petal_width', 'species']
-```
+    ```
+    Rows: 15
+    Columns: ['sepal_length', 'sepal_width', 'petal_length', 'petal_width', 'species']
+    ```
+
+???+ example "Data sample (first 3 rows per species)"
+
+    ```
+    sepal_length | sepal_width | petal_length | petal_width | species
+    -------------+-------------+--------------+-------------+-----------
+           5.1   |       3.5   |        1.4   |       0.2   | setosa
+           4.9   |       3.0   |        1.4   |       0.2   | setosa
+           4.7   |       3.2   |        1.3   |       0.2   | setosa
+           ...   |       ...   |        ...   |       ...   | ...
+           7.0   |       3.2   |        4.7   |       1.4   | versicolor
+           6.4   |       3.2   |        4.5   |       1.5   | versicolor
+           6.9   |       3.1   |        4.9   |       1.5   | versicolor
+           ...   |       ...   |        ...   |       ...   | ...
+           6.3   |       3.3   |        6.0   |       2.5   | virginica
+           5.8   |       2.7   |        5.1   |       1.9   | virginica
+           7.1   |       3.0   |        5.9   |       2.1   | virginica
+    ```
 
 ## Column access
 
@@ -62,14 +80,14 @@ print(f'Min petal length:  {np.min(iris["petal_length"]):.2f}')
 print(f'Max petal width:   {np.max(iris["petal_width"]):.2f}')
 ```
 
-Output:
+???+ example "Output"
 
-```
-Mean sepal length: 5.97
-Std sepal width:   0.36
-Min petal length:  1.30
-Max petal width:   2.50
-```
+    ```
+    Mean sepal length: 5.97
+    Std sepal width:   0.36
+    Min petal length:  1.30
+    Max petal width:   2.50
+    ```
 
 ## Group by species -- basic aggregation
 
@@ -96,14 +114,41 @@ for col in summary.columns:
         print(f'{col:14s}  {str(vals[0]):>6s}  {str(vals[1]):>6s}  {str(vals[2]):>6s}')
 ```
 
-Output:
+???+ example "Output"
 
+    ```
+    species        setosa  versicolor  virginica
+    sepal_length     5.02    6.46    6.40
+    sepal_width      3.44    2.92    2.98
+    petal_length     1.44    4.54    5.68
+    petal_width      0.24    1.44    2.02
+    ```
+
+???+ example "Mean measurements by species"
+
+    ```
+                  | setosa | versicolor | virginica
+    --------------+--------+------------+----------
+    sepal_length  |   5.02 |       6.46 |      6.40
+    sepal_width   |   3.44 |       2.92 |      2.98
+    petal_length  |   1.44 |       4.54 |      5.68
+    petal_width   |   0.24 |       1.44 |      2.02
+    ```
+
+```mermaid
+xychart-beta horizontal
+    title "Mean Sepal Length by Species"
+    x-axis ["setosa", "versicolor", "virginica"]
+    y-axis "cm" 0 --> 8
+    bar [5.02, 6.46, 6.40]
 ```
-species        setosa  versicolor  virginica
-sepal_length     5.02    6.46    6.40
-sepal_width      3.44    2.92    2.98
-petal_length     1.44    4.54    5.68
-petal_width      0.24    1.44    2.02
+
+```mermaid
+xychart-beta horizontal
+    title "Mean Petal Length by Species"
+    x-axis ["setosa", "versicolor", "virginica"]
+    y-axis "cm" 0 --> 7
+    bar [1.44, 4.54, 5.68]
 ```
 
 ## Renaming output columns
@@ -136,17 +181,17 @@ for i in range(stats.rows):
           f'  {stats["count"][i]:3.0f}')
 ```
 
-Output:
+???+ example "Output"
 
-```
-Columns: ['species', 'mean_sepal_len', 'std_sepal_len', 'mean_petal_len', 'std_petal_len', 'count']
-Rows:    3
+    ```
+    Columns: ['species', 'mean_sepal_len', 'std_sepal_len', 'mean_petal_len', 'std_petal_len', 'count']
+    Rows:    3
 
-     species  mean_sl    std_sl  mean_pl    std_pl    n
-      setosa      5.02     0.228      1.44     0.141    5
-  versicolor      6.46     0.506      4.54     0.296    5
-   virginica      6.40     0.418      5.68     0.327    5
-```
+         species  mean_sl    std_sl  mean_pl    std_pl    n
+          setosa      5.02     0.228      1.44     0.141    5
+      versicolor      6.46     0.506      4.54     0.296    5
+       virginica      6.40     0.418      5.68     0.327    5
+    ```
 
 ## Iterating by species
 
@@ -160,13 +205,13 @@ for keys, indices, sub in iris.iterate_by(['species']):
     print(f'{species}: n={sub.rows}, sepal_length range=[{sl.min():.1f}, {sl.max():.1f}]')
 ```
 
-Output:
+???+ example "Output"
 
-```
-setosa: n=5, sepal_length range=[4.7, 5.4]
-versicolor: n=5, sepal_length range=[5.5, 7.0]
-virginica: n=5, sepal_length range=[5.8, 7.1]
-```
+    ```
+    setosa: n=5, sepal_length range=[4.7, 5.4]
+    versicolor: n=5, sepal_length range=[5.5, 7.0]
+    virginica: n=5, sepal_length range=[5.8, 7.1]
+    ```
 
 ## Multiple group columns
 
@@ -190,13 +235,20 @@ for i in range(multi.rows):
           f'  n={multi["count"][i]:.0f}')
 ```
 
-Output:
+???+ example "Output"
 
-```
-      setosa  small  mean_petal=1.44  n=5
-  versicolor  small  mean_petal=4.00  n=1
-  versicolor  large  mean_petal=4.68  n=4
-   virginica  large  mean_petal=5.68  n=5
+    ```
+          setosa  small  mean_petal=1.44  n=5
+      versicolor  small  mean_petal=4.00  n=1
+      versicolor  large  mean_petal=4.68  n=4
+       virginica  large  mean_petal=5.68  n=5
+    ```
+
+```mermaid
+pie title "Species Distribution in Dataset"
+    "setosa" : 5
+    "versicolor" : 5
+    "virginica" : 5
 ```
 
 ## Summary

@@ -34,12 +34,29 @@ print(f'Rows: {titanic.rows}')
 print(f'Missing ages: {np.sum(np.isnan(titanic["age"]))}')
 ```
 
-Output:
+???+ example "Output"
 
-```
-Rows: 20
-Missing ages: 4
-```
+    ```
+    Rows: 20
+    Missing ages: 4
+    ```
+
+???+ example "Data sample (first 10 rows)"
+
+    ```
+    pclass | sex    |  age  | survived |  fare
+    -------+--------+-------+----------+------
+         1 | male   | 38.0  |        0 | 71.3
+         1 | female | 26.0  |        1 | 71.3
+         1 | female | 35.0  |        1 | 53.1
+         1 | male   | 54.0  |        0 | 51.9
+         1 | male   |  NaN  |        0 | 30.5
+         1 | female | 58.0  |        1 | 26.6
+         2 | male   | 34.0  |        0 | 13.0
+         2 | female | 28.0  |        1 | 13.0
+         2 | male   |  NaN  |        0 | 13.0
+         2 | female | 14.0  |        1 | 13.0
+    ```
 
 ## Handle missing values
 
@@ -63,12 +80,12 @@ print(f'Missing ages after fill: {np.sum(np.isnan(titanic["age"]))}')
 print(f'Filled ages: {titanic["age"][np.array([4, 8, 14, 15])]}')
 ```
 
-Output:
+???+ example "Output"
 
-```
-Missing ages after fill: 0
-Filled ages: [38.  34.  22.  22. ]
-```
+    ```
+    Missing ages after fill: 0
+    Filled ages: [38.  34.  22.  22. ]
+    ```
 
 The missing values were filled with their class median: 38.0 for class 1,
 34.0 for class 2, and 22.0 for class 3.
@@ -97,12 +114,30 @@ for i in range(by_class.rows):
           f'  n={by_class["count"][i]:.0f}')
 ```
 
-Output:
+???+ example "Output"
 
-```
-Class 1:  survival=50.00%  age=40.2  fare=50.8  n=6
-Class 2:  survival=42.86%  age=31.6  fare=16.7  n=7
-Class 3:  survival=28.57%  age=22.7  fare=7.9  n=7
+    ```
+    Class 1:  survival=50.00%  age=40.2  fare=50.8  n=6
+    Class 2:  survival=42.86%  age=31.6  fare=16.7  n=7
+    Class 3:  survival=28.57%  age=22.7  fare=7.9  n=7
+    ```
+
+???+ example "Survival by class -- table"
+
+    ```
+    pclass | survival_rate | mean_age | mean_fare | count
+    -------+---------------+----------+-----------+------
+         1 |        50.00% |     40.2 |      50.8 |     6
+         2 |        42.86% |     31.6 |      16.7 |     7
+         3 |        28.57% |     22.7 |       7.9 |     7
+    ```
+
+```mermaid
+xychart-beta horizontal
+    title "Survival Rate by Passenger Class"
+    x-axis ["Class 1", "Class 2", "Class 3"]
+    y-axis "Survival Rate (%)" 0 --> 60
+    bar [50.0, 42.86, 28.57]
 ```
 
 ## Survival rate by class and sex
@@ -124,15 +159,36 @@ for i in range(cross.rows):
           f'  n={cross["count"][i]:.0f}')
 ```
 
-Output:
+???+ example "Output"
 
-```
-Class 1 /   male:  survival=0%  n=3
-Class 1 / female:  survival=100%  n=3
-Class 2 /   male:  survival=0%  n=4
-Class 2 / female:  survival=100%  n=3
-Class 3 /   male:  survival=0%  n=5
-Class 3 / female:  survival=100%  n=2
+    ```
+    Class 1 /   male:  survival=0%  n=3
+    Class 1 / female:  survival=100%  n=3
+    Class 2 /   male:  survival=0%  n=4
+    Class 2 / female:  survival=100%  n=3
+    Class 3 /   male:  survival=0%  n=5
+    Class 3 / female:  survival=100%  n=2
+    ```
+
+???+ example "Cross-tabulation: survival rate by class and sex"
+
+    ```
+    pclass | sex    | survival_rate | count
+    -------+--------+---------------+------
+         1 | male   |            0% |     3
+         1 | female |          100% |     3
+         2 | male   |            0% |     4
+         2 | female |          100% |     3
+         3 | male   |            0% |     5
+         3 | female |          100% |     2
+    ```
+
+```mermaid
+xychart-beta horizontal
+    title "Survival Rate by Class and Sex"
+    x-axis ["1/M", "1/F", "2/M", "2/F", "3/M", "3/F"]
+    y-axis "Survival Rate (%)" 0 --> 110
+    bar [0, 100, 0, 100, 0, 100]
 ```
 
 ## Transform: add group statistics to rows
@@ -159,12 +215,12 @@ fare_ratio = titanic['fare'][:5] / enriched['class_mean_fare'][:5]
 print(f'Fare ratios (first 5): {np.round(fare_ratio, 2)}')
 ```
 
-Output:
+???+ example "Output"
 
-```
-Rows: 20
-Fare ratios (first 5): [1.4  1.4  1.05 1.02 0.6 ]
-```
+    ```
+    Rows: 20
+    Fare ratios (first 5): [1.4  1.4  1.05 1.02 0.6 ]
+    ```
 
 ## Partition by class for parallel analysis
 
@@ -179,13 +235,13 @@ for key, sub in parts:
     print(f'Class {key[0]}: {sub.rows} rows, survival={surv:.2%}')
 ```
 
-Output:
+???+ example "Output"
 
-```
-Class 1: 6 rows, survival=50.00%
-Class 2: 7 rows, survival=42.86%
-Class 3: 7 rows, survival=28.57%
-```
+    ```
+    Class 1: 6 rows, survival=50.00%
+    Class 2: 7 rows, survival=42.86%
+    Class 3: 7 rows, survival=28.57%
+    ```
 
 In a real pipeline you would pass these partitions to worker processes:
 
@@ -210,13 +266,13 @@ for i in range(combined.rows):
           f'fare={combined["mean_fare"][i]:.1f}')
 ```
 
-Output:
+???+ example "Output"
 
-```
-Class 1: survival=50.00%, fare=50.8
-Class 2: survival=42.86%, fare=16.7
-Class 3: survival=28.57%, fare=7.9
-```
+    ```
+    Class 1: survival=50.00%, fare=50.8
+    Class 2: survival=42.86%, fare=16.7
+    Class 3: survival=28.57%, fare=7.9
+    ```
 
 ## iterate_by for custom per-group logic
 
@@ -231,18 +287,26 @@ for keys, indices, sub in titanic.iterate_by(['pclass']):
     print(f'  Non-survivor mean age: {np.mean(non_surv):.1f} (n={len(non_surv)})')
 ```
 
-Output:
+???+ example "Output"
 
-```
-Class 1:
-  Survivor mean age:     39.7 (n=3)
-  Non-survivor mean age: 40.7 (n=3)
-Class 2:
-  Survivor mean age:     24.0 (n=3)
-  Non-survivor mean age: 37.3 (n=4)
-Class 3:
-  Survivor mean age:     19.0 (n=2)
-  Non-survivor mean age: 24.9 (n=5)
+    ```
+    Class 1:
+      Survivor mean age:     39.7 (n=3)
+      Non-survivor mean age: 40.7 (n=3)
+    Class 2:
+      Survivor mean age:     24.0 (n=3)
+      Non-survivor mean age: 37.3 (n=4)
+    Class 3:
+      Survivor mean age:     19.0 (n=2)
+      Non-survivor mean age: 24.9 (n=5)
+    ```
+
+```mermaid
+xychart-beta horizontal
+    title "Mean Age: Survivors vs Non-Survivors by Class"
+    x-axis ["Class 1 Surv", "Class 1 Non", "Class 2 Surv", "Class 2 Non", "Class 3 Surv", "Class 3 Non"]
+    y-axis "Age" 0 --> 50
+    bar [39.7, 40.7, 24.0, 37.3, 19.0, 24.9]
 ```
 
 ## Summary
