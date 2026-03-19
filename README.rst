@@ -8,9 +8,9 @@ Tafra: a minimalist dataframe
 .. image:: https://img.shields.io/pypi/pyversions/tafra.svg
     :target: https://pypi.org/project/tafra/
 
-.. image:: https://readthedocs.org/projects/tafra/badge/?version=latest
-    :target: https://tafra.readthedocs.io/en/latest/?badge=latest
-    :alt: Documentation Status
+.. image:: https://img.shields.io/badge/docs-GitHub%20Pages-0d9488
+    :target: https://petbox-dev.github.io/tafra/
+    :alt: Documentation
 
 
 The ``tafra`` began life as a thought experiment: how could we reduce the idea
@@ -35,101 +35,101 @@ support for managing data types, iterators for rows and sub-frames,
 and SQL-style "group by" and join operations.
 
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Tafra                      | `Tafra <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra>`_                                                 |
+| Tafra                      | `Tafra <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra>`_                                                 |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Aggregations               | `Union <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.Union>`_,                                               |
-|                            | `GroupBy <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.GroupBy>`_,                                           |
-|                            | `Transform <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.Transform>`_,                                       |
-|                            | `IterateBy <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.IterateBy>`_,                                       |
-|                            | `InnerJoin <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.InnerJoin>`_,                                       |
-|                            | `LeftJoin <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.LeftJoin>`_,                                         |
-|                            | `CrossJoin <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.CrossJoin>`_                                        |
+| Aggregations               | `Union <https://petbox-dev.github.io/tafra/api/#tafra.group.Union>`_,                                               |
+|                            | `GroupBy <https://petbox-dev.github.io/tafra/api/#tafra.group.GroupBy>`_,                                           |
+|                            | `Transform <https://petbox-dev.github.io/tafra/api/#tafra.group.Transform>`_,                                       |
+|                            | `IterateBy <https://petbox-dev.github.io/tafra/api/#tafra.group.IterateBy>`_,                                       |
+|                            | `InnerJoin <https://petbox-dev.github.io/tafra/api/#tafra.group.InnerJoin>`_,                                       |
+|                            | `LeftJoin <https://petbox-dev.github.io/tafra/api/#tafra.group.LeftJoin>`_,                                         |
+|                            | `CrossJoin <https://petbox-dev.github.io/tafra/api/#tafra.group.CrossJoin>`_                                        |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Aggregation Helpers        | `union <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.union>`__,                                         |
-|                            | `union_inplace <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.union_inplace>`_,                          |
-|                            | `group_by <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.group_by>`_,                                    |
-|                            | `transform <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.transform>`__,                                 |
-|                            | `iterate_by <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.iterate_by>`_,                                |
-|                            | `inner_join <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.inner_join>`_,                                |
-|                            | `left_join <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.left_join>`_,                                  |
-|                            | `cross_join <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.cross_join>`_                                 |
+| Aggregation Helpers        | `union <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.union>`__,                                         |
+|                            | `union_inplace <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.union_inplace>`_,                          |
+|                            | `group_by <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.group_by>`_,                                    |
+|                            | `transform <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.transform>`__,                                 |
+|                            | `iterate_by <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.iterate_by>`_,                                |
+|                            | `inner_join <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.inner_join>`_,                                |
+|                            | `left_join <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.left_join>`_,                                  |
+|                            | `cross_join <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.cross_join>`_                                 |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Chunking / Partitioning    | `chunks <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.chunks>`_,                                        |
-|                            | `chunk_rows <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.chunk_rows>`_,                                |
-|                            | `partition <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.partition>`_,                                  |
-|                            | `concat <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.concat>`_                                         |
+| Chunking / Partitioning    | `chunks <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.chunks>`_,                                        |
+|                            | `chunk_rows <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.chunk_rows>`_,                                |
+|                            | `partition <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.partition>`_,                                  |
+|                            | `concat <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.concat>`_                                         |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Custom Aggregations        | `percentile <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.percentile>`_,                                     |
-|                            | `geomean <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.geomean>`_,                                           |
-|                            | `harmean <https://tafra.readthedocs.io/en/latest/api.html#tafra.group.harmean>`_                                            |
+| Custom Aggregations        | `percentile <https://petbox-dev.github.io/tafra/api/#tafra.group.percentile>`_,                                     |
+|                            | `geomean <https://petbox-dev.github.io/tafra/api/#tafra.group.geomean>`_,                                           |
+|                            | `harmean <https://petbox-dev.github.io/tafra/api/#tafra.group.harmean>`_                                            |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Constructors               | `as_tafra <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.as_tafra>`_,                                    |
-|                            | `from_dataframe <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.from_dataframe>`_,                        |
-|                            | `from_series <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.from_series>`_,                              |
-|                            | `from_records <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.from_records>`_                             |
+| Constructors               | `as_tafra <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.as_tafra>`_,                                    |
+|                            | `from_dataframe <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.from_dataframe>`_,                        |
+|                            | `from_series <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.from_series>`_,                              |
+|                            | `from_records <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.from_records>`_                             |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| SQL Readers                | `read_sql <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.read_sql>`_,                                    |
-|                            | `read_sql_chunks <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.read_sql_chunks>`_                       |
+| SQL Readers                | `read_sql <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.read_sql>`_,                                    |
+|                            | `read_sql_chunks <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.read_sql_chunks>`_                       |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Destructors                | `to_records <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.to_records>`_,                                |
-|                            | `to_list <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.to_list>`_,                                      |
-|                            | `to_tuple <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.to_tuple>`_,                                    |
-|                            | `to_array <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.to_array>`_,                                    |
-|                            | `to_pandas <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.to_pandas>`_                                   |
+| Destructors                | `to_records <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.to_records>`_,                                |
+|                            | `to_list <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.to_list>`_,                                      |
+|                            | `to_tuple <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.to_tuple>`_,                                    |
+|                            | `to_array <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.to_array>`_,                                    |
+|                            | `to_pandas <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.to_pandas>`_                                   |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Properties                 | `rows <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.rows>`_,                                            |
-|                            | `columns <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.columns>`_,                                      |
-|                            | `data <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.data>`_,                                            |
-|                            | `dtypes <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.dtypes>`_,                                        |
-|                            | `size <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.size>`_,                                            |
-|                            | `ndim <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.ndim>`_,                                            |
-|                            | `shape <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.shape>`_                                           |
+| Properties                 | `rows <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.rows>`_,                                            |
+|                            | `columns <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.columns>`_,                                      |
+|                            | `data <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.data>`_,                                            |
+|                            | `dtypes <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.dtypes>`_,                                        |
+|                            | `size <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.size>`_,                                            |
+|                            | `ndim <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.ndim>`_,                                            |
+|                            | `shape <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.shape>`_                                           |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Iter Methods               | `iterrows <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.iterrows>`_,                                    |
-|                            | `itertuples <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.itertuples>`_,                                |
-|                            | `itercols <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.itercols>`_                                     |
+| Iter Methods               | `iterrows <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.iterrows>`_,                                    |
+|                            | `itertuples <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.itertuples>`_,                                |
+|                            | `itercols <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.itercols>`_                                     |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Functional Methods         | `row_map <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.row_map>`_,                                      |
-|                            | `tuple_map <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.tuple_map>`_,                                  |
-|                            | `col_map <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.col_map>`_,                                      |
-|                            | `pipe <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.pipe>`_                                             |
+| Functional Methods         | `row_map <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.row_map>`_,                                      |
+|                            | `tuple_map <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.tuple_map>`_,                                  |
+|                            | `col_map <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.col_map>`_,                                      |
+|                            | `pipe <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.pipe>`_                                             |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Dict-like Methods          | `keys <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.keys>`_,                                            |
-|                            | `values <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.values>`_,                                        |
-|                            | `items <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.items>`_,                                          |
-|                            | `get <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.get>`_,                                              |
-|                            | `update <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.update>`_,                                        |
-|                            | `update_inplace <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.update_inplace>`_,                        |
-|                            | `update_dtypes <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.update_dtypes>`_,                          |
-|                            | `update_dtypes_inplace <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.update_dtypes_inplace>`_           |
+| Dict-like Methods          | `keys <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.keys>`_,                                            |
+|                            | `values <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.values>`_,                                        |
+|                            | `items <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.items>`_,                                          |
+|                            | `get <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.get>`_,                                              |
+|                            | `update <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.update>`_,                                        |
+|                            | `update_inplace <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.update_inplace>`_,                        |
+|                            | `update_dtypes <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.update_dtypes>`_,                          |
+|                            | `update_dtypes_inplace <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.update_dtypes_inplace>`_           |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Data Exploration           | `head <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.head>`_,                                            |
-|                            | `tail <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.tail>`_,                                            |
-|                            | `sort <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.sort>`_,                                            |
-|                            | `sample <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.sample>`_,                                        |
-|                            | `describe <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.describe>`_,                                    |
-|                            | `value_counts <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.value_counts>`_,                            |
-|                            | `drop_duplicates <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.drop_duplicates>`_                       |
+| Data Exploration           | `head <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.head>`_,                                            |
+|                            | `tail <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.tail>`_,                                            |
+|                            | `sort <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.sort>`_,                                            |
+|                            | `sample <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.sample>`_,                                        |
+|                            | `describe <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.describe>`_,                                    |
+|                            | `value_counts <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.value_counts>`_,                            |
+|                            | `drop_duplicates <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.drop_duplicates>`_                       |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Time Series                | `shift <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.shift>`_                                           |
+| Time Series                | `shift <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.shift>`_                                           |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Other Helper Methods       | `select <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.select>`_,                                        |
-|                            | `copy <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.copy>`_,                                            |
-|                            | `rename <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.rename>`_,                                        |
-|                            | `rename_inplace <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.rename_inplace>`_,                        |
-|                            | `coalesce <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.coalesce>`_,                                    |
-|                            | `coalesce_inplace <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.coalesce_inplace>`_,                    |
-|                            | `_coalesce_dtypes <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra._coalesce_dtypes>`_,                    |
-|                            | `delete <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.delete>`_,                                        |
-|                            | `delete_inplace <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.delete_inplace>`_                         |
+| Other Helper Methods       | `select <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.select>`_,                                        |
+|                            | `copy <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.copy>`_,                                            |
+|                            | `rename <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.rename>`_,                                        |
+|                            | `rename_inplace <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.rename_inplace>`_,                        |
+|                            | `coalesce <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.coalesce>`_,                                    |
+|                            | `coalesce_inplace <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.coalesce_inplace>`_,                    |
+|                            | `_coalesce_dtypes <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra._coalesce_dtypes>`_,                    |
+|                            | `delete <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.delete>`_,                                        |
+|                            | `delete_inplace <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.delete_inplace>`_                         |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Printer Methods            | `pprint <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.pprint>`_,                                        |
-|                            | `pformat <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.pformat>`_,                                      |
-|                            | `to_html <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra.to_html>`_                                       |
+| Printer Methods            | `pprint <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.pprint>`_,                                        |
+|                            | `pformat <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.pformat>`_,                                      |
+|                            | `to_html <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra.to_html>`_                                       |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
-| Indexing Methods           | `_slice <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra._slice>`_,                                        |
-|                            | `_index <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra._index>`_,                                        |
-|                            | `_ndindex <https://tafra.readthedocs.io/en/latest/api.html#tafra.base.Tafra._ndindex>`_                                     |
+| Indexing Methods           | `_slice <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra._slice>`_,                                        |
+|                            | `_index <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra._index>`_,                                        |
+|                            | `_ndindex <https://petbox-dev.github.io/tafra/api/#tafra.base.Tafra._ndindex>`_                                     |
 +----------------------------+-----------------------------------------------------------------------------------------------------------------------------+
 
 Getting Started
@@ -294,7 +294,7 @@ for independent processing (e.g., multiprocessing):
 With 8 workers and ~13 ms of work per group, ``partition`` achieves ~5x
 speedup over serial execution. For light aggregations (sum, mean, std),
 ``group_by`` is 10-100x faster — use it instead. See
-`numerical.rst <https://tafra.readthedocs.io/en/latest/numerical.html>`_ for
+`numerical.rst <https://petbox-dev.github.io/tafra/benchmarks/>`_ for
 detailed benchmarks.
 
 ``chunks`` splits by row count (for data-parallel workloads where group
@@ -335,7 +335,7 @@ Timings
 .. note::
 
     Benchmarks collected with ``tafra`` 2.1.0. See
-    `numerical.rst <https://tafra.readthedocs.io/en/latest/numerical.html>`_
+    `numerical.rst <https://petbox-dev.github.io/tafra/benchmarks/>`_
     for full benchmarks against ``pandas`` 2.3/3.0 and ``polars`` 1.39.
 
 Lightweight means performant. By minimizing abstraction to access the
