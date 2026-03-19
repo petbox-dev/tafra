@@ -23,17 +23,17 @@
 
 /* ── Hero ── */
 .hero {
-  padding: 5rem 2rem 4rem;
+  padding: 3.5rem 2rem 3rem;
   text-align: center;
   max-width: 800px;
   margin: 0 auto;
 }
 
 .hero h1 {
-  font-size: 3rem;
+  font-size: 2.2rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
   color: var(--text-primary);
 }
 
@@ -42,10 +42,10 @@
 }
 
 .hero p {
-  font-size: 1.2rem;
+  font-size: 1.05rem;
   color: var(--text-secondary);
   max-width: 600px;
-  margin: 0 auto 2rem;
+  margin: 0 auto 1.5rem;
 }
 
 .cta-row {
@@ -69,13 +69,16 @@
   border: none;
 }
 
-.btn-primary {
+.btn-primary,
+.btn-primary:link,
+.btn-primary:visited {
   background: var(--accent);
-  color: #fff;
+  color: #fff !important;
 }
 
 .btn-primary:hover {
   background: var(--accent-hover);
+  color: #fff !important;
 }
 
 .btn-secondary {
@@ -115,7 +118,7 @@
 /* ── Features ── */
 .features {
   background: var(--bg-alt);
-  padding: 4rem 2rem;
+  padding: 3rem 2rem;
 }
 
 .features-grid {
@@ -165,13 +168,13 @@
 
 /* ── Benchmarks ── */
 .benchmarks {
-  padding: 4rem 2rem;
+  padding: 3rem 2rem;
   max-width: 800px;
   margin: 0 auto;
 }
 
 .section-title {
-  font-size: 1.8rem;
+  font-size: 1.4rem;
   font-weight: 700;
   text-align: center;
   margin-bottom: 0.5rem;
@@ -181,8 +184,8 @@
 .section-subtitle {
   text-align: center;
   color: var(--text-secondary);
-  margin-bottom: 2.5rem;
-  font-size: 1rem;
+  margin-bottom: 2rem;
+  font-size: 0.95rem;
 }
 
 .bench-table {
@@ -224,7 +227,7 @@
 /* ── Comparison ── */
 .comparison {
   background: var(--bg-alt);
-  padding: 4rem 2rem;
+  padding: 3rem 2rem;
 }
 
 .comparison-grid {
@@ -278,13 +281,52 @@
   font-size: 0.85rem;
 }
 
-.landing-footer a {
+.landing-footer a,
+.landing-footer a:link,
+.landing-footer a:visited {
   color: var(--accent);
   text-decoration: none;
 }
 
 .landing-footer a:hover {
   text-decoration: underline;
+}
+
+/* ── Wider content area ── */
+.md-grid {
+  max-width: 1400px;
+}
+
+.md-content {
+  max-width: 1100px;
+}
+
+/* ── API Reference spacing ── */
+.doc-object {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.doc-object:first-child {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.doc-object .doc-object {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--bg-alt);
+}
+
+/* Give method signatures more visual weight */
+.doc-heading {
+  font-size: 1rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--bg-code);
+  border-radius: 4px;
+  border-left: 3px solid var(--accent);
 }
 
 /* ── Responsive ── */
@@ -296,6 +338,6 @@
     grid-template-columns: 1fr;
   }
   .hero h1 {
-    font-size: 2rem;
+    font-size: 1.6rem;
   }
 }
