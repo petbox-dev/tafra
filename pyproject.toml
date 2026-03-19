@@ -39,6 +39,8 @@ keywords = [
 
 [project.urls]
 Homepage = "https://github.com/petbox-dev/tafra"
+Documentation = "https://petbox-dev.github.io/tafra/"
+Repository = "https://github.com/petbox-dev/tafra"
 
 [tool.setuptools.packages.find]
 include = ["tafra*"]
@@ -51,8 +53,7 @@ line-length = 100
 exclude = [
     ".git",
     "__pycache__",
-    "docs/conf.py",
-    "docs/source/conf.py",
+    "docs/",
     "old",
     "build",
     "dist",
