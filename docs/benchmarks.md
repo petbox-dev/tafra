@@ -48,13 +48,37 @@ x = plf['col0']  # 0.84 us
 | Construction (100k rows, 5 cols) | **0.02 ms** | 2.80 ms (140x) | 3.21 ms (161x) | 0.03 ms (1.5x) |
 | Column access (per call) | **0.09 us** | 1.81 us (20x) | 11.8 us (131x) | 0.57 us (6.3x) |
 
-```mermaid
-xychart-beta horizontal
-  title "Construction: 100k rows, 5 columns (ms)"
-  x-axis ["tafra", "polars", "pandas 2.3", "pandas 3.0"]
-  y-axis "Time (ms)" 0 --> 4
-  bar [0.02, 0.03, 2.80, 3.21]
-```
+<div class="chart">
+  <div class="chart-title">Construction: 100k rows, 5 columns (ms)</div>
+  <div class="chart-row">
+    <span class="chart-label">tafra</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 1%"></div>
+      <span class="chart-value">0.02</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">polars</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 1%"></div>
+      <span class="chart-value">0.03</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas 2.3</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 87%"></div>
+      <span class="chart-value">2.80</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas 3.0</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">3.21</span>
+    </div>
+  </div>
+</div>
 
 `pandas` 3.0 introduced copy-on-write semantics and additional safety checks
 in column access, significantly increasing per-access overhead. `polars` is
@@ -117,29 +141,122 @@ result = tf.group_by(
 | 100k rows, 2 col, ~300 grp | **8.72 ms** | 9.21 ms | 9.46 ms | 17.8 ms | 3.39 ms |
 | 1M rows, 2 col, ~300 grp | 119 ms | 154 ms | 92.1 ms | 115 ms | **11.7 ms** |
 
-```mermaid
-xychart-beta horizontal
-  title "GroupBy: 10k rows, 50 groups (ms)"
-  x-axis ["tafra+C", "tafra", "pandas 2.3", "pandas 3.0", "polars"]
-  y-axis "Time (ms)" 0 --> 1.5
-  bar [0.15, 0.17, 0.83, 1.28, 0.91]
-```
+<div class="chart">
+  <div class="chart-title">GroupBy: 10k rows, 50 groups (ms)</div>
+  <div class="chart-row">
+    <span class="chart-label">tafra+C</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 12%"></div>
+      <span class="chart-value">0.15</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">tafra</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 13%"></div>
+      <span class="chart-value">0.17</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas 2.3</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 65%"></div>
+      <span class="chart-value">0.83</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas 3.0</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">1.28</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">polars</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 71%"></div>
+      <span class="chart-value">0.91</span>
+    </div>
+  </div>
+</div>
 
-```mermaid
-xychart-beta horizontal
-  title "GroupBy: 100k rows, 1k groups (ms)"
-  x-axis ["tafra+C", "tafra", "pandas 2.3", "pandas 3.0", "polars"]
-  y-axis "Time (ms)" 0 --> 5
-  bar [1.72, 1.98, 3.22, 4.44, 1.57]
-```
+<div class="chart">
+  <div class="chart-title">GroupBy: 100k rows, 1k groups (ms)</div>
+  <div class="chart-row">
+    <span class="chart-label">tafra+C</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 39%"></div>
+      <span class="chart-value">1.72</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">tafra</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 45%"></div>
+      <span class="chart-value">1.98</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas 2.3</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 73%"></div>
+      <span class="chart-value">3.22</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas 3.0</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">4.44</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">polars</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 35%"></div>
+      <span class="chart-value">1.57</span>
+    </div>
+  </div>
+</div>
 
-```mermaid
-xychart-beta horizontal
-  title "GroupBy: 1M rows, 10k groups (ms)"
-  x-axis ["tafra+C", "tafra", "pandas 2.3", "pandas 3.0", "polars"]
-  y-axis "Time (ms)" 0 --> 50
-  bar [27.3, 34.2, 31.8, 44.7, 9.44]
-```
+<div class="chart">
+  <div class="chart-title">GroupBy: 1M rows, 10k groups (ms)</div>
+  <div class="chart-row">
+    <span class="chart-label">tafra+C</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 61%"></div>
+      <span class="chart-value">27.3</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">tafra</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 77%"></div>
+      <span class="chart-value">34.2</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas 2.3</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 71%"></div>
+      <span class="chart-value">31.8</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas 3.0</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">44.7</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">polars</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 21%"></div>
+      <span class="chart-value">9.44</span>
+    </div>
+  </div>
+</div>
 
 At 10k rows, `Tafra+C` is **4--9x faster** than both `pandas` and
 `polars`. At 100k, `Tafra` beats `pandas` and is competitive with
@@ -159,21 +276,83 @@ result = tf.transform(['group'], {'m': (np.mean, 'value')})
 | 100k rows, 100 groups | **0.80 ms** | 1.11 ms | 2.97 ms | 3.65 ms | 1.44 ms |
 | 1M rows, 1k groups | **8.38 ms** | 15.4 ms | 90.9 ms | 32.4 ms | 9.66 ms |
 
-```mermaid
-xychart-beta horizontal
-  title "Transform: 10k rows, 50 groups (ms)"
-  x-axis ["tafra+C", "tafra", "pandas 2.3", "pandas 3.0", "polars"]
-  y-axis "Time (ms)" 0 --> 1.5
-  bar [0.06, 0.08, 0.60, 0.97, 0.58]
-```
+<div class="chart">
+  <div class="chart-title">Transform: 10k rows, 50 groups (ms)</div>
+  <div class="chart-row">
+    <span class="chart-label">tafra+C</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 6%"></div>
+      <span class="chart-value">0.06</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">tafra</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 8%"></div>
+      <span class="chart-value">0.08</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas 2.3</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 62%"></div>
+      <span class="chart-value">0.60</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas 3.0</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">0.97</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">polars</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 60%"></div>
+      <span class="chart-value">0.58</span>
+    </div>
+  </div>
+</div>
 
-```mermaid
-xychart-beta horizontal
-  title "Transform: 1M rows, 1k groups (ms)"
-  x-axis ["tafra+C", "tafra", "pandas 2.3", "pandas 3.0", "polars"]
-  y-axis "Time (ms)" 0 --> 100
-  bar [8.38, 15.4, 90.9, 32.4, 9.66]
-```
+<div class="chart">
+  <div class="chart-title">Transform: 1M rows, 1k groups (ms)</div>
+  <div class="chart-row">
+    <span class="chart-label">tafra+C</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 9%"></div>
+      <span class="chart-value">8.38</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">tafra</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 17%"></div>
+      <span class="chart-value">15.4</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas 2.3</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">90.9</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas 3.0</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 36%"></div>
+      <span class="chart-value">32.4</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">polars</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 11%"></div>
+      <span class="chart-value">9.66</span>
+    </div>
+  </div>
+</div>
 
 Transform wins across all scales. At 1M rows, Tafra+C (8.4 ms) still beats
 polars (9.7 ms) and pandas (32--91 ms).
@@ -227,21 +406,83 @@ result = left_tf.left_join(right_tf, [('key', 'key', '==')])
 | Left join (5k x 5k) | 3.47 ms | 6.91 ms | 9.78 ms | 12.6 ms | **3.26 ms** |
 | Left join (50k x 50k) | 692 ms | 963 ms | 1296 ms | 1340 ms | **189 ms** |
 
-```mermaid
-xychart-beta horizontal
-  title "Inner Join: 1k x 1k rows (ms)"
-  x-axis ["tafra+C", "tafra", "pandas 2.3", "pandas 3.0", "polars"]
-  y-axis "Time (ms)" 0 --> 2
-  bar [0.08, 0.30, 0.93, 1.49, 0.95]
-```
+<div class="chart">
+  <div class="chart-title">Inner Join: 1k x 1k rows (ms)</div>
+  <div class="chart-row">
+    <span class="chart-label">tafra+C</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 5%"></div>
+      <span class="chart-value">0.08</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">tafra</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 20%"></div>
+      <span class="chart-value">0.30</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas 2.3</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 62%"></div>
+      <span class="chart-value">0.93</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas 3.0</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">1.49</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">polars</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 64%"></div>
+      <span class="chart-value">0.95</span>
+    </div>
+  </div>
+</div>
 
-```mermaid
-xychart-beta horizontal
-  title "Inner Join: 10k x 10k rows (ms)"
-  x-axis ["tafra+C", "tafra", "pandas 2.3", "pandas 3.0", "polars"]
-  y-axis "Time (ms)" 0 --> 40
-  bar [13.8, 24.0, 34.2, 37.5, 4.50]
-```
+<div class="chart">
+  <div class="chart-title">Inner Join: 10k x 10k rows (ms)</div>
+  <div class="chart-row">
+    <span class="chart-label">tafra+C</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 37%"></div>
+      <span class="chart-value">13.8</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">tafra</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 64%"></div>
+      <span class="chart-value">24.0</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas 2.3</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 91%"></div>
+      <span class="chart-value">34.2</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas 3.0</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">37.5</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">polars</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 12%"></div>
+      <span class="chart-value">4.50</span>
+    </div>
+  </div>
+</div>
 
 With the C hash join, `Tafra` is **7--11x faster** than both `pandas` and
 `polars` on small-scale joins (1k x 1k). At 10k x 10k, `polars`' Rust

@@ -135,21 +135,55 @@ for col in summary.columns:
     petal_width   |   0.24 |       1.44 |      2.02
     ```
 
-```mermaid
-xychart-beta horizontal
-    title "Mean Sepal Length by Species"
-    x-axis ["setosa", "versicolor", "virginica"]
-    y-axis "cm" 0 --> 8
-    bar [5.02, 6.46, 6.40]
-```
+<div class="chart">
+  <div class="chart-title">Mean Sepal Length by Species (cm)</div>
+  <div class="chart-row">
+    <span class="chart-label">setosa</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 78%"></div>
+      <span class="chart-value">5.02</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">versicolor</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">6.46</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">virginica</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 99%"></div>
+      <span class="chart-value">6.40</span>
+    </div>
+  </div>
+</div>
 
-```mermaid
-xychart-beta horizontal
-    title "Mean Petal Length by Species"
-    x-axis ["setosa", "versicolor", "virginica"]
-    y-axis "cm" 0 --> 7
-    bar [1.44, 4.54, 5.68]
-```
+<div class="chart">
+  <div class="chart-title">Mean Petal Length by Species (cm)</div>
+  <div class="chart-row">
+    <span class="chart-label">setosa</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 25%"></div>
+      <span class="chart-value">1.44</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">versicolor</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 80%"></div>
+      <span class="chart-value">4.54</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">virginica</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">5.68</span>
+    </div>
+  </div>
+</div>
 
 ## Renaming output columns
 
@@ -243,13 +277,6 @@ for i in range(multi.rows):
       versicolor  large  mean_petal=4.68  n=4
        virginica  large  mean_petal=5.68  n=5
     ```
-
-```mermaid
-pie title "Species Distribution in Dataset"
-    "setosa" : 5
-    "versicolor" : 5
-    "virginica" : 5
-```
 
 ## Summary
 

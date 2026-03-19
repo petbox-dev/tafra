@@ -132,13 +132,30 @@ for i in range(by_class.rows):
          3 |        28.57% |     22.7 |       7.9 |     7
     ```
 
-```mermaid
-xychart-beta horizontal
-    title "Survival Rate by Passenger Class"
-    x-axis ["Class 1", "Class 2", "Class 3"]
-    y-axis "Survival Rate (%)" 0 --> 60
-    bar [50.0, 42.86, 28.57]
-```
+<div class="chart">
+  <div class="chart-title">Survival Rate by Passenger Class (%)</div>
+  <div class="chart-row">
+    <span class="chart-label">Class 1</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">50.00</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Class 2</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 86%"></div>
+      <span class="chart-value">42.86</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Class 3</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 57%"></div>
+      <span class="chart-value">28.57</span>
+    </div>
+  </div>
+</div>
 
 ## Survival rate by class and sex
 
@@ -183,13 +200,51 @@ for i in range(cross.rows):
          3 | female |          100% |     2
     ```
 
-```mermaid
-xychart-beta horizontal
-    title "Survival Rate by Class and Sex"
-    x-axis ["1/M", "1/F", "2/M", "2/F", "3/M", "3/F"]
-    y-axis "Survival Rate (%)" 0 --> 110
-    bar [0, 100, 0, 100, 0, 100]
-```
+<div class="chart">
+  <div class="chart-title">Survival Rate by Class and Sex (%)</div>
+  <div class="chart-row">
+    <span class="chart-label">1/M</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 1%"></div>
+      <span class="chart-value">0</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">1/F</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">100</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">2/M</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 1%"></div>
+      <span class="chart-value">0</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">2/F</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">100</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">3/M</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 1%"></div>
+      <span class="chart-value">0</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">3/F</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">100</span>
+    </div>
+  </div>
+</div>
 
 ## Transform: add group statistics to rows
 
@@ -301,13 +356,51 @@ for keys, indices, sub in titanic.iterate_by(['pclass']):
       Non-survivor mean age: 24.9 (n=5)
     ```
 
-```mermaid
-xychart-beta horizontal
-    title "Mean Age: Survivors vs Non-Survivors by Class"
-    x-axis ["Class 1 Surv", "Class 1 Non", "Class 2 Surv", "Class 2 Non", "Class 3 Surv", "Class 3 Non"]
-    y-axis "Age" 0 --> 50
-    bar [39.7, 40.7, 24.0, 37.3, 19.0, 24.9]
-```
+<div class="chart">
+  <div class="chart-title">Mean Age: Survivors vs Non-Survivors by Class</div>
+  <div class="chart-row">
+    <span class="chart-label">Class 1 Surv</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 98%"></div>
+      <span class="chart-value">39.7</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Class 1 Non</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">40.7</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Class 2 Surv</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 59%"></div>
+      <span class="chart-value">24.0</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Class 2 Non</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 92%"></div>
+      <span class="chart-value">37.3</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Class 3 Surv</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 47%"></div>
+      <span class="chart-value">19.0</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Class 3 Non</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 61%"></div>
+      <span class="chart-value">24.9</span>
+    </div>
+  </div>
+</div>
 
 ## Summary
 

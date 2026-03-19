@@ -169,13 +169,93 @@ for i in range(6):
 
     *(All values approximate.)*
 
-```mermaid
-xychart-beta
-    title "Mean Daily Revenue by Month (2023)"
-    x-axis ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-    y-axis "Revenue ($)" 90 --> 130
-    bar [101.5, 104.4, 112.2, 116.8, 122.4, 123.5, 121.0, 116.3, 109.8, 107.1, 104.2, 110.3]
-```
+<div class="chart">
+  <div class="chart-title">Mean Daily Revenue by Month (2023, $)</div>
+  <div class="chart-row">
+    <span class="chart-label">Jan</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 82%"></div>
+      <span class="chart-value">101.5</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Feb</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 85%"></div>
+      <span class="chart-value">104.4</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Mar</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 91%"></div>
+      <span class="chart-value">112.2</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Apr</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 95%"></div>
+      <span class="chart-value">116.8</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">May</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 99%"></div>
+      <span class="chart-value">122.4</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Jun</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">123.5</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Jul</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 98%"></div>
+      <span class="chart-value">121.0</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Aug</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 94%"></div>
+      <span class="chart-value">116.3</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Sep</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 89%"></div>
+      <span class="chart-value">109.8</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Oct</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 87%"></div>
+      <span class="chart-value">107.1</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Nov</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 84%"></div>
+      <span class="chart-value">104.2</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Dec</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 89%"></div>
+      <span class="chart-value">110.3</span>
+    </div>
+  </div>
+</div>
 
 ## Partition by year for parallel forecasting
 
@@ -256,13 +336,37 @@ for i, chunk in enumerate(chunks):
     Chunk 3: 130 rows, 2024-08-23 to 2024-12-31
     ```
 
-```mermaid
-pie title "Rows per Chunk"
-    "Chunk 0 (200)" : 200
-    "Chunk 1 (200)" : 200
-    "Chunk 2 (200)" : 200
-    "Chunk 3 (130)" : 130
-```
+<div class="chart">
+  <div class="chart-title">Rows per Chunk</div>
+  <div class="chart-row">
+    <span class="chart-label">Chunk 0</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">200</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Chunk 1</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">200</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Chunk 2</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">200</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">Chunk 3</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 65%"></div>
+      <span class="chart-value">130</span>
+    </div>
+  </div>
+</div>
 
 ## Split into equal chunks
 
