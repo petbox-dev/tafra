@@ -10,10 +10,10 @@
   <h1>The <span>innards</span> of a dataframe.</h1>
   <p>A minimalist Python dataframe library &mdash; lightweight, fast, backed by numpy arrays.</p>
   <div class="cta-row">
-    <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('pip install tafra')">
+    <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('pip install tafra').then(function(){var b=this;this.textContent='Copied!';setTimeout(function(){b.textContent='pip install tafra \u00a0\ud83d\udccb';},2000);}.bind(this)).catch(function(){});">
       pip install tafra &nbsp;&#x1f4cb;
     </button>
-    <a href="{{ 'index.md' | url }}" class="btn btn-primary">Get Started &rarr;</a>
+    <a href="{{ 'getting-started/' | url }}" class="btn btn-primary">Get Started &rarr;</a>
   </div>
 
   <div class="hero-code">
@@ -53,6 +53,7 @@
 </section>
 
 <!-- Benchmarks -->
+<!-- Data source: test/bench_vs_pandas_vs_polars.py — these are placeholder numbers -->
 <section class="benchmarks">
   <h2 class="section-title">Performance</h2>
   <p class="section-subtitle">GroupBy sum on 1M rows &mdash; lower is better</p>
@@ -109,6 +110,6 @@ result = t.group_by(
 
 <!-- Footer -->
 <footer class="landing-footer">
-  MIT License &nbsp;&middot;&nbsp; <a href="https://github.com/petbox-dev/tafra">GitHub</a> &nbsp;&middot;&nbsp; <a href="https://pypi.org/project/tafra/">PyPI</a>
+  MIT License &nbsp;&middot;&nbsp; <a href="https://github.com/petbox-dev/tafra">GitHub</a> &nbsp;&middot;&nbsp; <a href="https://pypi.org/project/tafra/">PyPI</a> &nbsp;&middot;&nbsp; Built with <a href="https://squidfunk.github.io/mkdocs-material/">MkDocs Material</a>
 </footer>
 {% endblock %}
