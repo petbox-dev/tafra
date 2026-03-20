@@ -313,7 +313,7 @@ class Tafra:
             item: (
                 str | int | slice | Sequence[str | int | bool] | np.ndarray[Any, Any]
             )) -> Any:
-        # return type is actually Union[np.ndarray, 'Tafra'] but mypy requires user to type check
+        # return type is actually np.ndarray | 'Tafra' but mypy requires user to type check
         # in either case, what we return is a "slice" of the `Tafra`
         if isinstance(item, str):
             return self._data[item]
@@ -377,13 +377,13 @@ class Tafra:
 
         Parameters
         ----------
-        name: Optional[str] = 'Tafra'
+        name: str | None = 'Tafra'
             The name for the `NamedTuple`. If `None`, construct a
             `Tuple` instead.
 
         Returns
         -------
-        tuples: Iterator[NamedTuple[Any, ...]]
+        tuples: Iterator[Namedtuple[Any, ...]]
             An iterator of `NamedTuple`.
         """
         if name is None:
@@ -394,12 +394,12 @@ class Tafra:
 
     def itercols(self) -> Iterator[tuple[str, np.ndarray[Any, Any]]]:
         """
-        Yield columns as `Tuple[str, np.ndarray]`, where the `str` is the column
+        Yield columns as `tuple[str, np.ndarray]`, where the `str` is the column
         name.
 
         Returns
         -------
-        tuples: Iterator[Tuple[str, np.ndarray]]
+        tuples: Iterator[tuple[str, np.ndarray]]
             An iterator of `Tafra`.
         """
         return map(tuple, self.data.items())  # type: ignore
@@ -407,7 +407,7 @@ class Tafra:
     def _update_rows(self) -> None:
         """
         Updates `_rows`. User should call this if they have directly assigned to
-        :attr:_data and need to validate the `Tafra`.
+        `_data` and need to validate the `Tafra`.
         """
         iter_values = iter(self._data.values())
         self._rows = len(next(iter_values))
@@ -437,7 +437,7 @@ class Tafra:
 
     def _iindex(self, index: int) -> 'Tafra':
         """
-        Use a :class`int` to slice the `Tafra`.
+        Use a `int` to slice the `Tafra`.
 
         Parameters
         ----------
@@ -461,7 +461,7 @@ class Tafra:
 
         Parameters
         ----------
-        index: Sequence[Union[int, bool]]
+        index: Sequence[int | bool]
 
         Returns
         -------
@@ -565,7 +565,7 @@ class Tafra:
         width: int
             Attempted maximum number of columns in the output.
 
-        depth: Optional[int]
+        depth: int | None
             The maximum depth to print out nested structures.
 
         compact: bool
@@ -593,7 +593,7 @@ class Tafra:
         width: int
             Attempted maximum number of columns in the output.
 
-        depth: Optional[int]
+        depth: int | None
             The maximum depth to print out nested structures.
 
         compact: bool
@@ -713,7 +713,7 @@ class Tafra:
         """
         Validate values as an `np.ndarray` of equal length to `rows` before
         assignment. Will attempt to create a `np.ndarray` if `value` is not one
-        already, and will check that :attr`np.ndarray.ndim` `== 1`. If
+        already, and will check that `np.ndarray.ndim` `== 1`. If
         `np.ndarray.ndim` `> 1` it will attempt `np.squeeze()` on `value`.
 
         Parameters
@@ -721,7 +721,7 @@ class Tafra:
         column: str
             The column to assign to.
 
-        value: Union[np.ndarray, Sequence[Any], Any]
+        value: np.ndarray | Sequence[Any] | Any
             The value to be assigned.
 
         Returns
@@ -827,12 +827,12 @@ class Tafra:
 
         Parameters
         ----------
-        dtypes: Dict[str, Any]
+        dtypes: dict[str, Any]
             The dtypes to validate.
 
         Returns
         -------
-        dtypes: Dict[str, str]
+        dtypes: dict[str, str]
             The validated types.
         """
 
@@ -901,7 +901,7 @@ class Tafra:
         columns: Iterable[str]
             The column names to use.
 
-        dtypes: Optional[Iterable[Any]] = None
+        dtypes: Iterable[Any] | None = None
             The dtypes of the columns.
 
         Returns
@@ -929,7 +929,7 @@ class Tafra:
         s: pandas.Series
             The series used to build the `Tafra`.
 
-        dtype: Optional[str] = None
+        dtype: str | None = None
             The dtypes of the column.
 
         Returns
@@ -959,7 +959,7 @@ class Tafra:
         df: pandas.DataFrame
             The dataframe used to build the `Tafra`.
 
-        dtypes: Optional[Dict[str, Any]] = None
+        dtypes: dict[str, Any] | None = None
             The dtypes of the columns.
 
         Returns
@@ -1052,17 +1052,17 @@ class Tafra:
 
         Parameters
         ----------
-        csv_file: Union[str, TextIOWrapper]
+        csv_file: str | TextIOWrapper
             The path to the CSV file, or an open file-like object.
 
         guess_rows: int
             The number of rows to use when guessing column types.
 
-        dtypes: Optional[Dict[str, str]]
+        dtypes: dict[str, str] | None
             dtypes by column name; by default, all dtypes will be inferred
             from the file contents.
 
-        **csvkw: Dict[str, Any]
+        **csvkw: dict[str, Any]
             Additional keyword arguments passed to csv.reader.
 
         Returns
@@ -1086,12 +1086,12 @@ class Tafra:
 
         Parameters
         ----------
-        maybe_tafra: Union['tafra', DataFrame]
+        maybe_tafra: 'tafra' | DataFrame
             The object to ensure is a `Tafra`.
 
         Returns
         -------
-        tafra: Optional[Tafra]
+        tafra: Tafra | None
             The `Tafra`, or None is `maybe_tafra` is an unknown
             type.
         """
@@ -1122,7 +1122,7 @@ class Tafra:
 
         Returns
         -------
-        columns: Tuple[str, ...]
+        columns: tuple[str, ...]
             The column names.
         """
         return tuple(self._data.keys())
@@ -1155,7 +1155,7 @@ class Tafra:
 
         Returns
         -------
-        data: Dict[str, np.ndarray]
+        data: dict[str, np.ndarray]
             The data.
         """
         return self._data
@@ -1171,7 +1171,7 @@ class Tafra:
 
         Returns
         -------
-        dtypes: Dict[str, str]
+        dtypes: dict[str, str]
             The dtypes.
         """
         return self._dtypes
@@ -1266,7 +1266,7 @@ class Tafra:
         fn: Callable[..., Any]
             The function to map.
 
-        name: Optional[str] = 'Tafra'
+        name: str | None = 'Tafra'
             The name for the `NamedTuple`. If `None`, use plain
             tuples for ~2--4x faster iteration. Must be given as a keyword
             argument.
@@ -1291,7 +1291,7 @@ class Tafra:
     def col_map(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Iterator[Any]:
         """
         Map a function over columns. To apply to specific columns, use `select()`
-        first. The function must operate on `Tuple[str, np.ndarray]`.
+        first. The function must operate on `tuple[str, np.ndarray]`.
 
         Parameters
         ----------
@@ -1315,9 +1315,9 @@ class Tafra:
     def key_map(self, fn: Callable[..., Any],
                 *args: Any, **kwargs: Any) -> Iterator[tuple[str, Any]]:
         """
-        Map a function over columns like :meth:col_map, but return `Tuple` of the
+        Map a function over columns like `col_map()`, but return `tuple` of the
         key with the function result. To apply to specific columns, use `select()`
-        first. The function must operate on `Tuple[str, np.ndarray]`.
+        first. The function must operate on `tuple[str, np.ndarray]`.
 
         Parameters
         ----------
@@ -1425,7 +1425,7 @@ class Tafra:
 
         Parameters
         ----------
-        columns: Union[str, Iterable[str]]
+        columns: str | Iterable[str]
             Column(s) to sort by. First column is the primary sort key.
 
         reverse: bool = False
@@ -1452,7 +1452,7 @@ class Tafra:
         n: int
             Number of rows to sample.
 
-        seed: Optional[int]
+        seed: int | None
             Random seed for reproducibility.
 
         Returns
@@ -1472,7 +1472,7 @@ class Tafra:
 
         Parameters
         ----------
-        columns: Optional[Iterable[str]]
+        columns: Iterable[str] | None
             Columns to check for duplicates. If `None`, use all columns.
 
         Returns
@@ -1729,12 +1729,12 @@ class Tafra:
 
         Parameters
         ----------
-        dtypes: Dict[str, Any]
+        dtypes: dict[str, Any]
             The dtypes to update. If `None`, create from entries in `data`.
 
         Returns
         -------
-        tafra: Optional[Tafra]
+        tafra: Tafra | None
             The updated `Tafra`.
         """
         tafra = self.copy()
@@ -1749,12 +1749,12 @@ class Tafra:
 
         Parameters
         ----------
-        dtypes: Dict[str, Any]
+        dtypes: dict[str, Any]
             The dtypes to update. If `None`, create from entries in `data`.
 
         Returns
         -------
-        tafra: Optional[Tafra]
+        tafra: Tafra | None
             The updated `Tafra`.
         """
         dtypes = self._validate_dtypes(dtypes)
@@ -1778,12 +1778,12 @@ class Tafra:
 
         Parameters
         ----------
-        renames: Dict[str, str]
+        renames: dict[str, str]
             The map from current names to new names.
 
         Returns
         -------
-        tafra: Optional[Tafra]
+        tafra: Tafra | None
             The `Tafra` with update names.
         """
 
@@ -1799,12 +1799,12 @@ class Tafra:
 
         Parameters
         ----------
-        renames: Dict[str, str]
+        renames: dict[str, str]
             The map from current names to new names.
 
         Returns
         -------
-        tafra: Optional[Tafra]
+        tafra: Tafra | None
             The `Tafra` with update names.
         """
         self._validate_columns(renames.keys())
@@ -1825,7 +1825,7 @@ class Tafra:
 
         Returns
         -------
-        tafra: Optional[Tafra]
+        tafra: Tafra | None
             The `Tafra` with the deleted column.
         """
         if isinstance(columns, str):
@@ -1853,7 +1853,7 @@ class Tafra:
 
         Returns
         -------
-        tafra: Optional[Tafra]
+        tafra: Tafra | None
             The `Tafra` with the deleted column.
         """
         if isinstance(columns, str):
@@ -1899,7 +1899,7 @@ class Tafra:
         column: str
             The column to coalesce.
 
-        fills: Iterable[Union[str, int, float, bool, np.ndarray]:
+        fills: Iterable[str | int | float | bool | np.ndarray:
 
         Returns
         -------
@@ -1945,7 +1945,7 @@ class Tafra:
         column: str
             The column to coalesce.
 
-        fills: Iterable[Union[str, int, float, bool, np.ndarray]:
+        fills: Iterable[str | int | float | bool | np.ndarray:
 
         Returns
         -------
@@ -1994,7 +1994,7 @@ class Tafra:
 
         Parameters
         ----------
-        columns: Optional[Iterable[str]] = None
+        columns: Iterable[str] | None = None
             The columns to extract. If `None`, extract all columns.
 
         cast_null: bool
@@ -2002,7 +2002,7 @@ class Tafra:
 
         Returns
         -------
-        records: Iterator[Tuple[Any, ...]]
+        records: Iterator[tuple[Any, ...]]
         """
         if columns is None:
             columns = self.columns
@@ -2028,15 +2028,15 @@ class Tafra:
 
         Parameters
         ----------
-        columns: Optional[Iterable[str]] = None
+        columns: Iterable[str] | None = None
             The columns to extract. If `None`, extract all columns.
 
         inner: bool = False
-            Cast all `np.ndarray` to :class`List`.
+            Cast all `np.ndarray` to `list`.
 
         Returns
         -------
-        list: Union[List[np.ndarray], List[List[Any]]]
+        list: list[np.ndarray] | list[list[Any]]
         """
         if columns is None:
             columns = self.columns
@@ -2060,19 +2060,19 @@ class Tafra:
 
         Parameters
         ----------
-        columns: Optional[Iterable[str]] = None
+        columns: Iterable[str] | None = None
             The columns to extract. If `None`, extract all columns.
 
-        name: Optional[str] = 'Tafra'
+        name: str | None = 'Tafra'
             The name for the `NamedTuple`. If `None`, construct a
             `Tuple` instead.
 
         inner: bool = False
-            Cast all `np.ndarray` to :class`List`.
+            Cast all `np.ndarray` to `list`.
 
         Returns
         -------
-        list: Union[Tuple[np.ndarray], Tuple[Tuple[Any, ...]]]
+        list: tuple[np.ndarray] | tuple[tuple[Any, ...]]
         """
         if columns is None:
             columns = self.columns
@@ -2098,7 +2098,7 @@ class Tafra:
 
         Parameters
         ----------
-        columns: Optional[Iterable[str]] = None
+        columns: Iterable[str] | None = None
             The columns to extract. If `None`, extract all columns.
 
         Returns
@@ -2151,7 +2151,7 @@ class Tafra:
 
         Parameters
         ----------
-        filename: Union[str, Path]
+        filename: str | Path
             The path of the filename to write.
 
         columns: Iterable[str]
@@ -2242,8 +2242,8 @@ class Tafra:
         columns: Iterable[str]
             The column names to group by.
 
-        aggregation: Mapping[str, Union[Callable[[np.ndarray[Any, Any]], Any], \
-        Tuple[Callable[[np.ndarray[Any, Any]], Any], str]]]
+        aggregation: Mapping[str, Callable[[np.ndarray[Any, Any]], Any] | \
+        tuple[Callable[[np.ndarray[Any, Any]], Any], str]]
             Optional. A mapping for columns and aggregation functions. Should be
             given as {'column': fn} or {'new_column': (fn, 'column')}.
 
@@ -2277,8 +2277,8 @@ class Tafra:
         columns: Iterable[str]
             The column names to group by.
 
-        aggregation: Mapping[str, Union[Callable[[np.ndarray[Any, Any]], Any], \
-        Tuple[Callable[[np.ndarray[Any, Any]], Any], str]]]
+        aggregation: Mapping[str, Callable[[np.ndarray[Any, Any]], Any] | \
+        tuple[Callable[[np.ndarray[Any, Any]], Any], str]]
             Optional. A mapping for columns and aggregation functions. Should be
             given as {'column': fn} or {'new_column': (fn, 'column')}.
 
@@ -2333,7 +2333,7 @@ class Tafra:
         right: Tafra
             The right-side `Tafra` to join.
 
-        on: Iterable[Tuple[str, str, str]]
+        on: Iterable[tuple[str, str, str]]
             The columns and operator to join on. Should be given as
             ('left column', 'right column', 'op') Valid ops are:
 
@@ -2346,7 +2346,7 @@ class Tafra:
 
         select: Iterable[str] = []
             The columns to return. If not given, all unique columns names are
-            returned. If the column exists in both :class`Tafra`, prefers the left
+            returned. If the column exists in both `Tafra`, prefers the left
             over the right.
 
         Returns
@@ -2372,7 +2372,7 @@ class Tafra:
         right: Tafra
             The right-side `Tafra` to join.
 
-        on: Iterable[Tuple[str, str, str]]
+        on: Iterable[tuple[str, str, str]]
             The columns and operator to join on. Should be given as
             ('left column', 'right column', 'op') Valid ops are:
 
@@ -2385,7 +2385,7 @@ class Tafra:
 
         select: Iterable[str] = []
             The columns to return. If not given, all unique columns names are
-            returned. If the column exists in both :class`Tafra`, prefers the left
+            returned. If the column exists in both `Tafra`, prefers the left
             over the right.
 
         Returns
@@ -2414,7 +2414,7 @@ class Tafra:
 
         select: Iterable[str] = []
             The columns to return. If not given, all unique columns names are
-            returned. If the column exists in both :class`Tafra`, prefers the left
+            returned. If the column exists in both `Tafra`, prefers the left
             over the right.
 
         Returns
@@ -2435,12 +2435,12 @@ class Tafra:
         n: int
             Number of chunks.
 
-        sort_by: Optional[Iterable[str]]
+        sort_by: Iterable[str] | None
             Columns to sort by before splitting.
 
         Returns
         -------
-        chunks: List[Tafra]
+        chunks: list[Tafra]
             The chunked `Tafra` instances.
         """
         if n < 1:
@@ -2466,12 +2466,12 @@ class Tafra:
         size: int
             Maximum rows per chunk.
 
-        sort_by: Optional[Iterable[str]]
+        sort_by: Iterable[str] | None
             Columns to sort by before splitting.
 
         Returns
         -------
-        chunks: List[Tafra]
+        chunks: list[Tafra]
             The chunked `Tafra` instances.
         """
         if size < 1:
@@ -2492,12 +2492,12 @@ class Tafra:
         columns: Iterable[str]
             Columns to partition by.
 
-        sort_by: Optional[Iterable[str]]
+        sort_by: Iterable[str] | None
             Columns to sort by within each partition.
 
         Returns
         -------
-        partitions: List[Tuple[Tuple[Any, ...], Tafra]]
+        partitions: list[tuple[tuple[Any, ...], Tafra]]
             List of (group_key, sub_tafra) pairs.
         """
         from .group import GroupSet

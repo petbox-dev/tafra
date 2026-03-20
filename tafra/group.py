@@ -366,7 +366,7 @@ class Union:
         Returns
         -------
         tafra: Tafra
-            The unioned :class`Tafra`.
+            The unioned `Tafra`.
         """
         self._validate(left, right)
 
@@ -392,7 +392,7 @@ class Union:
         Returns
         -------
         tafra: Tafra
-            The unioned :class`Tafra`.
+            The unioned `Tafra`.
         """
         self._validate(left, right)
 
@@ -685,8 +685,8 @@ class GroupBy(AggMethod):
     group_by_cols: Iterable[str]
         The column names to group by.
 
-    aggregation: Mapping[str, Union[Callable[[np.ndarray], Any], \
-        Optional. Tuple[Callable[[np.ndarray], Any], str]]]
+    aggregation: Mapping[str, Callable[[np.ndarray], Any] | \
+        Optional. tuple[Callable[[np.ndarray], Any], str]]
         A mapping for columns and aggregation functions. Should be
         given as {'column': fn} or {'new_column': (fn, 'column')}.
 
@@ -778,8 +778,8 @@ class Transform(AggMethod):
     group_by_cols: Iterable[str]
         The column names to group by.
 
-    aggregation: Mapping[str, Union[Callable[[np.ndarray], Any], \
-    Tuple[Callable[[np.ndarray], Any], str]]]
+    aggregation: Mapping[str, Callable[[np.ndarray], Any] | \
+    tuple[Callable[[np.ndarray], Any], str]]
         Optional. A mapping for columns and aggregation functions. Should be
         given as {'column': fn} or {'new_column': (fn, 'column')}.
 
@@ -1044,7 +1044,7 @@ class InnerJoin(Join):
 
     Parameters
     ----------
-    on: Iterable[Tuple[str, str, str]]
+    on: Iterable[tuple[str, str, str]]
         The columns and operator to join on. Should be given as
         ('left column', 'right column', 'op') Valid ops are:
 
@@ -1057,7 +1057,7 @@ class InnerJoin(Join):
 
     select: Iterable[str] = []
         The columns to return. If not given, all unique columns names
-        are returned. If the column exists in both :class`Tafra`,
+        are returned. If the column exists in both `Tafra`,
         prefers the left over the right.
     """
 
@@ -1162,7 +1162,7 @@ class LeftJoin(Join):
 
     Parameters
     ----------
-    on: Iterable[Tuple[str, str, str]]
+    on: Iterable[tuple[str, str, str]]
         The columns and operator to join on. Should be given as
         ('left column', 'right column', 'op') Valid ops are:
 
@@ -1175,7 +1175,7 @@ class LeftJoin(Join):
 
     select: Iterable[str] = []
         The columns to return. If not given, all unique columns names
-        are returned. If the column exists in both :class`Tafra`,
+        are returned. If the column exists in both `Tafra`,
         prefers the left over the right.
     """
 
@@ -1289,7 +1289,7 @@ class CrossJoin(Join):
     ----------
     select: Iterable[str] = []
         The columns to return. If not given, all unique columns names
-        are returned. If the column exists in both :class`Tafra`,
+        are returned. If the column exists in both `Tafra`,
         prefers the left over the right.
     """
 
