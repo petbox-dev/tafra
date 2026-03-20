@@ -1,5 +1,28 @@
 # Version History
 
+## 2.2.0
+
+* **Performance**: Add C-accelerated `composite_key` for single-pass
+  multi-column key encoding -- eliminates Python loop and temporaries
+* **Performance**: Add C-accelerated `group_indices` with O(n) hash-based
+  group construction -- replaces `np.unique` + `argsort` + `split` pipeline
+* **Performance**: Add C-accelerated `encode_strings` with O(n) hash-based
+  string-to-integer encoding -- replaces O(n log n) `np.unique`; 2-2.5x
+  faster on string-column groupby
+* **Performance**: Multi-column GroupBy 1.9x faster (100k 2-col: 8.72 → 4.00 ms;
+  1M 2-col: 97 → 48 ms)
+* **Performance**: Add `tuple_map(name=None)` fast path -- skips NamedTuple
+  construction, uses `zip(*values)` directly; now beats pandas `itertuples`
+* **Modernize**: Replace `Dict`, `List`, `Tuple`, `Optional`, `Union` with
+  Python 3.10+ built-in generics and `|` union syntax; add
+  `from __future__ import annotations`
+* **Docs**: New MkDocs Material website with custom landing page, benchmark
+  charts, tutorials, and API reference with structured parameter tables
+* Remove RST cross-reference syntax from all docstrings
+* Fix docstring parameter name mismatches (`df` → `s`, `column` → `columns`,
+  `group_by` → `columns`)
+* Normalize numpy-style docstring indentation for griffe compatibility
+
 ## 2.1.0
 
 * **Performance**: Rewrite `GroupBy`, `Transform`, `IterateBy` to use

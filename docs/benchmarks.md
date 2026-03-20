@@ -912,4 +912,4 @@ Tafra+C = with optional C extension. Tafra = pure Python + numpy only.
 
 ---
 
-*Benchmarks collected with tafra 2.1.0, pandas 3.0.1, polars 1.39.0, numpy 2.2.5, numba 0.61.2 on Windows 11 (Python 3.11). C extension active.*
+*Benchmarks collected with tafra 2.2.0, pandas 3.0.1, polars 1.39.0, numpy 2.2.5, numba 0.61.2 on Windows 11 (Python 3.11). C extension active.*

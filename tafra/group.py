@@ -425,7 +425,7 @@ class GroupSet:
         codebooks: list[np.ndarray[Any, Any] | None] = []
         for c in col_arrays:
             if c.dtype.kind in ('T', 'U', 'S', 'O'):
-                if _HAS_ACCEL:
+                if _HAS_ACCEL and len(c) >= 50_000:
                     obj_arr = c.astype(object)
                     codes, _ = _c_encode_strings(obj_arr)
                     encoded.append(codes)
@@ -596,7 +596,7 @@ class GroupSet:
         """
         data, col_arrays = GroupSet._prepare_keys(tafra, columns)
 
-        if _HAS_ACCEL and data.dtype == np.int64:
+        if _HAS_ACCEL and data.dtype == np.int64 and tafra._rows >= 50_000:
             first_seen_idx, group_indices_list, n_groups = _c_group_indices(
                 np.ascontiguousarray(data))
             group_indices = list(group_indices_list)

@@ -334,7 +334,7 @@ Timings
 
 .. note::
 
-    Benchmarks collected with ``tafra`` 2.1.0. See
+    Benchmarks collected with ``tafra`` 2.2.0. See
     `numerical.rst <https://petbox-dev.github.io/tafra/benchmarks/>`_
     for full benchmarks against ``pandas`` 2.3/3.0 and ``polars`` 1.39.
 
