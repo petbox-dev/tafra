@@ -12,6 +12,8 @@ Notes
 -----
 Created on April 25, 2020
 """
+from __future__ import annotations
+
 __all__ = ['GroupBy', 'Transform', 'IterateBy', 'InnerJoin', 'LeftJoin',
            'percentile', 'geomean', 'harmean']
 
@@ -21,7 +23,7 @@ import dataclasses as dc
 
 import numpy as np
 
-from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union as _Union, Sequence,
+from typing import (Any, Callable, Mapping, Sequence,
                     Iterable, Iterator)
 from typing import cast
 
@@ -35,6 +37,9 @@ try:
         groupby_count as _c_count,
         inner_join as _c_inner_join,
         left_join as _c_left_join,
+        composite_key as _c_composite_key,
+        group_indices as _c_group_indices,
+        encode_strings as _c_encode_strings,
     )
     _HAS_ACCEL = True
 except ImportError:
@@ -43,12 +48,12 @@ except ImportError:
 
 # Vectorized aggregation functions that can bypass per-group Python loops.
 # Maps function identity to a callable(data, labels, n_groups) -> result_array.
-_VECTORIZED_AGGS: Dict[int, Callable[..., np.ndarray[Any, Any]]] = {}
+_VECTORIZED_AGGS: dict[int, Callable[..., np.ndarray[Any, Any]]] = {}
 
 
 def _sorted_segments(
     data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
-) -> Tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Sort data by group labels, return (sorted_data, offsets, counts)."""
     order = np.argsort(labels, kind='stable')
     sorted_data = data[order]
@@ -197,33 +202,33 @@ class _PercentileAgg:
 
 def percentile(q: float) -> _PercentileAgg:
     """
-    Create a percentile aggregation function for use in ``group_by``.
+    Create a percentile aggregation function for use in `group_by`.
 
     Parameters
     ----------
-        q: float
-            Percentile in range [0, 100].
+    q: float
+        Percentile in range [0, 100].
 
     Returns
     -------
-        agg: callable
-            A callable suitable for ``group_by`` aggregation that also
-            hits the vectorized fast path.
+    agg: callable
+        A callable suitable for `group_by` aggregation that also
+        hits the vectorized fast path.
 
     Example
     -------
-        >>> tf.group_by(['g'], {'p90': (percentile(90), 'value')})
+    >>> tf.group_by(['g'], {'p90': (percentile(90), 'value')})
     """
     return _PercentileAgg(q)
 
 
 def geomean(data: np.ndarray[Any, Any]) -> Any:
-    """Geometric mean aggregation for use in ``group_by``."""
+    """Geometric mean aggregation for use in `group_by`."""
     return np.exp(np.mean(np.log(data.astype(float))))
 
 
 def harmean(data: np.ndarray[Any, Any]) -> Any:
-    """Harmonic mean aggregation for use in ``group_by``."""
+    """Harmonic mean aggregation for use in `group_by`."""
     return len(data) / np.sum(1.0 / data.astype(float))
 
 
@@ -282,7 +287,7 @@ def _register_vectorized() -> None:
 _register_vectorized()
 
 
-JOIN_OPS: Dict[str, Callable[[Any, Any], Any]] = {
+JOIN_OPS: dict[str, Callable[[Any, Any], Any]] = {
     '==': operator.eq,
     '!=': operator.ne,
     '<': operator.lt,
@@ -294,16 +299,14 @@ JOIN_OPS: Dict[str, Callable[[Any, Any], Any]] = {
 # for the passed argument to an aggregation
 InitAggregation = Mapping[
     str,
-    _Union[
-        Callable[[np.ndarray[Any, Any]], Any],
-        Tuple[Callable[[np.ndarray[Any, Any]], Any], str]
-    ]
+    Callable[[np.ndarray[Any, Any]], Any]
+    | tuple[Callable[[np.ndarray[Any, Any]], Any], str]
 ]
 
 
 # for the result type of IterateBy
-GroupDescription = Tuple[
-    Tuple[Any, ...],  # tuple of unique values from group-by columns
+GroupDescription = tuple[
+    tuple[Any, ...],  # tuple of unique values from group-by columns
     np.ndarray[Any, Any],  # int array of row indices into original tafra for this group
     'Tafra'  # sub-tafra for the group
 ]
@@ -311,13 +314,13 @@ GroupDescription = Tuple[
 
 class Union:
     """
-    Union two :class:`Tafra` together. Analogy to SQL UNION or
+    Union two `Tafra` together. Analogy to SQL UNION or
     `pandas.append`. All column names and dtypes must match.
     """
     @staticmethod
     def _validate(left: 'Tafra', right: 'Tafra') -> None:
         """
-        Validate the :class:`Tafra` before applying.
+        Validate the `Tafra` before applying.
         """
         # These should be unreachable unless attributes were directly modified
         if len(left._data) != len(left._dtypes):
@@ -353,20 +356,20 @@ class Union:
 
     def apply(self, left: 'Tafra', right: 'Tafra') -> 'Tafra':
         """
-        Apply the :class:`Union_` to the :class:`Tafra`.
+        Apply the `Union_` to the `Tafra`.
 
         Parameters
         ----------
-            left: Tafra
-                The left :class:`Tafra` to union.
+        left: Tafra
+            The left `Tafra` to union.
 
-            right: Tafra
-                The right :class:`Tafra` to union.
+        right: Tafra
+            The right `Tafra` to union.
 
         Returns
         -------
-            tafra: Tafra
-                The unioned :class`Tafra`.
+        tafra: Tafra
+            The unioned `Tafra`.
         """
         self._validate(left, right)
 
@@ -379,20 +382,20 @@ class Union:
         """
         In-place version.
 
-        Apply the :class:`Union_` to the :class:`Tafra`.
+        Apply the `Union_` to the `Tafra`.
 
         Parameters
         ----------
-            left: Tafra
-                The left :class:`Tafra` to union.
+        left: Tafra
+            The left `Tafra` to union.
 
-            right: Tafra
-                The right :class:`Tafra` to union.
+        right: Tafra
+            The right `Tafra` to union.
 
         Returns
         -------
-            tafra: Tafra
-                The unioned :class`Tafra`.
+        tafra: Tafra
+            The unioned `Tafra`.
         """
         self._validate(left, right)
 
@@ -408,8 +411,8 @@ class GroupSet:
 
     @staticmethod
     def _encode_columns(
-        col_arrays: List[np.ndarray[Any, Any]]
-    ) -> Tuple[List[np.ndarray[Any, Any]], List[Optional[np.ndarray[Any, Any]]]]:
+        col_arrays: list[np.ndarray[Any, Any]]
+    ) -> tuple[list[np.ndarray[Any, Any]], list[np.ndarray[Any, Any] | None]]:
         """
         Encode columns for structured array compatibility.
         StringDType columns are converted to integer codes via np.unique.
@@ -419,12 +422,18 @@ class GroupSet:
         was needed.
         """
         encoded = []
-        codebooks: List[Optional[np.ndarray[Any, Any]]] = []
+        codebooks: list[np.ndarray[Any, Any] | None] = []
         for c in col_arrays:
             if c.dtype.kind in ('T', 'U', 'S', 'O'):
-                uniq, codes = np.unique(c, return_inverse=True)
-                encoded.append(codes)
-                codebooks.append(uniq)
+                if _HAS_ACCEL and len(c) >= 50_000:
+                    obj_arr = c.astype(object)
+                    codes, _ = _c_encode_strings(obj_arr)
+                    encoded.append(codes)
+                    codebooks.append(None)
+                else:
+                    uniq, codes = np.unique(c, return_inverse=True)
+                    encoded.append(codes)
+                    codebooks.append(uniq)
             else:
                 encoded.append(c)
                 codebooks.append(None)
@@ -432,9 +441,9 @@ class GroupSet:
 
     @staticmethod
     def _encode_columns_paired(
-        left_cols: List[np.ndarray[Any, Any]],
-        right_cols: List[np.ndarray[Any, Any]],
-    ) -> Tuple[List[np.ndarray[Any, Any]], List[np.ndarray[Any, Any]]]:
+        left_cols: list[np.ndarray[Any, Any]],
+        right_cols: list[np.ndarray[Any, Any]],
+    ) -> tuple[list[np.ndarray[Any, Any]], list[np.ndarray[Any, Any]]]:
         """
         Encode left and right column pairs with a shared codebook.
         Ensures the same string value gets the same integer code on both sides.
@@ -444,7 +453,10 @@ class GroupSet:
         for lc, rc in zip(left_cols, right_cols):
             if lc.dtype.kind in ('T', 'U', 'S', 'O'):
                 combined = np.concatenate([lc, rc])
-                _, codes = np.unique(combined, return_inverse=True)
+                if _HAS_ACCEL and len(combined) >= 50_000:
+                    codes, _ = _c_encode_strings(combined.astype(object))
+                else:
+                    _, codes = np.unique(combined, return_inverse=True)
                 left_enc.append(codes[:len(lc)])
                 right_enc.append(codes[len(lc):])
             else:
@@ -454,7 +466,7 @@ class GroupSet:
 
     @staticmethod
     def _build_composite_key(
-        encoded: List[np.ndarray[Any, Any]]
+        encoded: list[np.ndarray[Any, Any]]
     ) -> np.ndarray[Any, Any]:
         """
         Combine multiple integer-coded columns into a single flat key.
@@ -477,7 +489,12 @@ class GroupSet:
                 break
 
         if not overflow:
-            # flat integer key via positional encoding
+            if _HAS_ACCEL:
+                return _c_composite_key(
+                    tuple(c.astype(np.int64) for c in encoded),
+                    tuple(cards),
+                )
+            # Python fallback: flat integer key via positional encoding
             key = np.zeros(len(encoded[0]), dtype=np.int64)
             multiplier = 1
             for c, card in zip(reversed(encoded), reversed(cards)):
@@ -496,8 +513,8 @@ class GroupSet:
     @staticmethod
     def _decode_unique(
         first_seen_indices: np.ndarray[Any, Any],
-        col_arrays: List[np.ndarray[Any, Any]],
-    ) -> List[Tuple[Any, ...]]:
+        col_arrays: list[np.ndarray[Any, Any]],
+    ) -> list[tuple[Any, ...]]:
         """Build unique group tuples by indexing original columns at first-seen rows."""
         if len(col_arrays) == 1:
             return [(v,) for v in col_arrays[0][first_seen_indices]]
@@ -510,7 +527,7 @@ class GroupSet:
     @staticmethod
     def _direct_labels_firstseen(
         data: np.ndarray[Any, Any], n_rows: int
-    ) -> Tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], int]:
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], int]:
         """
         Assign first-seen-order group labels using direct array mapping.
         O(n + max_key) — no sort. Requires non-negative integer keys.
@@ -537,7 +554,7 @@ class GroupSet:
     @staticmethod
     def _direct_labels_sorted(
         data: np.ndarray[Any, Any]
-    ) -> Tuple[np.ndarray[Any, Any], int]:
+    ) -> tuple[np.ndarray[Any, Any], int]:
         """
         Assign sorted-order group labels using direct array mapping.
         O(n + max_key) — no sort. For Transform (order doesn't matter).
@@ -555,7 +572,7 @@ class GroupSet:
     @staticmethod
     def _prepare_keys(
         tafra: 'Tafra', columns: Iterable[str]
-    ) -> Tuple[np.ndarray[Any, Any], List[np.ndarray[Any, Any]]]:
+    ) -> tuple[np.ndarray[Any, Any], list[np.ndarray[Any, Any]]]:
         """Encode columns and build composite integer key."""
         cols = list(columns)
         col_arrays = [tafra._data[c] for c in cols]
@@ -569,7 +586,7 @@ class GroupSet:
     @staticmethod
     def _build_group_indices(
         tafra: 'Tafra', columns: Iterable[str]
-    ) -> Tuple[List[Tuple[Any, ...]], List[np.ndarray[Any, Any]]]:
+    ) -> tuple[list[tuple[Any, ...]], list[np.ndarray[Any, Any]]]:
         """
         Build per-group row index arrays in a single pass.
 
@@ -579,16 +596,19 @@ class GroupSet:
         """
         data, col_arrays = GroupSet._prepare_keys(tafra, columns)
 
-        labels, first_seen_idx, n_groups = GroupSet._direct_labels_firstseen(
-            data, tafra._rows)
+        if _HAS_ACCEL and data.dtype == np.int64 and tafra._rows >= 50_000:
+            first_seen_idx, group_indices_list, n_groups = _c_group_indices(
+                np.ascontiguousarray(data))
+            group_indices = list(group_indices_list)
+        else:
+            labels, first_seen_idx, n_groups = GroupSet._direct_labels_firstseen(
+                data, tafra._rows)
+            sorted_row_indices = np.argsort(labels, kind='stable')
+            counts = np.bincount(labels, minlength=n_groups)
+            splits = np.cumsum(counts[:-1])
+            group_indices = list(np.split(sorted_row_indices, splits))
 
-        sorted_row_indices = np.argsort(labels, kind='stable')
-        counts = np.bincount(labels, minlength=n_groups)
-        splits = np.cumsum(counts[:-1])
-        group_indices: List[np.ndarray[Any, Any]] = list(
-            np.split(sorted_row_indices, splits))
-
-        unique: List[Tuple[Any, ...]] = GroupSet._decode_unique(
+        unique: list[tuple[Any, ...]] = GroupSet._decode_unique(
             first_seen_idx, col_arrays)
 
         return unique, group_indices
@@ -596,7 +616,7 @@ class GroupSet:
     @staticmethod
     def _build_group_labels(
         tafra: 'Tafra', columns: Iterable[str]
-    ) -> Tuple[List[Tuple[Any, ...]], np.ndarray[Any, Any], int]:
+    ) -> tuple[list[tuple[Any, ...]], np.ndarray[Any, Any], int]:
         """
         Build per-row group labels (integers 0..n_groups-1) in first-seen order.
 
@@ -608,7 +628,7 @@ class GroupSet:
         labels, first_seen_idx, n_groups = GroupSet._direct_labels_firstseen(
             data, tafra._rows)
 
-        unique: List[Tuple[Any, ...]] = GroupSet._decode_unique(
+        unique: list[tuple[Any, ...]] = GroupSet._decode_unique(
             first_seen_idx, col_arrays)
 
         return unique, labels, n_groups
@@ -616,7 +636,7 @@ class GroupSet:
     @staticmethod
     def _validate(tafra: 'Tafra', columns: Iterable[str]) -> None:  # pragma: no cover
         """
-        Validate the :class:`Tafra` before applying.
+        Validate the `Tafra` before applying.
         """
         if tafra._rows < 1:
             raise ValueError('No rows exist in `tafra`.')
@@ -631,7 +651,7 @@ class AggMethod(GroupSet):
     group_by_cols: Iterable[str]
     aggregation: dc.InitVar[InitAggregation]
     _aggregation: Mapping[
-        str, Tuple[Callable[[np.ndarray[Any, Any]], Any], str]
+        str, tuple[Callable[[np.ndarray[Any, Any]], Any], str]
     ] = dc.field(init=False)
     iter_fn: Mapping[str, Callable[[np.ndarray[Any, Any]], Any]]
 
@@ -652,7 +672,7 @@ class AggMethod(GroupSet):
 
     def result_factory(
         self, fn: Callable[[str, str], np.ndarray[Any, Any]]
-    ) -> Dict[str, np.ndarray[Any, Any]]:
+    ) -> dict[str, np.ndarray[Any, Any]]:
         """
         Factory function to generate the dict for the results set.
         A function to take the new column name and source column name
@@ -667,7 +687,7 @@ class AggMethod(GroupSet):
 
     def iter_fn_factory(
         self, fn: Callable[[], np.ndarray[Any, Any]]
-    ) -> Dict[str, np.ndarray[Any, Any]]:
+    ) -> dict[str, np.ndarray[Any, Any]]:
         return {rename: fn() for rename in self.iter_fn.keys()}
 
     def apply(self, tafra: 'Tafra') -> 'Tafra':
@@ -678,36 +698,36 @@ class GroupBy(AggMethod):
     """
     Aggregation by a set of unique values.
 
-    Analogy to SQL ``GROUP BY``, not :meth:`pandas.DataFrame.groupby()`.
+    Analogy to SQL `GROUP BY`, not `pandas.DataFrame.groupby()`.
 
     Parameters
     ----------
-        columns: Iterable[str]
-            The column names to group by.
+    group_by_cols: Iterable[str]
+        The column names to group by.
 
-        aggregation: Mapping[str, Union[Callable[[np.ndarray], Any], \
-            Optional. Tuple[Callable[[np.ndarray], Any], str]]]
-            A mapping for columns and aggregation functions. Should be
-            given as {'column': fn} or {'new_column': (fn, 'column')}.
+    aggregation: Mapping[str, Callable[[np.ndarray], Any] | \
+        Optional. tuple[Callable[[np.ndarray], Any], str]]
+        A mapping for columns and aggregation functions. Should be
+        given as {'column': fn} or {'new_column': (fn, 'column')}.
 
-        iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
-            Optional. A mapping for new columns names to the function to apply to
-            the enumeration. Should be given as {'new_column': fn}.
+    iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
+        Optional. A mapping for new columns names to the function to apply to
+        the enumeration. Should be given as {'new_column': fn}.
     """
 
     def apply(self, tafra: 'Tafra') -> 'Tafra':
         """
-        Apply the :class:`GroupBy` to the :class:`Tafra`.
+        Apply the `GroupBy` to the `Tafra`.
 
         Parameters
         ----------
-            tafra: Tafra
-                The tafra to apply the operation to.
+        tafra: Tafra
+            The tafra to apply the operation to.
 
         Returns
         -------
-            tafra: Tafra
-                The aggregated :class:`Tafra`.
+        tafra: Tafra
+            The aggregated `Tafra`.
         """
         self._validate(tafra, (
             *self.group_by_cols,
@@ -726,7 +746,7 @@ class GroupBy(AggMethod):
             unique, labels, n_groups = self._build_group_labels(
                 tafra, self.group_by_cols)
 
-            result: Dict[str, np.ndarray[Any, Any]] = {}
+            result: dict[str, np.ndarray[Any, Any]] = {}
             for i, col in enumerate(self.group_by_cols):
                 vals = tafra._data[col]
                 # pick one representative value per group
@@ -770,37 +790,37 @@ class Transform(AggMethod):
     """
     Apply a function to each unique set of values and join to the original table.
 
-    Analogy to :meth:`pandas.DataFrame.groupby().transform()`,
-    i.e. a SQL ``GROUP BY`` and ``LEFT JOIN`` back to the original table.
+    Analogy to `pandas.DataFrame.groupby().transform()`,
+    i.e. a SQL `GROUP BY` and `LEFT JOIN` back to the original table.
 
     Parameters
     ----------
-        group_by: Iterable[str]
-            The column names to group by.
+    group_by_cols: Iterable[str]
+        The column names to group by.
 
-        aggregation: Mapping[str, Union[Callable[[np.ndarray], Any], \
-        Tuple[Callable[[np.ndarray], Any], str]]]
-            Optional. A mapping for columns and aggregation functions. Should be
-            given as {'column': fn} or {'new_column': (fn, 'column')}.
+    aggregation: Mapping[str, Callable[[np.ndarray], Any] | \
+    tuple[Callable[[np.ndarray], Any], str]]
+        Optional. A mapping for columns and aggregation functions. Should be
+        given as {'column': fn} or {'new_column': (fn, 'column')}.
 
-        iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
-            Optional. A mapping for new columns names to the function to apply to
-            the enumeration. Should be given as {'new_column': fn}.
+    iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
+        Optional. A mapping for new columns names to the function to apply to
+        the enumeration. Should be given as {'new_column': fn}.
     """
 
     def apply(self, tafra: 'Tafra') -> 'Tafra':
         """
-        Apply the :class:`Transform` to the :class:`Tafra`.
+        Apply the `Transform` to the `Tafra`.
 
         Parameters
         ----------
-            tafra: Tafra
-                The tafra to apply the operation to.
+        tafra: Tafra
+            The tafra to apply the operation to.
 
         Returns
         -------
-            tafra: Tafra
-                The transformed :class:`Tafra`.
+        tafra: Tafra
+            The transformed `Tafra`.
         """
         self._validate(tafra, (
             *self.group_by_cols,
@@ -820,7 +840,7 @@ class Transform(AggMethod):
             data, _ = self._prepare_keys(tafra, self.group_by_cols)
             labels, n_groups = self._direct_labels_sorted(data)
 
-            result: Dict[str, np.ndarray[Any, Any]] = {}
+            result: dict[str, np.ndarray[Any, Any]] = {}
             for col in self.group_by_cols:
                 result[col] = tafra._data[col].copy()
 
@@ -856,31 +876,31 @@ class Transform(AggMethod):
 @dc.dataclass
 class IterateBy(GroupSet):
     """
-    A generator that yields a :class:`Tafra` for each set of unique values.
+    A generator that yields a `Tafra` for each set of unique values.
 
     Analogy to `pandas.DataFrame.groupby()`, i.e. an Sequence of `Tafra` objects.
     Yields tuples of ((unique grouping values, ...), row indices array, subset tafra)
 
     Parameters
     ----------
-        group_by: Iterable[str]
-            The column names to group by.
+    group_by_cols: Iterable[str]
+        The column names to group by.
     """
     group_by_cols: Iterable[str]
 
     def apply(self, tafra: 'Tafra') -> Iterator[GroupDescription]:
         """
-        Apply the :class:`IterateBy` to the :class:`Tafra`.
+        Apply the `IterateBy` to the `Tafra`.
 
         Parameters
         ----------
-            tafra: Tafra
-                The tafra to apply the operation to.
+        tafra: Tafra
+            The tafra to apply the operation to.
 
         Returns
         -------
-            tafras: Iterator[GroupDescription]
-                An iterator over the grouped :class:`Tafra`.
+        tafras: Iterator[GroupDescription]
+            An iterator over the grouped `Tafra`.
         """
         self._validate(tafra, self.group_by_cols)
         unique, group_indices = self._build_group_indices(tafra, self.group_by_cols)
@@ -894,7 +914,7 @@ class Join(GroupSet):
     """
     Base class for SQL-like JOINs.
     """
-    on: Iterable[Tuple[str, str, str]]
+    on: Iterable[tuple[str, str, str]]
     select: Iterable[str]
 
     def _validate_dtypes(self, l_table: 'Tafra', r_table: 'Tafra') -> None:
@@ -924,7 +944,7 @@ class Join(GroupSet):
 
     @staticmethod
     def _build_composite_key(
-        cols: List[np.ndarray[Any, Any]]
+        cols: list[np.ndarray[Any, Any]]
     ) -> np.ndarray[Any, Any]:
         """Build a single sortable key array from multiple columns."""
         if len(cols) == 1:
@@ -940,7 +960,7 @@ class Join(GroupSet):
     def _sort_merge_indices(
         left_key: np.ndarray[Any, Any],
         right_key: np.ndarray[Any, Any],
-    ) -> Tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         """
         Compute inner-join index pairs using sort-merge.
         Returns (left_indices, right_indices) as intp arrays.
@@ -972,7 +992,7 @@ class Join(GroupSet):
     def _left_join_indices(
         left_key: np.ndarray[Any, Any],
         right_key: np.ndarray[Any, Any],
-    ) -> Tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], bool]:
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], bool]:
         """
         Compute left-join index pairs using sort-merge.
         Unmatched left rows get right index = -1.
@@ -1018,14 +1038,14 @@ class Join(GroupSet):
 
     def _resolve_join_cols(
         self, left_t: 'Tafra', right_t: 'Tafra'
-    ) -> Tuple[List[str], Dict[str, str]]:
+    ) -> tuple[list[str], dict[str, str]]:
         """Compute deduplicated output columns and dtypes."""
-        seen_cols: Dict[str, None] = {}
+        seen_cols: dict[str, None] = {}
         for c in chain(left_t._data.keys(), right_t._data.keys()):
             if not self.select or c in self.select:
                 seen_cols[c] = None
         join_cols = list(seen_cols.keys())
-        dtypes: Dict[str, str] = {
+        dtypes: dict[str, str] = {
             c: d for c, d in chain(
                 right_t._dtypes.items(), left_t._dtypes.items())
             if c in seen_cols
@@ -1044,42 +1064,39 @@ class InnerJoin(Join):
 
     Parameters
     ----------
-        right: Tafra
-            The right-side :class:`Tafra` to join.
+    on: Iterable[tuple[str, str, str]]
+        The columns and operator to join on. Should be given as
+        ('left column', 'right column', 'op') Valid ops are:
 
-        on: Iterable[Tuple[str, str, str]]
-            The columns and operator to join on. Should be given as
-            ('left column', 'right column', 'op') Valid ops are:
+        '==' : equal to
+        '!=' : not equal to
+        '<'  : less than
+        '<=' : less than or equal to
+        '>'  : greater than
+        '>=' : greater than or equal to
 
-            '==' : equal to
-            '!=' : not equal to
-            '<'  : less than
-            '<=' : less than or equal to
-            '>'  : greater than
-            '>=' : greater than or equal to
-
-        select: Iterable[str] = []
-            The columns to return. If not given, all unique columns names
-            are returned. If the column exists in both :class`Tafra`,
-            prefers the left over the right.
+    select: Iterable[str] = []
+        The columns to return. If not given, all unique columns names
+        are returned. If the column exists in both `Tafra`,
+        prefers the left over the right.
     """
 
     def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
         """
-        Apply the :class:`InnerJoin` to the :class:`Tafra`.
+        Apply the `InnerJoin` to the `Tafra`.
 
         Parameters
         ----------
-            left_t: Tafra
-                The left tafra to join.
+        left_t: Tafra
+            The left tafra to join.
 
-            right_t: Tafra
-                The right tafra to join.
+        right_t: Tafra
+            The right tafra to join.
 
         Returns
         -------
-            tafra: Tafra
-                The joined :class:`Tafra`.
+        tafra: Tafra
+            The joined `Tafra`.
         """
         left_cols, right_cols, ops = list(zip(*self.on))
         self._validate(left_t, left_cols)
@@ -1116,7 +1133,7 @@ class InnerJoin(Join):
                     dtypes
                 )
 
-            result: Dict[str, np.ndarray[Any, Any]] = {}
+            result: dict[str, np.ndarray[Any, Any]] = {}
             for c in join_cols:
                 if c in left_t._data:
                     result[c] = left_t._data[c][li]
@@ -1131,7 +1148,7 @@ class InnerJoin(Join):
                 for left_col, right_col, op in self.on
             )
             right_rows = np.empty(right_t._rows, dtype=bool)
-            join: Dict[str, List[Any]] = {c: [] for c in join_cols}
+            join: dict[str, list[Any]] = {c: [] for c in join_cols}
 
             for i in range(left_t._rows):
                 right_rows[:] = True
@@ -1165,42 +1182,39 @@ class LeftJoin(Join):
 
     Parameters
     ----------
-        right: Tafra
-            The right-side :class:`Tafra` to join.
+    on: Iterable[tuple[str, str, str]]
+        The columns and operator to join on. Should be given as
+        ('left column', 'right column', 'op') Valid ops are:
 
-        on: Iterable[Tuple[str, str, str]]
-            The columns and operator to join on. Should be given as
-            ('left column', 'right column', 'op') Valid ops are:
+        '==' : equal to
+        '!=' : not equal to
+        '<'  : less than
+        '<=' : less than or equal to
+        '>'  : greater than
+        '>=' : greater than or equal to
 
-            '==' : equal to
-            '!=' : not equal to
-            '<'  : less than
-            '<=' : less than or equal to
-            '>'  : greater than
-            '>=' : greater than or equal to
-
-        select: Iterable[str] = []
-            The columns to return. If not given, all unique columns names
-            are returned. If the column exists in both :class`Tafra`,
-            prefers the left over the right.
+    select: Iterable[str] = []
+        The columns to return. If not given, all unique columns names
+        are returned. If the column exists in both `Tafra`,
+        prefers the left over the right.
     """
 
     def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
         """
-        Apply the :class:`LeftJoin` to the :class:`Tafra`.
+        Apply the `LeftJoin` to the `Tafra`.
 
         Parameters
         ----------
-            left_t: Tafra
-                The left tafra to join.
+        left_t: Tafra
+            The left tafra to join.
 
-            right_t: Tafra
-                The right tafra to join.
+        right_t: Tafra
+            The right tafra to join.
 
         Returns
         -------
-            tafra: Tafra
-                The joined :class:`Tafra`.
+        tafra: Tafra
+            The joined `Tafra`.
         """
         left_cols, right_cols, ops = list(zip(*self.on))
         self._validate(left_t, left_cols)
@@ -1231,7 +1245,7 @@ class LeftJoin(Join):
                     if c not in left_t._data and dtypes.get(c) != 'object':
                         dtypes[c] = 'object'
 
-            result: Dict[str, np.ndarray[Any, Any]] = {}
+            result: dict[str, np.ndarray[Any, Any]] = {}
             matched = ri >= 0
             for c in join_cols:
                 if c in left_t._data:
@@ -1254,7 +1268,7 @@ class LeftJoin(Join):
                 for left_col, right_col, op in self.on
             )
             right_rows = np.empty(right_t._rows, dtype=bool)
-            join: Dict[str, List[Any]] = {c: [] for c in join_cols}
+            join: dict[str, list[Any]] = {c: [] for c in join_cols}
 
             for i in range(left_t._rows):
                 right_rows[:] = True
@@ -1293,31 +1307,28 @@ class CrossJoin(Join):
 
     Parameters
     ----------
-        right: Tafra
-            The right-side :class:`Tafra` to join.
-
-        select: Iterable[str] = []
-            The columns to return. If not given, all unique columns names
-            are returned. If the column exists in both :class`Tafra`,
-            prefers the left over the right.
+    select: Iterable[str] = []
+        The columns to return. If not given, all unique columns names
+        are returned. If the column exists in both `Tafra`,
+        prefers the left over the right.
     """
 
     def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
         """
-        Apply the :class:`CrossJoin` to the :class:`Tafra`.
+        Apply the `CrossJoin` to the `Tafra`.
 
         Parameters
         ----------
-            left_t: Tafra
-                The left tafra to join.
+        left_t: Tafra
+            The left tafra to join.
 
-            right_t: Tafra
-                The right tafra to join.
+        right_t: Tafra
+            The right tafra to join.
 
         Returns
         -------
-            tafra: Tafra
-                The joined :class:`Tafra`.
+        tafra: Tafra
+            The joined `Tafra`.
         """
         self._validate_dtypes(left_t, right_t)
 

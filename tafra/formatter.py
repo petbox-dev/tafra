@@ -12,24 +12,26 @@ Notes
 -----
 Created on April 25, 2020
 """
-from typing import Callable, Dict, Tuple, Any, Iterator, MutableMapping, Type, Optional
+from __future__ import annotations
+
+from typing import Any, Callable, Iterator, MutableMapping
 
 import numpy as np
 
 
-class ObjectFormatter(Dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]]],
+class ObjectFormatter(dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]]],
                       MutableMapping[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]]]):
     """
     A dictionary that contains mappings for formatting objects. Some numpy objects
-    should be cast to other types, e.g. the :class:`decimal.Decimal` type cannot
-    operate with :class:`np.float`. These mappings are defined in this class.
+    should be cast to other types, e.g. the `decimal.Decimal` type cannot
+    operate with `np.float`. These mappings are defined in this class.
 
-    Each mapping must define a function that takes a :class:`np.ndarray` and
-    returns a :class:`np.ndarray`.
+    Each mapping must define a function that takes a `np.ndarray` and
+    returns a `np.ndarray`.
 
     The key for each mapping is the name of the type of the actual value,
-    looked up from the first element of the :class:`np.ndarray`, i.e.
-    ``type(array[0]).__name__``.
+    looked up from the first element of the `np.ndarray`, i.e.
+    `type(array[0]).__name__`.
     """
     test_array = np.arange(4)
 
@@ -43,12 +45,12 @@ class ObjectFormatter(Dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any,
             result = value(self.test_array)
         except Exception as e:
             raise ValueError(
-                'Must provide a function that takes an ``np.ndarray`` and returns '
+                'Must provide a function that takes an `np.ndarray` and returns '
                 'an np.ndarray.') from e
 
         if not isinstance(result, np.ndarray):
             raise ValueError(
-                'Must provide a function that takes an ``np.ndarray`` and returns '
+                'Must provide a function that takes an `np.ndarray` and returns '
                 'an np.ndarray.')
 
         dict.__setitem__(self, dtype, value)
@@ -79,22 +81,22 @@ class ObjectFormatter(Dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any,
     def __len__(self) -> int:
         return dict.__len__(self)
 
-    def copy(self) -> Dict[str, Any]:
+    def copy(self) -> dict[str, Any]:
         return {k: dict.__getitem__(self, k) for k in self}
 
-    def parse_dtype(self, value: np.ndarray[Any, Any]) -> Optional[np.ndarray[Any, Any]]:
+    def parse_dtype(self, value: np.ndarray[Any, Any]) -> np.ndarray[Any, Any] | None:
         """
         Parse an object dtype.
 
         Parameters
         ----------
-            value: np.ndarray
-                The :class:`np.ndarray` to be parsed.
+        value: np.ndarray
+            The `np.ndarray` to be parsed.
 
         Returns
         -------
-            value, modified: Tuple(np.ndarray, bool)
-                The :class:`np.ndarray` and whether it was modified or not.
+        value, modified: Tuple(np.ndarray, bool)
+            The `np.ndarray` and whether it was modified or not.
         """
         if value.dtype.kind != 'O':
             return None

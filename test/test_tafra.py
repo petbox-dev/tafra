@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 import platform
 import warnings
@@ -9,7 +11,7 @@ from tafra import Tafra, object_formatter
 import pandas as pd  # type: ignore
 from itertools import islice
 
-from typing import Dict, List, Any, Iterator, Iterable, Sequence, Tuple, Optional, Type
+from typing import Any, Iterator
 
 import pytest  # type: ignore
 from unittest.mock import MagicMock
@@ -26,9 +28,9 @@ class Series:
 
 
 class DataFrame:
-    _data: Dict[str, Series] = {'x': Series(), 'y': Series()}
-    columns: List[str] = ['x', 'y']
-    dtypes: List[str] = ['int', 'int']
+    _data: dict[str, Series] = {'x': Series(), 'y': Series()}
+    columns: list[str] = ['x', 'y']
+    dtypes: list[str] = ['int', 'int']
 
     def __getitem__(self, column: str) -> Series:
         return self._data[column]
@@ -49,10 +51,10 @@ class Cursor:
     ]
     idx = 0
 
-    def __iter__(self) -> Iterator[Tuple[Any, ...]]:
+    def __iter__(self) -> Iterator[tuple[Any, ...]]:
         return self
 
-    def __next__(self) -> Tuple[Any, ...]:
+    def __next__(self) -> tuple[Any, ...]:
         try:
             item = self._iter[self.idx]
         except IndexError:
@@ -63,16 +65,16 @@ class Cursor:
     def execute(self, sql: str) -> None:
         ...
 
-    def fetchone(self) -> Optional[Tuple[Any, ...]]:
+    def fetchone(self) -> tuple[Any, ...] | None:
         try:
             return next(self)
         except:
             return None
 
-    def fetchmany(self, size: int) -> List[Tuple[Any, ...]]:
+    def fetchmany(self, size: int) -> list[tuple[Any, ...]]:
         return list(islice(self, size))
 
-    def fetchall(self) -> List[Tuple[Any, ...]]:
+    def fetchall(self) -> list[tuple[Any, ...]]:
         return [rec for rec in self]
 
 
@@ -203,7 +205,7 @@ def test_constructions() -> None:
     t = Tafra(iter([{'x': np.arange(6)}, {'y': np.linspace(0, 1, 6)}]))
     check_tafra(t)
 
-    def iterator() -> Iterator[Dict[str, np.ndarray]]:
+    def iterator() -> Iterator[dict[str, np.ndarray]]:
         yield {'x': np.array([1, 2, 3, 4, 5, 6])}
         yield {'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType())}
         yield {'z': np.array([0, 0, 0, 1, 1, 1])}
@@ -212,7 +214,7 @@ def test_constructions() -> None:
     check_tafra(t)
 
     class DictIterable:
-        def __iter__(self) -> Iterator[Dict[str, np.ndarray]]:
+        def __iter__(self) -> Iterator[dict[str, np.ndarray]]:
             yield {'x': np.array([1, 2, 3, 4, 5, 6])}
             yield {'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType())}
             yield {'z': np.array([0, 0, 0, 1, 1, 1])}
@@ -334,7 +336,7 @@ def test_read_sql() -> None:
 
 
 def test_destructors() -> None:
-    def gen_values() -> Iterator[Dict[str, np.ndarray]]:
+    def gen_values() -> Iterator[dict[str, np.ndarray]]:
         yield {'x': np.arange(6)}
         yield {'y': np.arange(6)}
 
@@ -1246,13 +1248,13 @@ def test_to_csv_unsupported_type() -> None:
 
 def test_parse_iterable_true_iterable() -> None:
     """Constructing from a non-rewindable iterable should not skip/duplicate elements."""
-    def gen_pairs() -> Iterator[Tuple[str, np.ndarray]]:
+    def gen_pairs() -> Iterator[tuple[str, np.ndarray]]:
         yield ('a', np.array([1, 2, 3]))
         yield ('b', np.array([4, 5, 6]))
         yield ('c', np.array([7, 8, 9]))
 
     class PairIterable:
-        def __iter__(self) -> Iterator[Tuple[str, np.ndarray]]:
+        def __iter__(self) -> Iterator[tuple[str, np.ndarray]]:
             return gen_pairs()
 
     t = Tafra(PairIterable())
@@ -1763,3 +1765,123 @@ def test_geomean_harmean() -> None:
     gb = t.group_by(['g'], {'geo': (geomean, 'v'), 'har': (harmean, 'v')})
     np.testing.assert_almost_equal(gb['geo'][0], (2. * 4. * 8.) ** (1./3.))
     np.testing.assert_almost_equal(gb['har'][0], 3. / (1./2. + 1./4. + 1./8.))
+
+
+# ================================================================
+# C extension direct tests
+# ================================================================
+
+try:
+    from tafra._accel import composite_key, group_indices, encode_strings
+    _HAS_ACCEL = True
+except ImportError:
+    _HAS_ACCEL = False
+
+
+@pytest.mark.skipif(not _HAS_ACCEL, reason='C extension not available')
+class TestCompositeKey:
+    def test_single_column(self) -> None:
+        r = composite_key((np.array([0, 1, 2], dtype=np.int64),), (3,))
+        np.testing.assert_array_equal(r, [0, 1, 2])
+
+    def test_two_columns(self) -> None:
+        a = np.array([0, 1, 2], dtype=np.int64)
+        b = np.array([0, 1, 0], dtype=np.int64)
+        r = composite_key((a, b), (3, 2))
+        np.testing.assert_array_equal(r, [0, 3, 4])
+
+    def test_three_columns(self) -> None:
+        a = np.array([0, 1, 0], dtype=np.int64)
+        b = np.array([0, 0, 1], dtype=np.int64)
+        c = np.array([0, 1, 1], dtype=np.int64)
+        r = composite_key((a, b, c), (2, 2, 2))
+        np.testing.assert_array_equal(r, [0, 5, 3])
+
+    def test_empty(self) -> None:
+        r = composite_key((np.array([], dtype=np.int64),), (1,))
+        assert len(r) == 0
+
+    def test_single_element(self) -> None:
+        r = composite_key(
+            (np.array([2], dtype=np.int64), np.array([1], dtype=np.int64)),
+            (3, 2))
+        np.testing.assert_array_equal(r, [5])
+
+
+@pytest.mark.skipif(not _HAS_ACCEL, reason='C extension not available')
+class TestGroupIndices:
+    def test_empty(self) -> None:
+        fs, gl, ng = group_indices(np.array([], dtype=np.int64))
+        assert ng == 0
+        assert len(fs) == 0
+        assert len(gl) == 0
+
+    def test_single_element(self) -> None:
+        fs, gl, ng = group_indices(np.array([42], dtype=np.int64))
+        assert ng == 1
+        np.testing.assert_array_equal(gl[0], [0])
+
+    def test_all_same(self) -> None:
+        fs, gl, ng = group_indices(np.array([5, 5, 5, 5], dtype=np.int64))
+        assert ng == 1
+        np.testing.assert_array_equal(gl[0], [0, 1, 2, 3])
+
+    def test_all_unique(self) -> None:
+        fs, gl, ng = group_indices(np.array([10, 20, 30], dtype=np.int64))
+        assert ng == 3
+        for i in range(3):
+            np.testing.assert_array_equal(gl[i], [i])
+
+    def test_first_seen_order(self) -> None:
+        fs, gl, ng = group_indices(np.array([3, 1, 3, 2, 1], dtype=np.int64))
+        assert ng == 3
+        # First-seen: 3 at idx 0, 1 at idx 1, 2 at idx 3
+        np.testing.assert_array_equal(fs, [0, 1, 3])
+        np.testing.assert_array_equal(gl[0], [0, 2])  # group 3
+        np.testing.assert_array_equal(gl[1], [1, 4])  # group 1
+        np.testing.assert_array_equal(gl[2], [3])      # group 2
+
+    def test_large_group_count(self) -> None:
+        """Triggers realloc of first_seen/counts arrays."""
+        keys = np.arange(1000, dtype=np.int64)
+        fs, gl, ng = group_indices(keys)
+        assert ng == 1000
+        for i in range(1000):
+            np.testing.assert_array_equal(gl[i], [i])
+
+
+@pytest.mark.skipif(not _HAS_ACCEL, reason='C extension not available')
+class TestEncodeStrings:
+    def test_empty(self) -> None:
+        codes, nu = encode_strings(np.array([], dtype=object))
+        assert nu == 0
+        assert len(codes) == 0
+
+    def test_single(self) -> None:
+        codes, nu = encode_strings(np.array(['a'], dtype=object))
+        assert nu == 1
+        np.testing.assert_array_equal(codes, [0])
+
+    def test_all_same(self) -> None:
+        codes, nu = encode_strings(np.array(['x', 'x', 'x'], dtype=object))
+        assert nu == 1
+        np.testing.assert_array_equal(codes, [0, 0, 0])
+
+    def test_first_seen_order(self) -> None:
+        codes, nu = encode_strings(np.array(['b', 'a', 'c', 'a', 'b'], dtype=object))
+        assert nu == 3
+        # b=0, a=1, c=2 (first-seen order)
+        np.testing.assert_array_equal(codes, [0, 1, 2, 1, 0])
+
+    def test_high_cardinality(self) -> None:
+        arr = np.array([f'str_{i}' for i in range(10000)], dtype=object)
+        codes, nu = encode_strings(arr)
+        assert nu == 10000
+        assert len(set(codes)) == 10000
+
+    def test_integers_as_objects(self) -> None:
+        """encode_strings works with any hashable objects, not just strings."""
+        arr = np.array([1, 2, 1, 3, 2], dtype=object)
+        codes, nu = encode_strings(arr)
+        assert nu == 3
+        np.testing.assert_array_equal(codes, [0, 1, 0, 2, 1])
