@@ -12,6 +12,8 @@ Notes
 -----
 Created on April 25, 2020
 """
+from __future__ import annotations
+
 __all__ = ['GroupBy', 'Transform', 'IterateBy', 'InnerJoin', 'LeftJoin',
            'percentile', 'geomean', 'harmean']
 
@@ -21,7 +23,7 @@ import dataclasses as dc
 
 import numpy as np
 
-from typing import (Any, Callable, Dict, Mapping, List, Tuple, Optional, Union as _Union, Sequence,
+from typing import (Any, Callable, Mapping, Sequence,
                     Iterable, Iterator)
 from typing import cast
 
@@ -43,12 +45,12 @@ except ImportError:
 
 # Vectorized aggregation functions that can bypass per-group Python loops.
 # Maps function identity to a callable(data, labels, n_groups) -> result_array.
-_VECTORIZED_AGGS: Dict[int, Callable[..., np.ndarray[Any, Any]]] = {}
+_VECTORIZED_AGGS: dict[int, Callable[..., np.ndarray[Any, Any]]] = {}
 
 
 def _sorted_segments(
     data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
-) -> Tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Sort data by group labels, return (sorted_data, offsets, counts)."""
     order = np.argsort(labels, kind='stable')
     sorted_data = data[order]
@@ -282,7 +284,7 @@ def _register_vectorized() -> None:
 _register_vectorized()
 
 
-JOIN_OPS: Dict[str, Callable[[Any, Any], Any]] = {
+JOIN_OPS: dict[str, Callable[[Any, Any], Any]] = {
     '==': operator.eq,
     '!=': operator.ne,
     '<': operator.lt,
@@ -294,16 +296,14 @@ JOIN_OPS: Dict[str, Callable[[Any, Any], Any]] = {
 # for the passed argument to an aggregation
 InitAggregation = Mapping[
     str,
-    _Union[
-        Callable[[np.ndarray[Any, Any]], Any],
-        Tuple[Callable[[np.ndarray[Any, Any]], Any], str]
-    ]
+    Callable[[np.ndarray[Any, Any]], Any]
+    | tuple[Callable[[np.ndarray[Any, Any]], Any], str]
 ]
 
 
 # for the result type of IterateBy
-GroupDescription = Tuple[
-    Tuple[Any, ...],  # tuple of unique values from group-by columns
+GroupDescription = tuple[
+    tuple[Any, ...],  # tuple of unique values from group-by columns
     np.ndarray[Any, Any],  # int array of row indices into original tafra for this group
     'Tafra'  # sub-tafra for the group
 ]
@@ -408,8 +408,8 @@ class GroupSet:
 
     @staticmethod
     def _encode_columns(
-        col_arrays: List[np.ndarray[Any, Any]]
-    ) -> Tuple[List[np.ndarray[Any, Any]], List[Optional[np.ndarray[Any, Any]]]]:
+        col_arrays: list[np.ndarray[Any, Any]]
+    ) -> tuple[list[np.ndarray[Any, Any]], list[np.ndarray[Any, Any] | None]]:
         """
         Encode columns for structured array compatibility.
         StringDType columns are converted to integer codes via np.unique.
@@ -419,7 +419,7 @@ class GroupSet:
         was needed.
         """
         encoded = []
-        codebooks: List[Optional[np.ndarray[Any, Any]]] = []
+        codebooks: list[np.ndarray[Any, Any] | None] = []
         for c in col_arrays:
             if c.dtype.kind in ('T', 'U', 'S', 'O'):
                 uniq, codes = np.unique(c, return_inverse=True)
@@ -432,9 +432,9 @@ class GroupSet:
 
     @staticmethod
     def _encode_columns_paired(
-        left_cols: List[np.ndarray[Any, Any]],
-        right_cols: List[np.ndarray[Any, Any]],
-    ) -> Tuple[List[np.ndarray[Any, Any]], List[np.ndarray[Any, Any]]]:
+        left_cols: list[np.ndarray[Any, Any]],
+        right_cols: list[np.ndarray[Any, Any]],
+    ) -> tuple[list[np.ndarray[Any, Any]], list[np.ndarray[Any, Any]]]:
         """
         Encode left and right column pairs with a shared codebook.
         Ensures the same string value gets the same integer code on both sides.
@@ -454,7 +454,7 @@ class GroupSet:
 
     @staticmethod
     def _build_composite_key(
-        encoded: List[np.ndarray[Any, Any]]
+        encoded: list[np.ndarray[Any, Any]]
     ) -> np.ndarray[Any, Any]:
         """
         Combine multiple integer-coded columns into a single flat key.
@@ -496,8 +496,8 @@ class GroupSet:
     @staticmethod
     def _decode_unique(
         first_seen_indices: np.ndarray[Any, Any],
-        col_arrays: List[np.ndarray[Any, Any]],
-    ) -> List[Tuple[Any, ...]]:
+        col_arrays: list[np.ndarray[Any, Any]],
+    ) -> list[tuple[Any, ...]]:
         """Build unique group tuples by indexing original columns at first-seen rows."""
         if len(col_arrays) == 1:
             return [(v,) for v in col_arrays[0][first_seen_indices]]
@@ -510,7 +510,7 @@ class GroupSet:
     @staticmethod
     def _direct_labels_firstseen(
         data: np.ndarray[Any, Any], n_rows: int
-    ) -> Tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], int]:
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], int]:
         """
         Assign first-seen-order group labels using direct array mapping.
         O(n + max_key) — no sort. Requires non-negative integer keys.
@@ -537,7 +537,7 @@ class GroupSet:
     @staticmethod
     def _direct_labels_sorted(
         data: np.ndarray[Any, Any]
-    ) -> Tuple[np.ndarray[Any, Any], int]:
+    ) -> tuple[np.ndarray[Any, Any], int]:
         """
         Assign sorted-order group labels using direct array mapping.
         O(n + max_key) — no sort. For Transform (order doesn't matter).
@@ -555,7 +555,7 @@ class GroupSet:
     @staticmethod
     def _prepare_keys(
         tafra: 'Tafra', columns: Iterable[str]
-    ) -> Tuple[np.ndarray[Any, Any], List[np.ndarray[Any, Any]]]:
+    ) -> tuple[np.ndarray[Any, Any], list[np.ndarray[Any, Any]]]:
         """Encode columns and build composite integer key."""
         cols = list(columns)
         col_arrays = [tafra._data[c] for c in cols]
@@ -569,7 +569,7 @@ class GroupSet:
     @staticmethod
     def _build_group_indices(
         tafra: 'Tafra', columns: Iterable[str]
-    ) -> Tuple[List[Tuple[Any, ...]], List[np.ndarray[Any, Any]]]:
+    ) -> tuple[list[tuple[Any, ...]], list[np.ndarray[Any, Any]]]:
         """
         Build per-group row index arrays in a single pass.
 
@@ -585,10 +585,10 @@ class GroupSet:
         sorted_row_indices = np.argsort(labels, kind='stable')
         counts = np.bincount(labels, minlength=n_groups)
         splits = np.cumsum(counts[:-1])
-        group_indices: List[np.ndarray[Any, Any]] = list(
+        group_indices: list[np.ndarray[Any, Any]] = list(
             np.split(sorted_row_indices, splits))
 
-        unique: List[Tuple[Any, ...]] = GroupSet._decode_unique(
+        unique: list[tuple[Any, ...]] = GroupSet._decode_unique(
             first_seen_idx, col_arrays)
 
         return unique, group_indices
@@ -596,7 +596,7 @@ class GroupSet:
     @staticmethod
     def _build_group_labels(
         tafra: 'Tafra', columns: Iterable[str]
-    ) -> Tuple[List[Tuple[Any, ...]], np.ndarray[Any, Any], int]:
+    ) -> tuple[list[tuple[Any, ...]], np.ndarray[Any, Any], int]:
         """
         Build per-row group labels (integers 0..n_groups-1) in first-seen order.
 
@@ -608,7 +608,7 @@ class GroupSet:
         labels, first_seen_idx, n_groups = GroupSet._direct_labels_firstseen(
             data, tafra._rows)
 
-        unique: List[Tuple[Any, ...]] = GroupSet._decode_unique(
+        unique: list[tuple[Any, ...]] = GroupSet._decode_unique(
             first_seen_idx, col_arrays)
 
         return unique, labels, n_groups
@@ -631,7 +631,7 @@ class AggMethod(GroupSet):
     group_by_cols: Iterable[str]
     aggregation: dc.InitVar[InitAggregation]
     _aggregation: Mapping[
-        str, Tuple[Callable[[np.ndarray[Any, Any]], Any], str]
+        str, tuple[Callable[[np.ndarray[Any, Any]], Any], str]
     ] = dc.field(init=False)
     iter_fn: Mapping[str, Callable[[np.ndarray[Any, Any]], Any]]
 
@@ -652,7 +652,7 @@ class AggMethod(GroupSet):
 
     def result_factory(
         self, fn: Callable[[str, str], np.ndarray[Any, Any]]
-    ) -> Dict[str, np.ndarray[Any, Any]]:
+    ) -> dict[str, np.ndarray[Any, Any]]:
         """
         Factory function to generate the dict for the results set.
         A function to take the new column name and source column name
@@ -667,7 +667,7 @@ class AggMethod(GroupSet):
 
     def iter_fn_factory(
         self, fn: Callable[[], np.ndarray[Any, Any]]
-    ) -> Dict[str, np.ndarray[Any, Any]]:
+    ) -> dict[str, np.ndarray[Any, Any]]:
         return {rename: fn() for rename in self.iter_fn.keys()}
 
     def apply(self, tafra: 'Tafra') -> 'Tafra':
@@ -726,7 +726,7 @@ class GroupBy(AggMethod):
             unique, labels, n_groups = self._build_group_labels(
                 tafra, self.group_by_cols)
 
-            result: Dict[str, np.ndarray[Any, Any]] = {}
+            result: dict[str, np.ndarray[Any, Any]] = {}
             for i, col in enumerate(self.group_by_cols):
                 vals = tafra._data[col]
                 # pick one representative value per group
@@ -820,7 +820,7 @@ class Transform(AggMethod):
             data, _ = self._prepare_keys(tafra, self.group_by_cols)
             labels, n_groups = self._direct_labels_sorted(data)
 
-            result: Dict[str, np.ndarray[Any, Any]] = {}
+            result: dict[str, np.ndarray[Any, Any]] = {}
             for col in self.group_by_cols:
                 result[col] = tafra._data[col].copy()
 
@@ -894,7 +894,7 @@ class Join(GroupSet):
     """
     Base class for SQL-like JOINs.
     """
-    on: Iterable[Tuple[str, str, str]]
+    on: Iterable[tuple[str, str, str]]
     select: Iterable[str]
 
     def _validate_dtypes(self, l_table: 'Tafra', r_table: 'Tafra') -> None:
@@ -924,7 +924,7 @@ class Join(GroupSet):
 
     @staticmethod
     def _build_composite_key(
-        cols: List[np.ndarray[Any, Any]]
+        cols: list[np.ndarray[Any, Any]]
     ) -> np.ndarray[Any, Any]:
         """Build a single sortable key array from multiple columns."""
         if len(cols) == 1:
@@ -940,7 +940,7 @@ class Join(GroupSet):
     def _sort_merge_indices(
         left_key: np.ndarray[Any, Any],
         right_key: np.ndarray[Any, Any],
-    ) -> Tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         """
         Compute inner-join index pairs using sort-merge.
         Returns (left_indices, right_indices) as intp arrays.
@@ -972,7 +972,7 @@ class Join(GroupSet):
     def _left_join_indices(
         left_key: np.ndarray[Any, Any],
         right_key: np.ndarray[Any, Any],
-    ) -> Tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], bool]:
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], bool]:
         """
         Compute left-join index pairs using sort-merge.
         Unmatched left rows get right index = -1.
@@ -1018,14 +1018,14 @@ class Join(GroupSet):
 
     def _resolve_join_cols(
         self, left_t: 'Tafra', right_t: 'Tafra'
-    ) -> Tuple[List[str], Dict[str, str]]:
+    ) -> tuple[list[str], dict[str, str]]:
         """Compute deduplicated output columns and dtypes."""
-        seen_cols: Dict[str, None] = {}
+        seen_cols: dict[str, None] = {}
         for c in chain(left_t._data.keys(), right_t._data.keys()):
             if not self.select or c in self.select:
                 seen_cols[c] = None
         join_cols = list(seen_cols.keys())
-        dtypes: Dict[str, str] = {
+        dtypes: dict[str, str] = {
             c: d for c, d in chain(
                 right_t._dtypes.items(), left_t._dtypes.items())
             if c in seen_cols
@@ -1113,7 +1113,7 @@ class InnerJoin(Join):
                     dtypes
                 )
 
-            result: Dict[str, np.ndarray[Any, Any]] = {}
+            result: dict[str, np.ndarray[Any, Any]] = {}
             for c in join_cols:
                 if c in left_t._data:
                     result[c] = left_t._data[c][li]
@@ -1128,7 +1128,7 @@ class InnerJoin(Join):
                 for left_col, right_col, op in self.on
             )
             right_rows = np.empty(right_t._rows, dtype=bool)
-            join: Dict[str, List[Any]] = {c: [] for c in join_cols}
+            join: dict[str, list[Any]] = {c: [] for c in join_cols}
 
             for i in range(left_t._rows):
                 right_rows[:] = True
@@ -1225,7 +1225,7 @@ class LeftJoin(Join):
                     if c not in left_t._data and dtypes.get(c) != 'object':
                         dtypes[c] = 'object'
 
-            result: Dict[str, np.ndarray[Any, Any]] = {}
+            result: dict[str, np.ndarray[Any, Any]] = {}
             matched = ri >= 0
             for c in join_cols:
                 if c in left_t._data:
@@ -1248,7 +1248,7 @@ class LeftJoin(Join):
                 for left_col, right_col, op in self.on
             )
             right_rows = np.empty(right_t._rows, dtype=bool)
-            join: Dict[str, List[Any]] = {c: [] for c in join_cols}
+            join: dict[str, list[Any]] = {c: [] for c in join_cols}
 
             for i in range(left_t._rows):
                 right_rows[:] = True

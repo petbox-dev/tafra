@@ -12,12 +12,14 @@ Notes
 -----
 Created on April 25, 2020
 """
-from typing import Callable, Dict, Tuple, Any, Iterator, MutableMapping, Type, Optional
+from __future__ import annotations
+
+from typing import Any, Callable, Iterator, MutableMapping
 
 import numpy as np
 
 
-class ObjectFormatter(Dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]]],
+class ObjectFormatter(dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]]],
                       MutableMapping[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]]]):
     """
     A dictionary that contains mappings for formatting objects. Some numpy objects
@@ -79,10 +81,10 @@ class ObjectFormatter(Dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any,
     def __len__(self) -> int:
         return dict.__len__(self)
 
-    def copy(self) -> Dict[str, Any]:
+    def copy(self) -> dict[str, Any]:
         return {k: dict.__getitem__(self, k) for k in self}
 
-    def parse_dtype(self, value: np.ndarray[Any, Any]) -> Optional[np.ndarray[Any, Any]]:
+    def parse_dtype(self, value: np.ndarray[Any, Any]) -> np.ndarray[Any, Any] | None:
         """
         Parse an object dtype.
 

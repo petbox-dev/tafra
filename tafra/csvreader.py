@@ -12,16 +12,18 @@ Notes
 -----
 Created on April 25, 2020
 """
-from pathlib import Path
+
+from __future__ import annotations
+
 import csv
 import dataclasses as dc
+from enum import Enum, auto
+from io import TextIOWrapper
+from pathlib import Path
+from typing import Any, Callable, Sequence, cast
 
 import numpy as np
 
-from enum import Enum, auto
-from io import TextIOWrapper
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Type
-from typing import Union, cast
 
 # this doesn't type well in Python
 @dc.dataclass(frozen=True)
@@ -29,16 +31,18 @@ class ReadableType:
     dtype: Any
     parse: Callable[[str], Any]
 
+
 def _parse_bool(val: str) -> bool:
     folded = val.casefold()
-    if folded in ('false', 'no', 'f'):
+    if folded in ("false", "no", "f"):
         return False
-    if folded in ('true', 'yes', 't'):
+    if folded in ("true", "yes", "t"):
         return True
-    raise ValueError('not a boolean')
+    raise ValueError("not a boolean")
+
 
 # numpy-stubs is a lie about many of these, hence the type: ignore spam
-_TYPE_PRECEDENCE: List[ReadableType] = [
+_TYPE_PRECEDENCE: list[ReadableType] = [
     ReadableType(np.int32, cast(Callable[[str], Any], np.int32)),
     ReadableType(np.int64, cast(Callable[[str], Any], np.int64)),
     # np.float32, # nervous about ever inferring this
@@ -50,6 +54,7 @@ _TYPE_PRECEDENCE: List[ReadableType] = [
 
 _TYPE_OBJECT: ReadableType = ReadableType(np.dtypes.StringDType(), lambda x: x)
 
+
 class ReaderState(Enum):
     AWAIT_GUESSABLE = auto()
     EARLY_EOF = auto()
@@ -58,41 +63,43 @@ class ReaderState(Enum):
     EOF = auto()
     DONE = auto()
 
+
 class CSVReader:
-    def __init__(self, source: Union[str, Path, TextIOWrapper],
-                 guess_rows: int = 5, missing: Optional[str] = '',
-                 **csvkw: Any):
+    def __init__(
+        self,
+        source: str | Path | TextIOWrapper,
+        guess_rows: int = 5,
+        missing: str | None = "",
+        **csvkw: Any,
+    ) -> None:
         if isinstance(source, (str, Path)):
-            self._stream = open(source, newline='')
+            self._stream = open(source, newline="")
             self._should_close = True
         elif isinstance(source, TextIOWrapper):
-            source.reconfigure(newline='')
+            source.reconfigure(newline="")
             self._stream = source
             self._should_close = False
         else:
             raise TypeError(
-                f'`source` must be `str`, `Path`, or `TextIOWrapper`, got `{type(source)}`')
-        reader = csv.reader(self._stream, dialect='excel', **csvkw)
+                f"`source` must be `str`, `Path`, or `TextIOWrapper`, got `{type(source)}`"
+            )
+        reader = csv.reader(self._stream, dialect="excel", **csvkw)
         try:
             self._header = _unique_header(next(reader))
         except StopIteration:
             if self._should_close:
                 self._stream.close()
-            raise ValueError('CSV source is empty: no header row found')
+            raise ValueError("CSV source is empty: no header row found")
         self._reader = (self._decode_missing(t) for t in reader)
-        self._guess_types = {
-            col: _TYPE_PRECEDENCE[0] for col in self._header
-        }
-        self._guess_data: Dict[str, List[Any]] = {
-            col: list() for col in self._header
-        }
-        self._data: Dict[str, List[Any]] = dict()
+        self._guess_types = {col: _TYPE_PRECEDENCE[0] for col in self._header}
+        self._guess_data: dict[str, list[Any]] = {col: list() for col in self._header}
+        self._data: dict[str, list[Any]] = dict()
         self._guess_rows = guess_rows
         self._missing = missing
         self._rows = 0
         self._state = ReaderState.AWAIT_GUESSABLE
 
-    def read(self) -> Dict[str, np.ndarray[Any, Any]]:
+    def read(self) -> dict[str, np.ndarray[Any, Any]]:
         while self._state != ReaderState.DONE:
             self._step()
         return self._finalize()
@@ -130,8 +137,7 @@ class CSVReader:
 
         self._rows += 1
         if len(row) != len(self._header):
-            raise ValueError(f'length of row #{self._rows}'
-                             ' does not match header length')
+            raise ValueError(f"length of row #{self._rows} does not match header length")
 
         for col, val in zip(self._header, row):
             self._guess_data[col].append(val)
@@ -141,8 +147,7 @@ class CSVReader:
 
     def state_guess(self) -> None:
         for col in self._header:
-            ty, parsed = _guess_column(_TYPE_PRECEDENCE,
-                                       self._guess_data[col])
+            ty, parsed = _guess_column(_TYPE_PRECEDENCE, self._guess_data[col])
             self._guess_types[col] = ty
             self._data[col] = parsed
         self._state = ReaderState.READ
@@ -156,12 +161,11 @@ class CSVReader:
 
         self._rows += 1
         if len(row) != len(self._header):
-            raise ValueError(f'length of row #{self._rows}'
-                             ' does not match header length')
+            raise ValueError(f"length of row #{self._rows} does not match header length")
 
         for col, val in zip(self._header, row):
             try:
-                self._data[col].append(self._guess_types[col].parse(val)) # type: ignore
+                self._data[col].append(self._guess_types[col].parse(val))
             except Exception:
                 self._promote(col, val)
 
@@ -170,8 +174,7 @@ class CSVReader:
             self._stream.close()
 
         for col in self._header:
-            ty, parsed = _guess_column(_TYPE_PRECEDENCE,
-                                       self._guess_data[col])
+            ty, parsed = _guess_column(_TYPE_PRECEDENCE, self._guess_data[col])
             self._guess_types[col] = ty
             self._data[col] = parsed
 
@@ -182,49 +185,52 @@ class CSVReader:
             self._stream.close()
         self._state = ReaderState.DONE
 
-    def _promote(self, col: str, val: Optional[str]) -> None:
+    def _promote(self, col: str, val: str | None) -> None:
         ty_ix = _TYPE_PRECEDENCE.index(self._guess_types[col])
-        try_next = _TYPE_PRECEDENCE[ty_ix + 1:]
+        try_next = _TYPE_PRECEDENCE[ty_ix + 1 :]
         stringized = self._encode_missing(self._data[col])
         stringized.append(val)
         ty, parsed = _guess_column(try_next, stringized)
         self._guess_types[col] = ty
         self._data[col] = parsed
 
-    def _finalize(self) -> Dict[str, np.ndarray[Any, Any]]:
-        assert self._state == ReaderState.DONE, 'CSVReader is not in DONE state.'
+    def _finalize(self) -> dict[str, np.ndarray[Any, Any]]:
+        assert self._state == ReaderState.DONE, "CSVReader is not in DONE state."
         return {
             col: np.array(self._data[col], dtype=self._guess_types[col].dtype)
             for col in self._header
         }
 
-    def _decode_missing(self, row: List[str]) -> Sequence[Optional[str]]:
+    def _decode_missing(self, row: list[str]) -> Sequence[str | None]:
         if self._missing is None:
             return row
         return [v if v != self._missing else None for v in row]
 
-    def _encode_missing(self, row: Sequence[Optional[Any]]) -> List[Optional[str]]:
+    def _encode_missing(self, row: Sequence[Any | None]) -> list[str | None]:
         return [str(v) if v is not None else self._missing for v in row]
 
-def _unique_header(header: List[str]) -> List[str]:
-    uniq: List[str] = list()
+
+def _unique_header(header: list[str]) -> list[str]:
+    uniq: list[str] = list()
     for col in header:
         col_unique = col
         i = 2
         while col_unique in uniq:
-            col_unique = f'{col} ({i})'
+            col_unique = f"{col} ({i})"
             i += 1
         uniq.append(col_unique)
     return uniq
 
+
 # the "real" return type is a dependent pair (t: ReadableType ** List[t.dtype])
-def _guess_column(precedence: List[ReadableType], vals: List[Optional[str]]
-                  ) -> Tuple[ReadableType, List[Any]]:
+def _guess_column(
+    precedence: list[ReadableType], vals: list[str | None]
+) -> tuple[ReadableType, list[Any]]:
     for ty in precedence:
         try:
             # mypy doesn't really get that the thing we're mapping is not a method
             #   on `ty` but a data member
-            typed = list(map(ty.parse, vals)) # type: ignore
+            typed = list(map(ty.parse, vals))  # type: ignore
             return ty, typed
         except Exception:
             continue

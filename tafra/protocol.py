@@ -12,8 +12,10 @@ Notes
 -----
 Created on April 25, 2020
 """
+from __future__ import annotations
+
 import numpy as np
-from typing import Dict, List, Tuple, Any, Optional, Type, Iterable, Iterator
+from typing import Any, Iterable, Iterator
 from typing_extensions import Protocol, runtime_checkable
 
 
@@ -29,9 +31,9 @@ class DataFrame(Protocol):
     """
     A fake class to satisfy typing of a ``pandas.DataFrame`` without a dependency.
     """
-    _data: Dict[str, Series]
-    columns: List[str]
-    dtypes: List[str]
+    _data: dict[str, Series]
+    columns: list[str]
+    dtypes: list[str]
 
     def __getitem__(self, column: str) -> Series:
         raise NotImplementedError
@@ -44,22 +46,22 @@ class Cursor(Protocol):
     """
     A fake class to satisfy typing of a ``pyodbc.Cursor`` without a dependency.
     """
-    description: Tuple[Tuple[str, Type[Any], Optional[int], int, int, int, bool]]
+    description: tuple[tuple[str, type[Any], int | None, int, int, int, bool]]
 
-    def __iter__(self) -> Iterator[Tuple[Any, ...]]:
+    def __iter__(self) -> Iterator[tuple[Any, ...]]:
         raise NotImplementedError
 
-    def __next__(self) -> Tuple[Any, ...]:
+    def __next__(self) -> tuple[Any, ...]:
         raise NotImplementedError
 
     def execute(self, sql: str) -> None:
         raise NotImplementedError
 
-    def fetchone(self) -> Optional[Tuple[Any, ...]]:
+    def fetchone(self) -> tuple[Any, ...] | None:
         raise NotImplementedError
 
-    def fetchmany(self, size: int) -> List[Tuple[Any, ...]]:
+    def fetchmany(self, size: int) -> list[tuple[Any, ...]]:
         raise NotImplementedError
 
-    def fetchall(self) -> List[Tuple[Any, ...]]:
+    def fetchall(self) -> list[tuple[Any, ...]]:
         raise NotImplementedError
