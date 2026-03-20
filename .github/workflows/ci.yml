@@ -39,4 +39,4 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install mkdocs-material "mkdocstrings[python]" && pip install -e .
-      - run: mkdocs build
+      - run: mkdocs build --strict

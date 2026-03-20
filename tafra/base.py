@@ -107,7 +107,7 @@ class Tafra:
         _Mapping = Mapping[str, Any] | Mapping[int, Any] | Mapping[float, Any] | Mapping[bool, Any]
         _Element = tuple[str | int | float | np.ndarray, Any] | list[Any] | Mapping
 
-    Parameters
+    Attributes
     ----------
     data: InitVar
         The data of the Tafra.
@@ -122,11 +122,6 @@ class Tafra:
     check_rows: bool = True
         Run row count checks. False will allow columns of differing lengths, which may break several
         methods.
-
-    Returns
-    -------
-    tafra: Tafra
-        The constructed `Tafra`.
 
     """
     data: dc.InitVar[InitVar]
@@ -1261,21 +1256,20 @@ class Tafra:
         When `name` is `None`, rows are passed as plain `tuple`
         for faster iteration — avoids NamedTuple construction overhead.
 
+        Pass ``name=None`` as a keyword argument for ~2--4x faster iteration
+        using plain tuples instead of NamedTuples.
+
         Parameters
         ----------
         fn: Callable[..., Any]
             The function to map.
 
-        name: str | None = 'Tafra'
-            The name for the `NamedTuple`. If `None`, use plain
-            tuples for ~2--4x faster iteration. Must be given as a keyword
-            argument.
-
         *args: Any
             Additional positional arguments to `fn`.
 
         **kwargs: Any
-            Additional keyword arguments to `fn`.
+            Additional keyword arguments to `fn`. Accepts ``name``
+            (str | None, default ``'Tafra'``) to control row type.
 
         Returns
         -------
