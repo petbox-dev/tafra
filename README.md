@@ -3,7 +3,6 @@
 [![PyPI version](https://img.shields.io/pypi/v/tafra.svg)](https://pypi.org/project/tafra/)
 [![Python versions](https://img.shields.io/pypi/pyversions/tafra.svg)](https://pypi.org/project/tafra/)
 [![Coverage Status](https://coveralls.io/repos/github/petbox-dev/tafra/badge.svg?branch=feature/mkdocs-website)](https://coveralls.io/github/petbox-dev/tafra?branch=feature/mkdocs-website)
-[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-0d9488)](https://petbox-dev.github.io/tafra/)
 
 The `tafra` began life as a thought experiment: how could we reduce the idea
 of a da*tafra*me (as expressed in libraries like `pandas` or languages
