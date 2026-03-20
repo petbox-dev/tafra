@@ -489,7 +489,9 @@ accel_encode_strings(PyObject *self, PyObject *args)
     free(table);
     Py_DECREF(arr);
 
-    return Py_BuildValue("(On)", codes_out, (Py_ssize_t)n_unique);
+    PyObject *result = Py_BuildValue("(On)", codes_out, (Py_ssize_t)n_unique);
+    Py_DECREF(codes_out);
+    return result;
 }
 
 
@@ -627,7 +629,10 @@ accel_group_indices(PyObject *self, PyObject *args)
         fs_data[g] = first_seen[g];
     free(first_seen);
 
-    return Py_BuildValue("(OOn)", fs_out, group_list, (Py_ssize_t)n_groups);
+    PyObject *result = Py_BuildValue("(OOn)", fs_out, group_list, (Py_ssize_t)n_groups);
+    Py_DECREF(fs_out);
+    Py_DECREF(group_list);
+    return result;
 }
 
 

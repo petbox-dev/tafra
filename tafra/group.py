@@ -453,7 +453,7 @@ class GroupSet:
         for lc, rc in zip(left_cols, right_cols):
             if lc.dtype.kind in ('T', 'U', 'S', 'O'):
                 combined = np.concatenate([lc, rc])
-                if _HAS_ACCEL:
+                if _HAS_ACCEL and len(combined) >= 50_000:
                     codes, _ = _c_encode_strings(combined.astype(object))
                 else:
                     _, codes = np.unique(combined, return_inverse=True)
