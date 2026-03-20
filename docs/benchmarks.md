@@ -88,8 +88,8 @@ import math
 def row_fn(a: float, b: float, c: float) -> float:
     return math.sqrt(a * a + b * b) + math.log1p(abs(c))
 
-# tafra
-result = list(tf.tuple_map(lambda r: (row_fn(r.a, r.b, r.c),)))
+# tafra (name=None for fast plain-tuple iteration)
+result = list(tf.tuple_map(lambda r: (row_fn(r[0], r[1], r[2]),), name=None))
 
 # pandas
 result = [row_fn(r.a, r.b, r.c) for r in df.itertuples()]
@@ -100,12 +100,12 @@ result = plf.map_rows(lambda row: pl.Series([row_fn(row[0], row[1], row[2])]))
 
 | Scale | tafra | pandas 3.0 | polars |
 |---|---|---|---|
-| 10k rows | 8.48 ms | **6.58 ms** | 44.9 ms |
-| 100k rows | 87.6 ms | **65.7 ms** | 466 ms |
-| 1M rows | 894 ms | **651 ms** | 4,700 ms |
+| 10k rows | **6.24 ms** | 6.63 ms | 43.0 ms |
+| 100k rows | **62.2 ms** | 63.7 ms | 461 ms |
+| 1M rows | **664 ms** | 686 ms | 4,814 ms |
 
-`pandas` `itertuples` is the fastest row-wise iterator (1.4x faster than
-tafra). `polars` `map_rows` is 5--7x slower than pandas — polars is
+With `name=None` (plain tuple fast path), `tafra` edges out `pandas`
+`itertuples` at all scales. `polars` `map_rows` is 7x slower — polars is
 optimized for columnar operations and explicitly discourages row-wise UDFs.
 
 
@@ -535,8 +535,8 @@ result = ndarray_map(tf['qi'], tf['Di'], tf['bi'], t)
 * **Construction and teardown** -- 308x faster than pandas, 3x faster
   than polars
 * **Column access** -- 128x faster than pandas, 6x faster than polars
-* **Row-wise mapping** -- 1.4x slower than pandas itertuples, but 5x faster
-  than polars map_rows. For row-wise UDFs, pandas is fastest; polars is slowest
+* **Row-wise mapping** -- with `name=None` fast path, slightly faster than
+  pandas itertuples at all scales; 7x faster than polars map_rows
 * **GroupBy at <=10k rows** -- with C extension, 3--5x faster
   than both pandas and polars
 * **Transform at all scales** -- Tafra+C wins every benchmark, from 8x
@@ -575,9 +575,9 @@ Tafra+C = with optional C extension. Tafra = pure Python + numpy only.
 |---|---|---|---|---|
 | Construction (100k rows) | **0.01** | 0.01 | 3.08 | 0.03 |
 | Column access (per call, us) | **0.09** | 0.09 | 11.5 | 0.56 |
-| Row map (10k rows) | 8.48 | 8.48 | **6.58** | 44.9 |
-| Row map (100k rows) | 87.6 | 87.6 | **65.7** | 466 |
-| Row map (1M rows) | 894 | 894 | **651** | 4,700 |
+| Row map (10k rows) | **6.24** | 6.24 | 6.63 | 43.0 |
+| Row map (100k rows) | **62.2** | 62.2 | 63.7 | 461 |
+| Row map (1M rows) | **664** | 664 | 686 | 4,814 |
 | GroupBy (10k, 50 grp, sum+mean) | **0.15** | 0.16 | 0.71 | 0.54 |
 | GroupBy (10k, 500 grp) | **0.18** | 0.20 | 0.71 | 0.58 |
 | GroupBy (100k, 100 grp) | 1.53 | 1.78 | 2.54 | **0.98** |

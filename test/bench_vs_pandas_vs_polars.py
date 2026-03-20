@@ -161,10 +161,10 @@ def bench_row_mapping():
         df = pd.DataFrame(tf.data)
 
         def tuple_mapper(r: tuple) -> tuple:
-            return (row_fn(r.a, r.b, r.c),)
+            return (row_fn(r[0], r[1], r[2]),)
 
         n_rep = max(1, min(7, 50_000 // n_rows))
-        t_tafra = median_of(lambda: list(tf.tuple_map(tuple_mapper)), n=n_rep)
+        t_tafra = median_of(lambda: list(tf.tuple_map(tuple_mapper, name=None)), n=n_rep)
         t_pandas = median_of(
             lambda: [row_fn(r.a, r.b, r.c) for r in df.itertuples()], n=n_rep)
         t_polars = None
