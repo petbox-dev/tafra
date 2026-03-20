@@ -7,7 +7,7 @@
 {% block content %}
 <!-- Hero -->
 <section class="hero">
-  <h1>The <span>innards</span> of a dataframe.</h1>
+  <h1>The <span>innards</span> of a da<span>tafra</span>me.</h1>
   <p>A minimalist Python dataframe library &mdash; lightweight, fast, backed by numpy arrays.</p>
   <div class="cta-row">
     <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('pip install tafra').then(function(){var b=this;this.textContent='Copied!';setTimeout(function(){b.textContent='pip install tafra \u00a0\ud83d\udccb';},2000);}.bind(this)).catch(function(){});">
@@ -92,18 +92,50 @@
     </div>
 
     <div class="chart">
-      <div class="chart-title">Row Map: 1M rows, map_elements (ms)</div>
-      <div class="chart-row">
-        <span class="chart-label">polars</span>
-        <div class="chart-bar-wrap"><div class="chart-bar fastest" style="width: 77%"></div><span class="chart-value">598</span></div>
-      </div>
+      <div class="chart-title">Row Map: 10k rows (ms)</div>
       <div class="chart-row">
         <span class="chart-label">tafra</span>
-        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 96%"></div><span class="chart-value">744</span></div>
+        <div class="chart-bar-wrap"><div class="chart-bar fastest" style="width: 94%"></div><span class="chart-value">6.13</span></div>
+      </div>
+      <div class="chart-row">
+        <span class="chart-label">polars</span>
+        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 94%"></div><span class="chart-value">6.14</span></div>
       </div>
       <div class="chart-row">
         <span class="chart-label">pandas</span>
-        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 100%"></div><span class="chart-value">777</span></div>
+        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 100%"></div><span class="chart-value">6.53</span></div>
+      </div>
+    </div>
+
+    <div class="chart">
+      <div class="chart-title">Row Map: 100k rows (ms)</div>
+      <div class="chart-row">
+        <span class="chart-label">polars</span>
+        <div class="chart-bar-wrap"><div class="chart-bar fastest" style="width: 75%"></div><span class="chart-value">48.7</span></div>
+      </div>
+      <div class="chart-row">
+        <span class="chart-label">tafra</span>
+        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 96%"></div><span class="chart-value">62.1</span></div>
+      </div>
+      <div class="chart-row">
+        <span class="chart-label">pandas</span>
+        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 100%"></div><span class="chart-value">64.9</span></div>
+      </div>
+    </div>
+
+    <div class="chart">
+      <div class="chart-title">Row Map: 1M rows (ms)</div>
+      <div class="chart-row">
+        <span class="chart-label">polars</span>
+        <div class="chart-bar-wrap"><div class="chart-bar fastest" style="width: 63%"></div><span class="chart-value">458</span></div>
+      </div>
+      <div class="chart-row">
+        <span class="chart-label">tafra</span>
+        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 89%"></div><span class="chart-value">645</span></div>
+      </div>
+      <div class="chart-row">
+        <span class="chart-label">pandas</span>
+        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 100%"></div><span class="chart-value">723</span></div>
       </div>
     </div>
 

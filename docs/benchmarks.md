@@ -9,8 +9,8 @@ possible.
 
 !!! note
 
-    Benchmarks on this page were collected with `tafra` 2.1.0 on Windows 11,
-    tested against `pandas` 3.0.1 (numpy 2.2.5, Python 3.11) and `polars` 1.39.0.
+    Benchmarks collected on Windows 11 (Python 3.11). Library versions listed
+    at the bottom of this page.
 
 Additionally, because the `data` contains values of ndarrays, the
 `map` functions may also take functions that operate on ndarrays. This means
@@ -41,7 +41,7 @@ x = df['col0']   # 11.5 us
 x = plf['col0']  # 0.56 us
 ```
 
-| Operation | tafra | pandas 3.0 | polars |
+| Operation | tafra | pandas | polars |
 |---|---|---|---|
 | Construction (100k rows, 5 cols) | **0.01 ms** | 3.08 ms (308x) | 0.03 ms (3x) |
 | Column access (per call) | **0.09 us** | 11.5 us (128x) | 0.56 us (6.2x) |
@@ -103,7 +103,7 @@ result = plf.with_columns(
 )
 ```
 
-| Scale | tafra | pandas 3.0 | polars |
+| Scale | tafra | pandas | polars |
 |---|---|---|---|
 | 10k rows | **6.11 ms** | 6.77 ms | 6.30 ms |
 | 100k rows | 69.6 ms | 66.9 ms | **48.3 ms** |
@@ -316,7 +316,7 @@ result = tf.group_by(
 )
 ```
 
-| Scale | tafra+C | tafra | pandas 3.0 | polars |
+| Scale | tafra+C | tafra | pandas | polars |
 |---|---|---|---|---|
 | 10k rows, 50 groups | **0.15 ms** | 0.16 ms | 0.71 ms | 0.54 ms |
 | 10k rows, 500 groups | **0.18 ms** | 0.20 ms | 0.71 ms | 0.58 ms |
@@ -435,7 +435,7 @@ ahead (4x faster at 10k groups).
 result = tf.transform(['group'], {'m': (np.mean, 'value')})
 ```
 
-| Scale | tafra+C | tafra | pandas 3.0 | polars |
+| Scale | tafra+C | tafra | pandas | polars |
 |---|---|---|---|---|
 | 10k rows, 50 groups | **0.06 ms** | 0.08 ms | 0.50 ms | 0.50 ms |
 | 100k rows, 100 groups | **0.80 ms** | 1.01 ms | 2.11 ms | 1.35 ms |
@@ -547,7 +547,7 @@ result = left_tf.inner_join(right_tf, [('key', 'key', '==')])
 result = left_tf.left_join(right_tf, [('key', 'key', '==')])
 ```
 
-| Benchmark | tafra+C | tafra | pandas 3.0 | polars |
+| Benchmark | tafra+C | tafra | pandas | polars |
 |---|---|---|---|---|
 | Inner join (1k x 1k) | **0.08 ms** | 0.30 ms | 0.83 ms | 0.45 ms |
 | Inner join (5k x 5k) | 3.53 ms | 6.90 ms | 7.88 ms | **1.71 ms** |
@@ -717,6 +717,108 @@ def ndarray_map(qi, Di, bi, t):
 result = ndarray_map(tf['qi'], tf['Di'], tf['bi'], t)
 ```
 
+The key difference between the three libraries is how much work sits
+between your `numba` function and the underlying array:
+
+```python
+# tafra — direct ndarray, zero overhead
+result = numba_fn(tf['a'], tf['b'], tf['c'])
+
+# pandas — .values extracts ndarray
+result = numba_fn(df['a'].values, df['b'].values, df['c'].values)
+
+# polars — .to_numpy() copies from Arrow
+result = numba_fn(plf['a'].to_numpy(), plf['b'].to_numpy(), plf['c'].to_numpy())
+```
+
+| Scale | tafra/numpy | pandas | polars |
+|---|---|---|---|
+| 10k rows | **0.06 ms** | 0.10 ms | 0.17 ms |
+| 100k rows | 0.58 ms | 0.69 ms | **0.57 ms** |
+| 1M rows | **7.38 ms** | 8.26 ms | 8.32 ms |
+
+<div class="chart">
+  <div class="chart-title">Numba: 10k rows (ms)</div>
+  <div class="chart-row">
+    <span class="chart-label">tafra/numpy</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 35%"></div>
+      <span class="chart-value">0.06</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 59%"></div>
+      <span class="chart-value">0.10</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">polars</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">0.17</span>
+    </div>
+  </div>
+</div>
+
+<div class="chart">
+  <div class="chart-title">Numba: 100k rows (ms)</div>
+  <div class="chart-row">
+    <span class="chart-label">polars</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 83%"></div>
+      <span class="chart-value">0.57</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">tafra/numpy</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 84%"></div>
+      <span class="chart-value">0.58</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">0.69</span>
+    </div>
+  </div>
+</div>
+
+<div class="chart">
+  <div class="chart-title">Numba: 1M rows (ms)</div>
+  <div class="chart-row">
+    <span class="chart-label">tafra/numpy</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 89%"></div>
+      <span class="chart-value">7.38</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 99%"></div>
+      <span class="chart-value">8.26</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">polars</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">8.32</span>
+    </div>
+  </div>
+</div>
+
+`tafra` wins at small scale (10k rows) because `tf['col']` **is** the
+ndarray -- zero overhead. `pandas` pays the `.values` accessor cost.
+`polars` pays the Arrow-to-numpy conversion cost. At 100k rows it's a
+near-tie (all three within 0.12 ms). At 1M rows `tafra` wins again --
+the accumulated overhead of `.values` and `.to_numpy()` across three
+columns adds up.
+
 
 ## When to Use Tafra
 
@@ -763,7 +865,7 @@ All times in milliseconds. Lower is better. **Bold** = fastest.
 
 Tafra+C = with optional C extension. Tafra = pure Python + numpy only.
 
-| Benchmark | Tafra+C | Tafra | pandas 3.0 | polars 1.39 |
+| Benchmark | Tafra+C | Tafra | pandas | polars |
 |---|---|---|---|---|
 | Construction (100k rows) | **0.01** | 0.01 | 3.08 | 0.03 |
 | Column access (per call, us) | **0.09** | 0.09 | 11.5 | 0.56 |
@@ -773,6 +875,9 @@ Tafra+C = with optional C extension. Tafra = pure Python + numpy only.
 | Vectorized expr (10k rows) | **0.18** | 0.18 | 0.35 | 0.97 |
 | Vectorized expr (100k rows) | 1.72 | 1.72 | 2.10 | **1.52** |
 | Vectorized expr (1M rows) | 27.1 | 27.1 | 23.5 | **9.63** |
+| Numba (10k rows) | **0.06** | 0.06 | 0.10 | 0.17 |
+| Numba (100k rows) | 0.58 | 0.58 | 0.69 | **0.57** |
+| Numba (1M rows) | **7.38** | 7.38 | 8.26 | 8.32 |
 | GroupBy (10k, 50 grp, sum+mean) | **0.15** | 0.16 | 0.71 | 0.54 |
 | GroupBy (10k, 500 grp) | **0.18** | 0.20 | 0.71 | 0.58 |
 | GroupBy (100k, 100 grp) | 1.53 | 1.78 | 2.54 | **0.98** |
@@ -791,3 +896,7 @@ Tafra+C = with optional C extension. Tafra = pure Python + numpy only.
 | Left join (1k x 1k) | **0.09** | 0.34 | 0.77 | 2.94 |
 | Left join (5k x 5k) | 3.72 | 7.32 | 8.13 | **1.82** |
 | Left join (50k x 50k) | 496.43 | 719.56 | 801.21 | **148.96** |
+
+---
+
+*Benchmarks collected with tafra 2.1.0, pandas 3.0.1, polars 1.39.0, numpy 2.2.5, numba 0.61.2 on Windows 11 (Python 3.11). C extension active.*
