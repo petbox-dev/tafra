@@ -32,19 +32,19 @@ import numpy as np
 data = {f'col{i}': np.random.randn(100_000) for i in range(5)}
 
 tf = Tafra(data)          # 0.01 ms
-df = pd.DataFrame(data)   # 3.08 ms
+df = pd.DataFrame(data)   # 2.83 ms
 plf = pl.DataFrame(data)  # 0.03 ms
 
 # Column access
 x = tf['col0']   # 0.09 us per access
-x = df['col0']   # 11.5 us
+x = df['col0']   # 10.7 us
 x = plf['col0']  # 0.56 us
 ```
 
 | Operation | tafra | pandas | polars |
 |---|---|---|---|
-| Construction (100k rows, 5 cols) | **0.01 ms** | 3.08 ms (308x) | 0.03 ms (3x) |
-| Column access (per call) | **0.09 us** | 11.5 us (128x) | 0.56 us (6.2x) |
+| Construction (100k rows, 5 cols) | **0.01 ms** | 2.83 ms (283x) | 0.03 ms (3x) |
+| Column access (per call) | **0.09 us** | 10.7 us (119x) | 0.56 us (6.2x) |
 
 <div class="chart">
   <div class="chart-title">Construction: 100k rows, 5 columns (ms)</div>
@@ -66,7 +66,7 @@ x = plf['col0']  # 0.56 us
     <span class="chart-label">pandas 3.0</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">3.08</span>
+      <span class="chart-value">2.83</span>
     </div>
   </div>
 </div>
@@ -105,31 +105,31 @@ result = plf.with_columns(
 
 | Scale | tafra | pandas | polars |
 |---|---|---|---|
-| 10k rows | **6.11 ms** | 6.77 ms | 6.30 ms |
-| 100k rows | 69.6 ms | 66.9 ms | **48.3 ms** |
-| 1M rows | 744 ms | 777 ms | **598 ms** |
+| 10k rows | **5.69 ms** | 6.62 ms | 5.91 ms |
+| 100k rows | 62.1 ms | 64.4 ms | **47.0 ms** |
+| 1M rows | 643 ms | 649 ms | **477 ms** |
 
 <div class="chart">
   <div class="chart-title">Row Map: 10k rows (ms)</div>
   <div class="chart-row">
-    <span class="chart-label">tafra</span>
+    <span class="chart-label">polars</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar fastest" style="width: 90%"></div>
-      <span class="chart-value">6.11</span>
+      <div class="chart-bar fastest" style="width: 86%"></div>
+      <span class="chart-value">5.69</span>
     </div>
   </div>
   <div class="chart-row">
-    <span class="chart-label">polars</span>
+    <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 93%"></div>
-      <span class="chart-value">6.30</span>
+      <div class="chart-bar" style="width: 89%"></div>
+      <span class="chart-value">5.91</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">pandas</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">6.77</span>
+      <span class="chart-value">6.62</span>
     </div>
   </div>
 </div>
@@ -139,22 +139,22 @@ result = plf.with_columns(
   <div class="chart-row">
     <span class="chart-label">polars</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar fastest" style="width: 69%"></div>
-      <span class="chart-value">48.3</span>
-    </div>
-  </div>
-  <div class="chart-row">
-    <span class="chart-label">pandas</span>
-    <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 96%"></div>
-      <span class="chart-value">66.9</span>
+      <div class="chart-bar fastest" style="width: 73%"></div>
+      <span class="chart-value">47.0</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 96%"></div>
+      <span class="chart-value">62.1</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas</span>
+    <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">69.6</span>
+      <span class="chart-value">64.4</span>
     </div>
   </div>
 </div>
@@ -164,31 +164,31 @@ result = plf.with_columns(
   <div class="chart-row">
     <span class="chart-label">polars</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar fastest" style="width: 77%"></div>
-      <span class="chart-value">598</span>
+      <div class="chart-bar fastest" style="width: 74%"></div>
+      <span class="chart-value">477</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 96%"></div>
-      <span class="chart-value">744</span>
+      <div class="chart-bar" style="width: 99%"></div>
+      <span class="chart-value">643</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">pandas</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">777</span>
+      <span class="chart-value">649</span>
     </div>
   </div>
 </div>
 
-With `name=None` (plain tuple fast path), `tafra` wins at 10k rows. At
-100k+ rows, `polars` `map_elements` pulls ahead — its Rust-backed struct
-iteration is faster than Python tuple unpacking at scale. All three
-libraries are within 1.3x of each other, a dramatic improvement over the
-old `map_rows` API which was 7x slower.
+With `name=None` (plain tuple fast path), `polars` narrowly wins at 10k rows
+with `tafra` within 4%. At 100k+ rows, `polars` `map_elements` pulls
+ahead -- its Rust-backed struct iteration is faster than Python tuple
+unpacking at scale. `tafra` and `pandas` are within 4% of each other,
+while polars is ~30% faster at 1M rows.
 
 
 ## Vectorized Expressions
@@ -213,31 +213,31 @@ result = plf.with_columns(
 
 | Scale | tafra | pandas | polars |
 |---|---|---|---|
-| 10k rows | **0.18 ms** | 0.35 ms | 0.97 ms |
-| 100k rows | 1.72 ms | 2.10 ms | **1.52 ms** |
-| 1M rows | 27.1 ms | 23.5 ms | **9.63 ms** |
+| 10k rows | **0.07 ms** | 0.32 ms | 0.72 ms |
+| 100k rows | **1.57 ms** | 1.84 ms | 1.64 ms |
+| 1M rows | 18.8 ms | 19.4 ms | **9.70 ms** |
 
 <div class="chart">
   <div class="chart-title">Vectorized Expression: 10k rows (ms)</div>
   <div class="chart-row">
     <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar fastest" style="width: 19%"></div>
-      <span class="chart-value">0.18</span>
+      <div class="chart-bar fastest" style="width: 10%"></div>
+      <span class="chart-value">0.07</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">pandas</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 36%"></div>
-      <span class="chart-value">0.35</span>
+      <div class="chart-bar" style="width: 44%"></div>
+      <span class="chart-value">0.32</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">polars</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">0.97</span>
+      <span class="chart-value">0.72</span>
     </div>
   </div>
 </div>
@@ -245,24 +245,24 @@ result = plf.with_columns(
 <div class="chart">
   <div class="chart-title">Vectorized Expression: 100k rows (ms)</div>
   <div class="chart-row">
-    <span class="chart-label">polars</span>
+    <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar fastest" style="width: 72%"></div>
-      <span class="chart-value">1.52</span>
+      <div class="chart-bar fastest" style="width: 85%"></div>
+      <span class="chart-value">1.57</span>
     </div>
   </div>
   <div class="chart-row">
-    <span class="chart-label">tafra</span>
+    <span class="chart-label">polars</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 82%"></div>
-      <span class="chart-value">1.72</span>
+      <div class="chart-bar" style="width: 89%"></div>
+      <span class="chart-value">1.64</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">pandas</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">2.10</span>
+      <span class="chart-value">1.84</span>
     </div>
   </div>
 </div>
@@ -272,30 +272,31 @@ result = plf.with_columns(
   <div class="chart-row">
     <span class="chart-label">polars</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar fastest" style="width: 36%"></div>
-      <span class="chart-value">9.63</span>
-    </div>
-  </div>
-  <div class="chart-row">
-    <span class="chart-label">pandas</span>
-    <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 87%"></div>
-      <span class="chart-value">23.5</span>
+      <div class="chart-bar fastest" style="width: 50%"></div>
+      <span class="chart-value">9.70</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 97%"></div>
+      <span class="chart-value">18.8</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas</span>
+    <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">27.1</span>
+      <span class="chart-value">19.4</span>
     </div>
   </div>
 </div>
 
-At small scale (10k rows), `tafra`/numpy wins decisively — 5x faster than
-polars — because numpy array operations have minimal dispatch overhead.
-At 1M rows, polars' Rust SIMD internals pull ahead (2.8x faster than
-tafra). Pandas sits in between, benefiting from numpy under the hood
+At small scale (10k rows), `tafra`/numpy wins decisively -- 10x faster than
+polars -- because numpy array operations have minimal dispatch overhead.
+At 100k rows, tafra still leads (1.57 ms vs polars 1.64 ms) with all three
+within 17%. At 1M rows, polars' Rust SIMD internals pull ahead (1.9x faster
+than tafra). Pandas sits in between, benefiting from numpy under the hood
 but paying additional wrapper overhead.
 
 
@@ -318,14 +319,14 @@ result = tf.group_by(
 
 | Scale | tafra+C | tafra | pandas | polars |
 |---|---|---|---|---|
-| 10k rows, 50 groups | **0.15 ms** | 0.16 ms | 0.71 ms | 0.54 ms |
-| 10k rows, 500 groups | **0.18 ms** | 0.20 ms | 0.71 ms | 0.58 ms |
-| 100k rows, 100 groups | 1.53 ms | 1.78 ms | 2.54 ms | **0.98 ms** |
-| 100k rows, 1k groups | 1.16 ms | 1.38 ms | 2.43 ms | **1.00 ms** |
-| 1M rows, 100 groups | 18.88 ms | 25.33 ms | 16.15 ms | **2.46 ms** |
-| 1M rows, 10k groups | 24.45 ms | 27.30 ms | 28.41 ms | **6.96 ms** |
-| 100k rows, 2 col, ~300 grp | 8.72 ms | 8.78 ms | 9.14 ms | **1.73 ms** |
-| 1M rows, 2 col, ~300 grp | 97.07 ms | 100.74 ms | 80.12 ms | **11.47 ms** |
+| 10k rows, 50 groups | **0.15 ms** | 0.16 ms | 0.70 ms | 0.50 ms |
+| 10k rows, 500 groups | **0.18 ms** | 0.20 ms | 0.73 ms | 0.57 ms |
+| 100k rows, 100 groups | **1.11 ms** | 1.28 ms | 2.67 ms | 1.10 ms |
+| 100k rows, 1k groups | 1.30 ms | 1.43 ms | 2.45 ms | **1.31 ms** |
+| 1M rows, 100 groups | 18.61 ms | 23.61 ms | 15.61 ms | **2.81 ms** |
+| 1M rows, 10k groups | 21.15 ms | 25.43 ms | 27.96 ms | **6.20 ms** |
+| 100k rows, 2 col, ~300 grp | 4.00 ms | 7.74 ms | 8.76 ms | **1.64 ms** |
+| 1M rows, 2 col, ~300 grp | 48.23 ms | 97.27 ms | 79.12 ms | **10.19 ms** |
 
 <div class="chart">
   <div class="chart-title">GroupBy: 10k rows, 50 groups (ms)</div>
@@ -346,47 +347,47 @@ result = tf.group_by(
   <div class="chart-row">
     <span class="chart-label">polars</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 76%"></div>
-      <span class="chart-value">0.54</span>
+      <div class="chart-bar" style="width: 71%"></div>
+      <span class="chart-value">0.50</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">pandas 3.0</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">0.71</span>
+      <span class="chart-value">0.70</span>
     </div>
   </div>
 </div>
 
 <div class="chart">
-  <div class="chart-title">GroupBy: 100k rows, 1k groups (ms)</div>
+  <div class="chart-title">GroupBy: 100k rows, 100 groups (ms)</div>
   <div class="chart-row">
     <span class="chart-label">polars</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar fastest" style="width: 41%"></div>
-      <span class="chart-value">1.00</span>
+      <span class="chart-value">1.10</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">tafra+C</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 48%"></div>
-      <span class="chart-value">1.16</span>
+      <div class="chart-bar" style="width: 42%"></div>
+      <span class="chart-value">1.11</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 57%"></div>
-      <span class="chart-value">1.38</span>
+      <div class="chart-bar" style="width: 48%"></div>
+      <span class="chart-value">1.28</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">pandas 3.0</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">2.43</span>
+      <span class="chart-value">2.67</span>
     </div>
   </div>
 </div>
@@ -396,37 +397,41 @@ result = tf.group_by(
   <div class="chart-row">
     <span class="chart-label">polars</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar fastest" style="width: 24%"></div>
-      <span class="chart-value">6.96</span>
+      <div class="chart-bar fastest" style="width: 22%"></div>
+      <span class="chart-value">6.20</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">tafra+C</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 86%"></div>
-      <span class="chart-value">24.45</span>
+      <div class="chart-bar" style="width: 76%"></div>
+      <span class="chart-value">21.15</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 96%"></div>
-      <span class="chart-value">27.30</span>
+      <div class="chart-bar" style="width: 91%"></div>
+      <span class="chart-value">25.43</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">pandas 3.0</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">28.41</span>
+      <span class="chart-value">27.96</span>
     </div>
   </div>
 </div>
 
 At 10k rows, `Tafra+C` is **3--5x faster** than both `pandas` and
-`polars`. At 100k rows, `polars` leads while `Tafra+C` is still faster
-than `pandas`. At 1M rows, polars' multithreaded Rust internals pull
-ahead (4x faster at 10k groups).
+`polars`. At 100k rows with 100 groups, `Tafra+C` now matches `polars`
+(1.11 ms vs 1.10 ms) -- effectively a dead heat -- while remaining 2.4x
+faster than `pandas`. The new C `encode_strings` + `group_indices`
+functions cut multi-column GroupBy time in half: 100k rows with 2 string
+columns improved from 8.72 ms to 4.00 ms, and 1M rows from 97 ms to 48 ms.
+At 1M rows, polars' multithreaded Rust internals pull ahead (3.4x faster
+at 10k groups).
 
 ### Transform
 
@@ -437,9 +442,9 @@ result = tf.transform(['group'], {'m': (np.mean, 'value')})
 
 | Scale | tafra+C | tafra | pandas | polars |
 |---|---|---|---|---|
-| 10k rows, 50 groups | **0.06 ms** | 0.08 ms | 0.50 ms | 0.50 ms |
-| 100k rows, 100 groups | **0.80 ms** | 1.01 ms | 2.11 ms | 1.35 ms |
-| 1M rows, 1k groups | **8.44 ms** | 11.85 ms | 20.90 ms | 9.62 ms |
+| 10k rows, 50 groups | **0.06 ms** | 0.07 ms | 0.49 ms | 0.47 ms |
+| 100k rows, 100 groups | **0.82 ms** | 1.01 ms | 2.13 ms | 1.16 ms |
+| 1M rows, 1k groups | **8.24 ms** | 12.25 ms | 25.44 ms | 9.76 ms |
 
 <div class="chart">
   <div class="chart-title">Transform: 10k rows, 50 groups (ms)</div>
@@ -453,22 +458,22 @@ result = tf.transform(['group'], {'m': (np.mean, 'value')})
   <div class="chart-row">
     <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 16%"></div>
-      <span class="chart-value">0.08</span>
+      <div class="chart-bar" style="width: 14%"></div>
+      <span class="chart-value">0.07</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">polars</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">0.50</span>
+      <div class="chart-bar" style="width: 96%"></div>
+      <span class="chart-value">0.47</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">pandas 3.0</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">0.50</span>
+      <span class="chart-value">0.49</span>
     </div>
   </div>
 </div>
@@ -478,35 +483,35 @@ result = tf.transform(['group'], {'m': (np.mean, 'value')})
   <div class="chart-row">
     <span class="chart-label">tafra+C</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar fastest" style="width: 40%"></div>
-      <span class="chart-value">8.44</span>
+      <div class="chart-bar fastest" style="width: 32%"></div>
+      <span class="chart-value">8.24</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">polars</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 46%"></div>
-      <span class="chart-value">9.62</span>
+      <div class="chart-bar" style="width: 38%"></div>
+      <span class="chart-value">9.76</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 57%"></div>
-      <span class="chart-value">11.85</span>
+      <div class="chart-bar" style="width: 48%"></div>
+      <span class="chart-value">12.25</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">pandas 3.0</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">20.90</span>
+      <span class="chart-value">25.44</span>
     </div>
   </div>
 </div>
 
-Transform wins across all scales. At 1M rows, Tafra+C (8.4 ms) still beats
-polars (9.6 ms) and pandas (20.9 ms).
+Transform wins across all scales. At 1M rows, Tafra+C (8.24 ms) still beats
+polars (9.76 ms) and pandas (25.44 ms) -- a 3.1x advantage over pandas.
 
 ### Vectorized fast path
 
@@ -549,34 +554,34 @@ result = left_tf.left_join(right_tf, [('key', 'key', '==')])
 
 | Benchmark | tafra+C | tafra | pandas | polars |
 |---|---|---|---|---|
-| Inner join (1k x 1k) | **0.08 ms** | 0.30 ms | 0.83 ms | 0.45 ms |
-| Inner join (5k x 5k) | 3.53 ms | 6.90 ms | 7.88 ms | **1.71 ms** |
-| Inner join (10k x 10k) | 19.74 ms | 34.35 ms | 42.38 ms | **6.61 ms** |
-| Inner join (50k x 50k) | 486.81 ms | 726.87 ms | 757.35 ms | **148.62 ms** |
-| Left join (1k x 1k) | **0.09 ms** | 0.34 ms | 0.77 ms | 2.94 ms |
-| Left join (5k x 5k) | 3.72 ms | 7.32 ms | 8.13 ms | **1.82 ms** |
-| Left join (50k x 50k) | 496.43 ms | 719.56 ms | 801.21 ms | **148.96 ms** |
+| Inner join (1k x 1k) | **0.12 ms** | 0.41 ms | 0.86 ms | 0.45 ms |
+| Inner join (5k x 5k) | 3.67 ms | 7.05 ms | 8.17 ms | **1.69 ms** |
+| Inner join (10k x 10k) | 15.24 ms | 24.96 ms | 27.88 ms | **3.90 ms** |
+| Inner join (50k x 50k) | 389 ms | 537 ms | 654 ms | **128 ms** |
+| Left join (1k x 1k) | **0.09 ms** | 0.33 ms | 0.85 ms | 5.81 ms |
+| Left join (5k x 5k) | 3.89 ms | 7.69 ms | 7.77 ms | **2.75 ms** |
+| Left join (50k x 50k) | 457 ms | 572 ms | 665 ms | **144 ms** |
 
 <div class="chart">
   <div class="chart-title">Inner Join: 1k x 1k rows (ms)</div>
   <div class="chart-row">
     <span class="chart-label">tafra+C</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar fastest" style="width: 10%"></div>
-      <span class="chart-value">0.08</span>
+      <div class="chart-bar fastest" style="width: 14%"></div>
+      <span class="chart-value">0.12</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 36%"></div>
-      <span class="chart-value">0.30</span>
+      <div class="chart-bar" style="width: 48%"></div>
+      <span class="chart-value">0.41</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">polars</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 54%"></div>
+      <div class="chart-bar" style="width: 52%"></div>
       <span class="chart-value">0.45</span>
     </div>
   </div>
@@ -584,7 +589,7 @@ result = left_tf.left_join(right_tf, [('key', 'key', '==')])
     <span class="chart-label">pandas 3.0</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">0.83</span>
+      <span class="chart-value">0.86</span>
     </div>
   </div>
 </div>
@@ -594,38 +599,38 @@ result = left_tf.left_join(right_tf, [('key', 'key', '==')])
   <div class="chart-row">
     <span class="chart-label">polars</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar fastest" style="width: 16%"></div>
-      <span class="chart-value">6.61</span>
+      <div class="chart-bar fastest" style="width: 14%"></div>
+      <span class="chart-value">3.90</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">tafra+C</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 47%"></div>
-      <span class="chart-value">19.74</span>
+      <div class="chart-bar" style="width: 55%"></div>
+      <span class="chart-value">15.24</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 81%"></div>
-      <span class="chart-value">34.35</span>
+      <div class="chart-bar" style="width: 89%"></div>
+      <span class="chart-value">24.96</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">pandas 3.0</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">42.38</span>
+      <span class="chart-value">27.88</span>
     </div>
   </div>
 </div>
 
-With the C hash join, `Tafra` is **6--10x faster** than both `pandas` and
+With the C hash join, `Tafra` is **4--7x faster** than both `pandas` and
 `polars` on small-scale joins (1k x 1k). At 10k x 10k, `polars`' Rust
-multithreaded join pulls ahead while `Tafra+C` is still 2x faster than
-`pandas`. At 50k x 50k, polars is 3.3x faster than `Tafra+C`, which is
-still 1.6x faster than `pandas`. `Tafra`'s join also supports arbitrary
+multithreaded join pulls ahead while `Tafra+C` is still 1.8x faster than
+`pandas`. At 50k x 50k, polars is 3.0x faster than `Tafra+C`, which is
+still 1.7x faster than `pandas`. `Tafra`'s join also supports arbitrary
 comparison operators (`<`, `<=`, `>`, `>=`, `!=`) in the `on`
 clause, which neither `pandas` nor `polars` natively offer.
 
@@ -733,31 +738,31 @@ result = numba_fn(plf['a'].to_numpy(), plf['b'].to_numpy(), plf['c'].to_numpy())
 
 | Scale | tafra | pandas | polars |
 |---|---|---|---|
-| 10k rows | **0.06 ms** | 0.10 ms | 0.17 ms |
-| 100k rows | 0.58 ms | 0.69 ms | **0.57 ms** |
-| 1M rows | **7.38 ms** | 8.26 ms | 8.32 ms |
+| 10k rows | **0.06 ms** | 0.09 ms | 0.06 ms |
+| 100k rows | 0.56 ms | 0.61 ms | **0.57 ms** |
+| 1M rows | **6.88 ms** | 6.95 ms | 6.90 ms |
 
 <div class="chart">
   <div class="chart-title">Numba: 10k rows (ms)</div>
   <div class="chart-row">
     <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar fastest" style="width: 35%"></div>
+      <div class="chart-bar fastest" style="width: 67%"></div>
+      <span class="chart-value">0.06</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">polars</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 67%"></div>
       <span class="chart-value">0.06</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">pandas</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 59%"></div>
-      <span class="chart-value">0.10</span>
-    </div>
-  </div>
-  <div class="chart-row">
-    <span class="chart-label">polars</span>
-    <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">0.17</span>
+      <span class="chart-value">0.09</span>
     </div>
   </div>
 </div>
@@ -765,24 +770,24 @@ result = numba_fn(plf['a'].to_numpy(), plf['b'].to_numpy(), plf['c'].to_numpy())
 <div class="chart">
   <div class="chart-title">Numba: 100k rows (ms)</div>
   <div class="chart-row">
-    <span class="chart-label">polars</span>
+    <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar fastest" style="width: 83%"></div>
-      <span class="chart-value">0.57</span>
+      <div class="chart-bar fastest" style="width: 92%"></div>
+      <span class="chart-value">0.56</span>
     </div>
   </div>
   <div class="chart-row">
-    <span class="chart-label">tafra</span>
+    <span class="chart-label">polars</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 84%"></div>
-      <span class="chart-value">0.58</span>
+      <div class="chart-bar" style="width: 93%"></div>
+      <span class="chart-value">0.57</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">pandas</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">0.69</span>
+      <span class="chart-value">0.61</span>
     </div>
   </div>
 </div>
@@ -792,71 +797,79 @@ result = numba_fn(plf['a'].to_numpy(), plf['b'].to_numpy(), plf['c'].to_numpy())
   <div class="chart-row">
     <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar fastest" style="width: 89%"></div>
-      <span class="chart-value">7.38</span>
-    </div>
-  </div>
-  <div class="chart-row">
-    <span class="chart-label">pandas</span>
-    <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 99%"></div>
-      <span class="chart-value">8.26</span>
+      <div class="chart-bar fastest" style="width: 99%"></div>
+      <span class="chart-value">6.88</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">polars</span>
     <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 99%"></div>
+      <span class="chart-value">6.90</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas</span>
+    <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">8.32</span>
+      <span class="chart-value">6.95</span>
     </div>
   </div>
 </div>
 
-`tafra` wins at small scale (10k rows) because `tf['col']` **is** the
-ndarray -- zero overhead. `pandas` pays the `.values` accessor cost.
-`polars` pays the Arrow-to-numpy conversion cost. At 100k rows it's a
-near-tie (all three within 0.12 ms). At 1M rows `tafra` wins again --
-the accumulated overhead of `.values` and `.to_numpy()` across three
-columns adds up.
+`tafra` ties polars at 10k rows (both 0.06 ms) because `tf['col']` **is**
+the ndarray -- zero overhead. `pandas` pays the `.values` accessor cost.
+At 100k and 1M rows all three converge -- the actual numba computation
+dominates and accessor overhead is negligible. `tafra` still wins at 1M
+rows (6.88 ms vs 6.90 ms polars, 6.95 ms pandas) but the differences are
+within noise.
 
 
 ## When to Use Tafra
 
 `Tafra` is fastest when your workload is dominated by:
 
-* **Construction and teardown** -- 308x faster than pandas, 3x faster
+* **Construction and teardown** -- 283x faster than pandas, 3x faster
   than polars
-* **Column access** -- 128x faster than pandas, 6x faster than polars
-* **Row-wise mapping** -- with `name=None` fast path, fastest at 10k rows;
-  polars `map_elements` wins at 100k+ but all three are within 1.3x
-* **Vectorized expressions** -- tafra wins at small scale (5x faster
-  than polars at 10k rows); polars SIMD wins at 1M rows (2.8x faster)
+* **Column access** -- 119x faster than pandas, 6x faster than polars
+* **Row-wise mapping** -- with `name=None` fast path, within 4% of polars
+  at 10k rows; polars `map_elements` wins at 100k+ but tafra and pandas
+  are within 4% of each other
+* **Vectorized expressions** -- tafra wins at small scale (10x faster
+  than polars at 10k rows); tafra wins at 100k; polars SIMD wins at 1M
+  rows (1.9x faster)
 * **GroupBy at <=10k rows** -- with C extension, 3--5x faster
   than both pandas and polars
+* **GroupBy at 100k rows** -- Tafra+C now matches polars at single-column
+  100k (1.11 ms vs 1.10 ms); multi-column GroupBy cut in half by new C
+  `encode_strings` + `group_indices` (4.00 ms, down from 8.72 ms)
 * **Transform at all scales** -- Tafra+C wins every benchmark, from 8x
-  faster than pandas at 10k rows to 2.5x faster at 1M rows; beats polars
-  at 1M rows (8.4 ms vs 9.6 ms)
+  faster than pandas at 10k rows to 3.1x faster at 1M rows; beats polars
+  at 1M rows (8.24 ms vs 9.76 ms)
 * **Small-scale joins** -- with C extension, equi-joins at 1k x 1k are
-  6--10x faster than both pandas and polars
+  4--7x faster than both pandas and polars
 * **Numba-accelerated computation** -- direct `ndarray` access with zero
-  adapter overhead
+  adapter overhead; ties polars at all scales
 
 `polars` is fastest for:
 
-* **GroupBy at >=100k rows** -- Rust multithreaded internals (2--7x faster
+* **GroupBy at >=1M rows** -- Rust multithreaded internals (3--5x faster
   than Tafra depending on scale and group count)
 * **Large-scale joins** -- Rust multithreaded hash-join at 50k+ rows
-  (3.3x faster than Tafra+C)
+  (3.0x faster than Tafra+C)
 
 `pandas` 3.0 is the slowest of the three on nearly every benchmark due to
-copy-on-write overhead. At 1M-row Transform, pandas (20.9 ms) is 2.5x slower
-than Tafra+C (8.4 ms).
+copy-on-write overhead. At 1M-row Transform, pandas (25.4 ms) is 3.1x slower
+than Tafra+C (8.24 ms).
 
 The general pattern: `Tafra` wins on everything up to ~10k rows and remains
-competitive at 100k for single-column operations. `polars` pulls ahead at
-100k+ rows where its Rust multithreaded internals dominate. The optional C
-extension closes much of the remaining gap -- without it, `Tafra` still beats
-pandas everywhere and is competitive with polars at moderate scales.
+competitive at 100k for single-column operations -- now matching polars on
+100k single-column GroupBy. The new C `composite_key`, `group_indices`, and
+`encode_strings` functions halved multi-column GroupBy times. `polars` pulls
+ahead at 1M+ rows where its Rust multithreaded internals dominate. The
+optional C extension closes much of the remaining gap -- without it, `Tafra`
+still beats pandas everywhere and is competitive with polars at moderate
+scales.
 
 
 ## Summary Table
@@ -867,35 +880,35 @@ Tafra+C = with optional C extension. Tafra = pure Python + numpy only.
 
 | Benchmark | Tafra+C | Tafra | pandas | polars |
 |---|---|---|---|---|
-| Construction (100k rows) | **0.01** | 0.01 | 3.08 | 0.03 |
-| Column access (per call, us) | **0.09** | 0.09 | 11.5 | 0.56 |
-| Row map (10k rows) | **6.11** | 6.11 | 6.77 | 6.30 |
-| Row map (100k rows) | 69.6 | 69.6 | 66.9 | **48.3** |
-| Row map (1M rows) | 744 | 744 | 777 | **598** |
-| Vectorized expr (10k rows) | **0.18** | 0.18 | 0.35 | 0.97 |
-| Vectorized expr (100k rows) | 1.72 | 1.72 | 2.10 | **1.52** |
-| Vectorized expr (1M rows) | 27.1 | 27.1 | 23.5 | **9.63** |
-| Numba (10k rows) | **0.06** | 0.06 | 0.10 | 0.17 |
-| Numba (100k rows) | 0.58 | 0.58 | 0.69 | **0.57** |
-| Numba (1M rows) | **7.38** | 7.38 | 8.26 | 8.32 |
-| GroupBy (10k, 50 grp, sum+mean) | **0.15** | 0.16 | 0.71 | 0.54 |
-| GroupBy (10k, 500 grp) | **0.18** | 0.20 | 0.71 | 0.58 |
-| GroupBy (100k, 100 grp) | 1.53 | 1.78 | 2.54 | **0.98** |
-| GroupBy (100k, 1k grp) | 1.16 | 1.38 | 2.43 | **1.00** |
-| GroupBy (1M, 100 grp) | 18.88 | 25.33 | 16.15 | **2.46** |
-| GroupBy (1M, 10k grp) | 24.45 | 27.30 | 28.41 | **6.96** |
-| GroupBy (100k, 2 col, ~300 grp) | 8.72 | 8.78 | 9.14 | **1.73** |
-| GroupBy (1M, 2 col, ~300 grp) | 97.07 | 100.74 | 80.12 | **11.47** |
-| Transform (10k, 50 grp) | **0.06** | 0.08 | 0.50 | 0.50 |
-| Transform (100k, 100 grp) | **0.80** | 1.01 | 2.11 | 1.35 |
-| Transform (1M, 1k grp) | **8.44** | 11.85 | 20.90 | 9.62 |
-| Inner join (1k x 1k) | **0.08** | 0.30 | 0.83 | 0.45 |
-| Inner join (5k x 5k) | 3.53 | 6.90 | 7.88 | **1.71** |
-| Inner join (10k x 10k) | 19.74 | 34.35 | 42.38 | **6.61** |
-| Inner join (50k x 50k) | 486.81 | 726.87 | 757.35 | **148.62** |
-| Left join (1k x 1k) | **0.09** | 0.34 | 0.77 | 2.94 |
-| Left join (5k x 5k) | 3.72 | 7.32 | 8.13 | **1.82** |
-| Left join (50k x 50k) | 496.43 | 719.56 | 801.21 | **148.96** |
+| Construction (100k rows) | **0.01** | 0.01 | 2.83 | 0.03 |
+| Column access (per call, us) | **0.09** | 0.09 | 10.7 | 0.56 |
+| Row map (10k rows) | 5.91 | 5.91 | 6.62 | **5.69** |
+| Row map (100k rows) | 62.1 | 62.1 | 64.4 | **47.0** |
+| Row map (1M rows) | 643 | 643 | 649 | **477** |
+| Vectorized expr (10k rows) | **0.07** | 0.07 | 0.32 | 0.72 |
+| Vectorized expr (100k rows) | **1.57** | 1.57 | 1.84 | 1.64 |
+| Vectorized expr (1M rows) | 18.8 | 18.8 | 19.4 | **9.70** |
+| Numba (10k rows) | **0.06** | 0.06 | 0.09 | 0.06 |
+| Numba (100k rows) | **0.56** | 0.56 | 0.61 | 0.57 |
+| Numba (1M rows) | **6.88** | 6.88 | 6.95 | 6.90 |
+| GroupBy (10k, 50 grp, sum+mean) | **0.15** | 0.16 | 0.70 | 0.50 |
+| GroupBy (10k, 500 grp) | **0.18** | 0.20 | 0.73 | 0.57 |
+| GroupBy (100k, 100 grp) | 1.11 | 1.28 | 2.67 | **1.10** |
+| GroupBy (100k, 1k grp) | 1.30 | 1.43 | 2.45 | **1.31** |
+| GroupBy (1M, 100 grp) | 18.61 | 23.61 | 15.61 | **2.81** |
+| GroupBy (1M, 10k grp) | 21.15 | 25.43 | 27.96 | **6.20** |
+| GroupBy (100k, 2 col, ~300 grp) | 4.00 | 7.74 | 8.76 | **1.64** |
+| GroupBy (1M, 2 col, ~300 grp) | 48.23 | 97.27 | 79.12 | **10.19** |
+| Transform (10k, 50 grp) | **0.06** | 0.07 | 0.49 | 0.47 |
+| Transform (100k, 100 grp) | **0.82** | 1.01 | 2.13 | 1.16 |
+| Transform (1M, 1k grp) | **8.24** | 12.25 | 25.44 | 9.76 |
+| Inner join (1k x 1k) | **0.12** | 0.41 | 0.86 | 0.45 |
+| Inner join (5k x 5k) | 3.67 | 7.05 | 8.17 | **1.69** |
+| Inner join (10k x 10k) | 15.24 | 24.96 | 27.88 | **3.90** |
+| Inner join (50k x 50k) | 389 | 537 | 654 | **128** |
+| Left join (1k x 1k) | **0.09** | 0.33 | 0.85 | 5.81 |
+| Left join (5k x 5k) | 3.89 | 7.69 | 7.77 | **2.75** |
+| Left join (50k x 50k) | 457 | 572 | 665 | **144** |
 
 ---
 
