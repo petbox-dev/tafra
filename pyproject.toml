@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tafra"
 version = "2.1.0"
-description = "Tafra: innards of a dataframe"
+description = "Tafra: essence of a dataframe"
 readme = {file = "README.rst", content-type = "text/x-rst"}
 license = "MIT"
 requires-python = ">=3.10"

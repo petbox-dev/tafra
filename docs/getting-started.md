@@ -2,23 +2,20 @@
 
 ## Installation
 
-Install from **conda-forge** (includes a pre-built C extension -- no compiler needed):
-
-```bash
-conda install tafra -c conda-forge
-```
-
-Or install from **PyPI** with pip:
+Install from **PyPI** (includes pre-built C extension for all major platforms):
 
 ```bash
 pip install tafra
 ```
 
-!!! note
-    `conda install` provides a pre-built binary with the C extension already
-    compiled for your platform. `pip install` from PyPI will attempt to compile
-    the C extension from source; if no C compiler is available, the package
-    installs without it and falls back to pure Python + numpy.
+Or from **conda-forge**:
+
+```bash
+conda install tafra -c conda-forge
+```
+
+Both methods install pre-built wheels with the optional C extension already
+compiled. No compiler needed.
 
 ## Your First Tafra
 
@@ -264,6 +261,9 @@ combined = Tafra.concat(results)
 
 ## Building from Source
 
+Only needed for development — `pip install tafra` already includes
+pre-built wheels with the C extension.
+
 ```bash
 git clone https://github.com/petbox-dev/tafra.git
 cd tafra
@@ -274,13 +274,10 @@ pip install -e .
 
 - Python >= 3.9
 - numpy >= 2.1
-- A C compiler (optional, for the `_accel` extension):
+- A C compiler (for the `_accel` extension):
     - **Windows**: Visual Studio Build Tools (with Windows SDK) or MinGW-w64
     - **Linux**: `gcc` (usually pre-installed, or `apt install build-essential`)
     - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
-
-If no C compiler is available, the package installs without the extension and
-falls back to pure Python + numpy at runtime.
 
 ### Build the C extension
 

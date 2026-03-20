@@ -1,4 +1,4 @@
 ---
 template: home.html
-title: "tafra — the innards of a dataframe"
+title: "tafra — the essence of a dataframe"
 ---

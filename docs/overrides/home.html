@@ -7,11 +7,11 @@
 {% block content %}
 <!-- Hero -->
 <section class="hero">
-  <h1>The <span>innards</span> of a da<span>tafra</span>me.</h1>
+  <h1>The <span>essence</span> of a da<span>tafra</span>me.</h1>
   <p>A minimalist Python dataframe library &mdash; lightweight, fast, backed by numpy arrays.</p>
   <div class="cta-row">
-    <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('pip install tafra').then(function(){var b=this;this.textContent='Copied!';setTimeout(function(){b.textContent='pip install tafra \u00a0\ud83d\udccb';},2000);}.bind(this)).catch(function(){});">
-      pip install tafra &nbsp;&#x1f4cb;
+    <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('pip install tafra').then(function(){var b=this;b.querySelector('.copy-icon').style.display='none';b.querySelector('.copy-label').textContent='Copied!';setTimeout(function(){b.querySelector('.copy-icon').style.display='inline';b.querySelector('.copy-label').textContent='pip install tafra';},2000);}.bind(this)).catch(function(){});">
+      <span class="copy-label">pip install tafra</span>&nbsp;<svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
     </button>
     <a href="{{ 'getting-started/' | url }}" class="btn btn-primary">Get Started &rarr;</a>
   </div>
@@ -36,18 +36,18 @@
   <div class="features-grid">
     <div class="feature-card">
       <div class="feature-icon">{ }</div>
-      <h3>Minimalist</h3>
-      <p>Dict of numpy arrays. No magic, no complexity. You already know the API.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon">&#x26A1;</div>
-      <h3>Fast</h3>
-      <p>Vectorized aggregations via bincount/reduceat. Optional C extension for single-pass ops.</p>
+      <h3>Just Arrays</h3>
+      <p><code>t['col']</code> returns the numpy array. No wrappers, no copies, no surprises, no new API to learn.</p>
     </div>
     <div class="feature-card">
       <div class="feature-icon">&#x229D;</div>
-      <h3>SQL-Style Ops</h3>
-      <p>GroupBy, Transform, Inner/Left/Cross Join &mdash; familiar operations, zero overhead.</p>
+      <h3>SQL on NumPy</h3>
+      <p>GroupBy, Transform, Inner/Left/Cross Join &mdash; SQL semantics backed by vectorized numpy.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#x26A1;</div>
+      <h3>Built for Numerics</h3>
+      <p>Designed for scientific Python. Native numba JIT, multiprocessing-ready partitioning, and zero-adapter interop with any library that speaks numpy.</p>
     </div>
   </div>
 </section>
@@ -92,82 +92,18 @@
     </div>
 
     <div class="chart">
-      <div class="chart-title">Row Map: 10k rows (ms)</div>
+      <div class="chart-title">Numba JIT: 1M rows (ms)</div>
       <div class="chart-row">
         <span class="chart-label">tafra</span>
-        <div class="chart-bar-wrap"><div class="chart-bar fastest" style="width: 94%"></div><span class="chart-value">6.13</span></div>
-      </div>
-      <div class="chart-row">
-        <span class="chart-label">polars</span>
-        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 94%"></div><span class="chart-value">6.14</span></div>
+        <div class="chart-bar-wrap"><div class="chart-bar fastest" style="width: 89%"></div><span class="chart-value">7.38</span></div>
       </div>
       <div class="chart-row">
         <span class="chart-label">pandas</span>
-        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 100%"></div><span class="chart-value">6.53</span></div>
+        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 100%"></div><span class="chart-value">8.26</span></div>
       </div>
-    </div>
-
-    <div class="chart">
-      <div class="chart-title">Row Map: 100k rows (ms)</div>
       <div class="chart-row">
         <span class="chart-label">polars</span>
-        <div class="chart-bar-wrap"><div class="chart-bar fastest" style="width: 75%"></div><span class="chart-value">48.7</span></div>
-      </div>
-      <div class="chart-row">
-        <span class="chart-label">tafra</span>
-        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 96%"></div><span class="chart-value">62.1</span></div>
-      </div>
-      <div class="chart-row">
-        <span class="chart-label">pandas</span>
-        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 100%"></div><span class="chart-value">64.9</span></div>
-      </div>
-    </div>
-
-    <div class="chart">
-      <div class="chart-title">Row Map: 1M rows (ms)</div>
-      <div class="chart-row">
-        <span class="chart-label">polars</span>
-        <div class="chart-bar-wrap"><div class="chart-bar fastest" style="width: 63%"></div><span class="chart-value">458</span></div>
-      </div>
-      <div class="chart-row">
-        <span class="chart-label">tafra</span>
-        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 89%"></div><span class="chart-value">645</span></div>
-      </div>
-      <div class="chart-row">
-        <span class="chart-label">pandas</span>
-        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 100%"></div><span class="chart-value">723</span></div>
-      </div>
-    </div>
-
-    <div class="chart">
-      <div class="chart-title">GroupBy: 100k rows, 100 groups (ms)</div>
-      <div class="chart-row">
-        <span class="chart-label">polars</span>
-        <div class="chart-bar-wrap"><div class="chart-bar fastest" style="width: 39%"></div><span class="chart-value">0.98</span></div>
-      </div>
-      <div class="chart-row">
-        <span class="chart-label">tafra+C</span>
-        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 60%"></div><span class="chart-value">1.53</span></div>
-      </div>
-      <div class="chart-row">
-        <span class="chart-label">pandas</span>
-        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 100%"></div><span class="chart-value">2.54</span></div>
-      </div>
-    </div>
-
-    <div class="chart">
-      <div class="chart-title">GroupBy: 1M rows, 100 groups (ms)</div>
-      <div class="chart-row">
-        <span class="chart-label">polars</span>
-        <div class="chart-bar-wrap"><div class="chart-bar fastest" style="width: 13%"></div><span class="chart-value">2.46</span></div>
-      </div>
-      <div class="chart-row">
-        <span class="chart-label">pandas</span>
-        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 86%"></div><span class="chart-value">16.15</span></div>
-      </div>
-      <div class="chart-row">
-        <span class="chart-label">tafra+C</span>
-        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 100%"></div><span class="chart-value">18.88</span></div>
+        <div class="chart-bar-wrap"><div class="chart-bar" style="width: 100%"></div><span class="chart-value">8.32</span></div>
       </div>
     </div>
 
@@ -192,40 +128,45 @@
 <!-- Zero Overhead + From Anywhere -->
 <section class="comparison">
   <div class="comparison-grid">
-    <div class="comparison-block highlight">
+    <div class="comparison-block highlight hero-code">
       <div class="label">Zero Overhead</div>
       <pre><span class="kw">from</span> tafra <span class="kw">import</span> Tafra
 <span class="kw">import</span> numpy <span class="kw">as</span> np
 
-t <span class="op">=</span> Tafra({<span class="str">'x'</span>: np.arange(<span class="num">1_000_000</span>)})
+t <span class="op">=</span> Tafra({
+    <span class="str">'x'</span>: np.arange(<span class="num">1_000_000</span>)
+})
 
-<span class="cm"># Direct numpy array — no copy, no wrapper</span>
-arr <span class="op">=</span> t[<span class="str">'x'</span>]          <span class="cm"># returns the actual ndarray</span>
-np.sum(arr)            <span class="cm"># numpy works directly</span>
+<span class="cm"># Direct numpy array</span>
+arr <span class="op">=</span> t[<span class="str">'x'</span>]  <span class="cm"># the actual ndarray</span>
+np.sum(arr)   <span class="cm"># numpy works directly</span>
 
-<span class="cm"># Pass straight to numba, scipy, sklearn</span>
+<span class="cm"># Pass straight to numba</span>
 <span class="kw">from</span> numba <span class="kw">import</span> jit
 <span class="op">@</span>jit
-<span class="kw">def</span> <span class="fn">fast</span>(x): <span class="kw">return</span> x <span class="op">**</span> <span class="num">2</span> <span class="op">+</span> <span class="num">1</span>
-result <span class="op">=</span> fast(t[<span class="str">'x'</span>])  <span class="cm"># zero adapter overhead</span></pre>
+<span class="kw">def</span> <span class="fn">square_plus_one</span>(x):
+    <span class="kw">return</span> x <span class="op">**</span> <span class="num">2</span> <span class="op">+</span> <span class="num">1</span>
+result <span class="op">=</span> <span class="fn">square_plus_one</span>(t[<span class="str">'x'</span>])</pre>
     </div>
-    <div class="comparison-block highlight">
+    <div class="comparison-block highlight hero-code">
       <div class="label">From Anywhere</div>
       <pre><span class="cm"># From a dict of arrays</span>
-t <span class="op">=</span> Tafra({<span class="str">'a'</span>: np.array([<span class="num">1</span>,<span class="num">2</span>,<span class="num">3</span>]), <span class="str">'b'</span>: np.array([<span class="num">4</span>,<span class="num">5</span>,<span class="num">6</span>])})
+t <span class="op">=</span> <span class="fn">Tafra</span>({
+    <span class="str">'a'</span>: np.array([<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>]),
+    <span class="str">'b'</span>: np.array([<span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>]),
+})
 
 <span class="cm"># From a pandas DataFrame</span>
-t <span class="op">=</span> Tafra.from_dataframe(df)
+t <span class="op">=</span> Tafra.<span class="fn">from_dataframe</span>(df)
 
 <span class="cm"># From a SQL cursor</span>
-t <span class="op">=</span> Tafra.read_sql(<span class="str">'SELECT * FROM wells'</span>, conn)
+t <span class="op">=</span> Tafra.<span class="fn">read_sql</span>(query, conn)
 
 <span class="cm"># From CSV</span>
-<span class="kw">from</span> tafra <span class="kw">import</span> read_csv
-t <span class="op">=</span> read_csv(<span class="str">'data.csv'</span>, dtypes<span class="op">=</span>{<span class="str">'id'</span>: <span class="str">'str'</span>})
+t <span class="op">=</span> <span class="fn">read_csv</span>(<span class="str">'data.csv'</span>)
 
-<span class="cm"># Back to pandas when you need it</span>
-df <span class="op">=</span> t.to_pandas()</pre>
+<span class="cm"># Back to pandas</span>
+df <span class="op">=</span> t.<span class="fn">to_pandas</span>()</pre>
     </div>
   </div>
 </section>

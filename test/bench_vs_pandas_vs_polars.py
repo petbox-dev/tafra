@@ -141,7 +141,7 @@ def bench_column_access():
 
 
 def bench_row_mapping():
-    print("\n--- Row Mapping (tuple_map / itertuples / map_rows) ---")
+    print("\n--- Row Mapping (UDF per row: tuple_map / itertuples / map_elements) ---")
     print_header()
     rng = np.random.default_rng(42)
 
@@ -170,9 +170,44 @@ def bench_row_mapping():
         t_polars = None
         if HAS_POLARS:
             plf = pl.DataFrame(tf.data)
-            def polars_mapper(row):
-                return pl.Series([row_fn(row[0], row[1], row[2])])
-            t_polars = median_of(lambda: plf.map_rows(polars_mapper), n=n_rep)
+            t_polars = median_of(lambda: plf.with_columns(
+                pl.struct(['a', 'b', 'c']).map_elements(
+                    lambda s: row_fn(s['a'], s['b'], s['c']),
+                    return_dtype=pl.Float64
+                ).alias('result')
+            ), n=n_rep)
+        print_row(label, t_tafra, t_tafra, t_pandas, t_polars)
+
+
+def bench_vectorized_expr():
+    print("\n--- Vectorized Expression (numpy / pandas / polars native) ---")
+    print_header()
+    rng = np.random.default_rng(42)
+
+    # sqrt(a^2 + b^2) + log1p(|c|)
+    for n_rows, label in [
+        (10_000, "10k rows"),
+        (100_000, "100k rows"),
+        (1_000_000, "1M rows"),
+    ]:
+        tf = Tafra({
+            'a': rng.standard_normal(n_rows),
+            'b': rng.standard_normal(n_rows),
+            'c': rng.standard_normal(n_rows),
+        })
+        df = pd.DataFrame(tf.data)
+
+        # tafra/numpy: direct array ops
+        t_tafra = median_of(lambda: np.sqrt(tf['a']**2 + tf['b']**2) + np.log1p(np.abs(tf['c'])))
+        # pandas: same numpy ops on .values, or pandas API
+        t_pandas = median_of(lambda: np.sqrt(df['a']**2 + df['b']**2) + np.log1p(np.abs(df['c'])))
+        t_polars = None
+        if HAS_POLARS:
+            plf = pl.DataFrame(tf.data)
+            t_polars = median_of(lambda: plf.with_columns(
+                ((pl.col('a')**2 + pl.col('b')**2).sqrt()
+                 + (pl.col('c').abs() + 1).log()).alias('result')
+            ))
         print_row(label, t_tafra, t_tafra, t_pandas, t_polars)
 
 
@@ -311,6 +346,55 @@ def bench_joins():
         print_row(label, t_accel, t_pure, t_pandas, t_polars)
 
 
+def bench_numba():
+    try:
+        from numba import jit
+    except ImportError:
+        print("\n--- Numba (skipped, not installed) ---")
+        return
+
+    print("\n--- Numba JIT (array function) ---")
+    print_header()
+    rng = np.random.default_rng(42)
+
+    @jit(nopython=True, fastmath=True)
+    def numba_fn(a: np.ndarray, b: np.ndarray, c: np.ndarray) -> np.ndarray:
+        out = np.empty(a.shape[0])
+        for i in range(a.shape[0]):
+            out[i] = math.sqrt(a[i] * a[i] + b[i] * b[i]) + math.log1p(abs(c[i]))
+        return out
+
+    # Warm up JIT
+    _warmup = np.ones(10)
+    numba_fn(_warmup, _warmup, _warmup)
+
+    for n_rows, label in [
+        (10_000, "10k rows"),
+        (100_000, "100k rows"),
+        (1_000_000, "1M rows"),
+    ]:
+        tf = Tafra({
+            'a': rng.standard_normal(n_rows),
+            'b': rng.standard_normal(n_rows),
+            'c': rng.standard_normal(n_rows),
+        })
+        df = pd.DataFrame(tf.data)
+
+        # tafra: direct ndarray access
+        t_tafra = median_of(lambda: numba_fn(tf['a'], tf['b'], tf['c']))
+
+        # pandas: .values to get ndarray
+        t_pandas = median_of(lambda: numba_fn(df['a'].values, df['b'].values, df['c'].values))
+
+        t_polars = None
+        if HAS_POLARS:
+            plf = pl.DataFrame(tf.data)
+            t_polars = median_of(lambda: numba_fn(
+                plf['a'].to_numpy(), plf['b'].to_numpy(), plf['c'].to_numpy()))
+
+        print_row(label, t_tafra, t_tafra, t_pandas, t_polars)
+
+
 if __name__ == '__main__':
     print("=" * 80)
     libs = f"pandas {pd.__version__}, numpy {np.__version__}"
@@ -325,6 +409,8 @@ if __name__ == '__main__':
     bench_construction()
     bench_column_access()
     bench_row_mapping()
+    bench_vectorized_expr()
+    bench_numba()
     bench_groupby()
     bench_transform()
     bench_joins()

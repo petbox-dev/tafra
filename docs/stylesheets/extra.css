@@ -42,13 +42,11 @@
 .md-typeset .doc.doc-heading .doc-function-name,
 .md-typeset .doc.doc-heading .doc-class-name {
   color: #2563eb !important;
-  font-weight: 600;
   font-family: var(--md-code-font-family);
 }
 /* Signature block: function name */
 .md-typeset .doc-signature span.nf {
   color: #2563eb !important;
-  font-weight: 600;
 }
 /* Signature block: parameter names — default text color */
 .md-typeset .doc-signature span.n {
@@ -95,7 +93,6 @@
 .md-typeset .highlight span.nf,
 .md-typeset .highlight span.fm {
   color: #2563eb !important;
-  font-weight: 600;
 }
 .md-typeset .highlight span.k,
 .md-typeset .highlight span.kd {
@@ -141,7 +138,6 @@
 /* JS-applied class for function/method calls: name followed by ( */
 .md-typeset .highlight span.n.fn-call {
   color: #2563eb !important;
-  font-weight: 600;
 }
 /* JS-applied class for type names in annotations */
 .md-typeset .highlight span.n.type-name {
@@ -164,7 +160,6 @@
 /* Parameter name (first column) — teal */
 .doc-contents .doc-section-item td:first-child code {
   color: var(--accent) !important;
-  font-weight: 600;
   background: none;
 }
 /* Type annotation (second column) */
@@ -258,6 +253,14 @@
 .btn-secondary:hover {
   border-color: var(--accent);
 }
+.btn-secondary .copy-icon {
+  vertical-align: -2px;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+.btn-secondary:hover .copy-icon {
+  opacity: 1;
+}
 
 /* ── Code block in hero ── */
 .hero-code {
@@ -275,7 +278,7 @@
 }
 
 .hero-code .kw { color: #7c3aed; }
-.hero-code .fn { color: #0d9488; }
+.hero-code .fn { color: #2563eb; }
 .hero-code .str { color: #059669; }
 .hero-code .num { color: #d97706; }
 .hero-code .cm { color: var(--text-muted); }
