@@ -124,8 +124,8 @@ class Tafra:
 
     Returns
     -------
-        tafra: Tafra
-            The constructed :class:`Tafra`.
+    tafra: Tafra
+        The constructed :class:`Tafra`.
 
     """
     data: dc.InitVar[InitVar]
@@ -364,8 +364,8 @@ class Tafra:
 
         Returns
         -------
-            tafras: Iterator[Tafra]
-                An iterator of :class:`Tafra`.
+        tafras: Iterator[Tafra]
+            An iterator of :class:`Tafra`.
         """
         yield from self.__iter__()
 
@@ -376,14 +376,14 @@ class Tafra:
 
         Parameters
         ----------
-            name: Optional[str] = 'Tafra'
-                The name for the :class:`NamedTuple`. If ``None``, construct a
-                :class:`Tuple` instead.
+        name: Optional[str] = 'Tafra'
+            The name for the :class:`NamedTuple`. If ``None``, construct a
+            :class:`Tuple` instead.
 
         Returns
         -------
-            tuples: Iterator[NamedTuple[Any, ...]]
-                An iterator of :class:`NamedTuple`.
+        tuples: Iterator[NamedTuple[Any, ...]]
+            An iterator of :class:`NamedTuple`.
         """
         if name is None:
             return (tuple(values) for values in zip(*self._data.values()))
@@ -398,8 +398,8 @@ class Tafra:
 
         Returns
         -------
-            tuples: Iterator[Tuple[str, np.ndarray]]
-                An iterator of :class:`Tafra`.
+        tuples: Iterator[Tuple[str, np.ndarray]]
+            An iterator of :class:`Tafra`.
         """
         return map(tuple, self.data.items())  # type: ignore
 
@@ -419,13 +419,13 @@ class Tafra:
 
         Parameters
         ----------
-            _slice: slice
-                The ``slice`` object.
+        _slice: slice
+            The ``slice`` object.
 
         Returns
         -------
-            tafra: Tafra
-                The sliced :class:`Tafra`.
+        tafra: Tafra
+            The sliced :class:`Tafra`.
         """
         return Tafra(
             {column: np.atleast_1d(value[_slice])
@@ -440,12 +440,12 @@ class Tafra:
 
         Parameters
         ----------
-            index: int
+        index: int
 
         Returns
         -------
-            tafra: Tafra
-                The sliced :class:`Tafra`.
+        tafra: Tafra
+            The sliced :class:`Tafra`.
         """
         return Tafra(
             {column: value[[index]]
@@ -460,12 +460,12 @@ class Tafra:
 
         Parameters
         ----------
-            index: Sequence[Union[int, bool]]
+        index: Sequence[Union[int, bool]]
 
         Returns
         -------
-            tafra: Tafra
-                The sliced :class:`Tafra`.
+        tafra: Tafra
+            The sliced :class:`Tafra`.
         """
         return Tafra(
             {column: value[index]
@@ -480,12 +480,12 @@ class Tafra:
 
         Parameters
         ----------
-            index: np.ndarray
+        index: np.ndarray
 
         Returns
         -------
-            tafra: Tafra
-                The sliced :class:`Tafra`.
+        tafra: Tafra
+            The sliced :class:`Tafra`.
         """
         if index.ndim != 1:
             raise IndexError(f'Indexing np.ndarray must ndim == 1, got ndim == {index.ndim}')
@@ -503,17 +503,17 @@ class Tafra:
 
         Parameters
         ----------
-            p: IPython.lib.pretty.RepresentationPrinter
-                IPython provides this class to handle the object representation.
+        p: IPython.lib.pretty.RepresentationPrinter
+            IPython provides this class to handle the object representation.
 
-            cycle: bool
-                IPython has detected an infinite loop. Print an alternative represenation
-                and return.
+        cycle: bool
+            IPython has detected an infinite loop. Print an alternative represenation
+            and return.
 
         Returns
         -------
-            None
-                Calls p.text and returns.
+        None
+            Calls p.text and returns.
         """
         if cycle:
             p.text('Tafra(...)')
@@ -532,13 +532,13 @@ class Tafra:
 
         Parameters
         ----------
-            formatter: Callable[[object], str]
-                A formatter that operates on the _data and _dtypes :class:`dict`.
+        formatter: Callable[[object], str]
+            A formatter that operates on the _data and _dtypes :class:`dict`.
 
         Returns
         -------
-            string: str
-                The formatted string for printing.
+        string: str
+            The formatted string for printing.
         """
         PATTERN = r'(, dtype=[a-z]+)(?=\))'
 
@@ -558,22 +558,22 @@ class Tafra:
 
         Parameters
         ----------
-            indent: int
-                Number of spaces to indent for each level of nesting.
+        indent: int
+            Number of spaces to indent for each level of nesting.
 
-            width: int
-                Attempted maximum number of columns in the output.
+        width: int
+            Attempted maximum number of columns in the output.
 
-            depth: Optional[int]
-                The maximum depth to print out nested structures.
+        depth: Optional[int]
+            The maximum depth to print out nested structures.
 
-            compact: bool
-                If true, several items will be combined in one line.
+        compact: bool
+            If true, several items will be combined in one line.
 
         Returns
         -------
-            formatted string: str
-                A formatted string for pretty printing.
+        formatted string: str
+            A formatted string for pretty printing.
         """
         return self._pretty_format(
             lambda s: indent * ' ' + pprint.pformat(
@@ -586,21 +586,21 @@ class Tafra:
 
         Parameters
         ----------
-            indent: int
-                Number of spaces to indent for each level of nesting.
+        indent: int
+            Number of spaces to indent for each level of nesting.
 
-            width: int
-                Attempted maximum number of columns in the output.
+        width: int
+            Attempted maximum number of columns in the output.
 
-            depth: Optional[int]
-                The maximum depth to print out nested structures.
+        depth: Optional[int]
+            The maximum depth to print out nested structures.
 
-            compact: bool
-                If true, several items will be combined in one line.
+        compact: bool
+            If true, several items will be combined in one line.
 
         Returns
         -------
-            None: None
+        None: None
         """
         print(self.pformat(indent, width, depth, compact=compact))
 
@@ -611,13 +611,13 @@ class Tafra:
 
         Parameters
         ----------
-            columns: Iterable[Any]
-                An iterable of items with defined func:`__repr__` methods.
+        columns: Iterable[Any]
+            An iterable of items with defined func:`__repr__` methods.
 
         Returns
         -------
-            HTML: str
-                The HTML table head.
+        HTML: str
+            The HTML table head.
         """
         return '<thead>\n<tr>\n{th}\n</tr>\n</thead>' \
             .format(th='\n'.join(f'<th>{c}</th>' for c in columns))
@@ -629,13 +629,13 @@ class Tafra:
 
         Parameters
         ----------
-            row: Iterable[Any]
-                An iterable of items with defined func:`__repr__` methods.
+        row: Iterable[Any]
+            An iterable of items with defined func:`__repr__` methods.
 
         Returns
         -------
-            HTML: str
-                The HTML table row.
+        HTML: str
+            The HTML table row.
         """
         return '<tr>\n{td}\n</tr>' \
             .format(td='\n'.join(f'<td>{td}</td>' for td in row))
@@ -647,13 +647,13 @@ class Tafra:
 
         Parameters
         ----------
-            tr: Iterable[str]
-                An iterable of HTML table rows.
+        tr: Iterable[str]
+            An iterable of HTML table rows.
 
         Returns
         -------
-            HTML: str
-                The HTML table body.
+        HTML: str
+            The HTML table body.
         """
         return '<tbody>\n{tr}\n</tbody>' \
             .format(tr='\n'.join(tr))
@@ -665,16 +665,16 @@ class Tafra:
 
         Parameters
         ----------
-            thead: str
-                An HTML representation of the table head.
+        thead: str
+            An HTML representation of the table head.
 
-            tbody: str
-                An HTML representation of the table body.
+        tbody: str
+            An HTML representation of the table body.
 
         Returns
         -------
-            HTML: str
-                The HTML table.
+        HTML: str
+            The HTML table.
         """
         return f'<table>\n{thead}\n{tbody}\n</table>'
 
@@ -684,13 +684,13 @@ class Tafra:
 
         Parameters
         ----------
-            n: int = 20
-                Number of items to print.
+        n: int = 20
+            Number of items to print.
 
         Returns
         -------
-            HTML: str
-                The HTML table representation.
+        HTML: str
+            The HTML table representation.
         """
         thead = self._html_thead(chain([''], self._data.keys()))
         tr = chain(
@@ -717,15 +717,15 @@ class Tafra:
 
         Parameters
         ----------
-            column: str
-                The column to assign to.
+        column: str
+            The column to assign to.
 
-            value: Union[np.ndarray, Sequence[Any], Any]
-                The value to be assigned.
+        value: Union[np.ndarray, Sequence[Any], Any]
+            The value to be assigned.
 
         Returns
         -------
-            None: None
+        None: None
         """
         _type = type(value).__name__
         id_value = id(value)
@@ -808,12 +808,12 @@ class Tafra:
 
         Parameters
         ----------
-            columns: Iterable[str]
-                The column names to validate.
+        columns: Iterable[str]
+            The column names to validate.
 
         Returns
         -------
-            None: None
+        None: None
         """
         for column in columns:
             if column not in self._data:
@@ -826,13 +826,13 @@ class Tafra:
 
         Parameters
         ----------
-            dtypes: Dict[str, Any]
-                The dtypes to validate.
+        dtypes: Dict[str, Any]
+            The dtypes to validate.
 
         Returns
         -------
-            dtypes: Dict[str, str]
-                The validated types.
+        dtypes: Dict[str, str]
+            The validated types.
         """
 
         self._validate_columns(dtypes.keys())
@@ -846,13 +846,13 @@ class Tafra:
 
         Parameters
         ----------
-            dtype: Any
-                The dtype to parse.
+        dtype: Any
+            The dtype to parse.
 
         Returns
         -------
-            dtype: str
-                The parsed dtype.
+        dtype: str
+            The parsed dtype.
         """
         _dtype = dtype if isinstance(dtype, np.dtype) else np.dtype(dtype)
         name = _dtype.type.__name__
@@ -868,13 +868,13 @@ class Tafra:
 
         Parameters
         ----------
-            dtype: Any
-                The dtype to parse.
+        dtype: Any
+            The dtype to parse.
 
         Returns
         -------
-            dtype: str
-                The parsed dtype.
+        dtype: str
+            The parsed dtype.
         """
         name = np.dtype(dtype).type.__name__
         m = re.search(r'([a-z]+)', name)
@@ -894,19 +894,19 @@ class Tafra:
 
         Parameters
         ----------
-            records: ITerable[Iteralble[str]]
-                The records to turn into a :class:`Tafra`.
+        records: ITerable[Iteralble[str]]
+            The records to turn into a :class:`Tafra`.
 
-            columns: Iterable[str]
-                The column names to use.
+        columns: Iterable[str]
+            The column names to use.
 
-            dtypes: Optional[Iterable[Any]] = None
-                The dtypes of the columns.
+        dtypes: Optional[Iterable[Any]] = None
+            The dtypes of the columns.
 
         Returns
         -------
-            tafra: Tafra
-                The constructed :class:`Tafra`.
+        tafra: Tafra
+            The constructed :class:`Tafra`.
         """
         if dtypes is None:
             return Tafra({column: value for column, value in zip(columns, zip(*records))}, **kwargs)
@@ -925,16 +925,16 @@ class Tafra:
 
         Parameters
         ----------
-            df: pandas.Series
-                The series used to build the :class:`Tafra`.
+        s: pandas.Series
+            The series used to build the :class:`Tafra`.
 
-            dtype: Optional[str] = None
-                The dtypes of the column.
+        dtype: Optional[str] = None
+            The dtypes of the column.
 
         Returns
         -------
-            tafra: Tafra
-                The constructed :class:`Tafra`.
+        tafra: Tafra
+            The constructed :class:`Tafra`.
         """
         if dtype is None:
             dtype = s.dtype
@@ -955,16 +955,16 @@ class Tafra:
 
         Parameters
         ----------
-            df: pandas.DataFrame
-                The dataframe used to build the :class:`Tafra`.
+        df: pandas.DataFrame
+            The dataframe used to build the :class:`Tafra`.
 
-            dtypes: Optional[Dict[str, Any]] = None
-                The dtypes of the columns.
+        dtypes: Optional[Dict[str, Any]] = None
+            The dtypes of the columns.
 
         Returns
         -------
-            tafra: Tafra
-                The constructed :class:`Tafra`.
+        tafra: Tafra
+            The constructed :class:`Tafra`.
         """
         if dtypes is None:
             dtypes = {c: t for c, t in zip(df.columns, df.dtypes)}
@@ -984,16 +984,16 @@ class Tafra:
 
         Parameters
         ----------
-            query: str
-                The SQL query.
+        query: str
+            The SQL query.
 
-            cur: pyodbc.Cursor
-                The ``pyodbc`` cursor.
+        cur: pyodbc.Cursor
+            The ``pyodbc`` cursor.
 
         Returns
         -------
-            tafra: Tafra
-                The constructed :class:`Tafra`.
+        tafra: Tafra
+            The constructed :class:`Tafra`.
         """
         cur.execute(query)
 
@@ -1013,16 +1013,16 @@ class Tafra:
 
         Parameters
         ----------
-            query: str
-                The SQL query.
+        query: str
+            The SQL query.
 
-            cur: pyodbc.Cursor
-                The ``pyodbc`` cursor.
+        cur: pyodbc.Cursor
+            The ``pyodbc`` cursor.
 
         Returns
         -------
-            tafra: Tafra
-                The constructed :class:`Tafra`.
+        tafra: Tafra
+            The constructed :class:`Tafra`.
         """
         cur.execute(query)
 
@@ -1051,23 +1051,23 @@ class Tafra:
 
         Parameters
         ----------
-            csv_file: Union[str, TextIOWrapper]
-                The path to the CSV file, or an open file-like object.
+        csv_file: Union[str, TextIOWrapper]
+            The path to the CSV file, or an open file-like object.
 
-            guess_rows: int
-                The number of rows to use when guessing column types.
+        guess_rows: int
+            The number of rows to use when guessing column types.
 
-            dtypes: Optional[Dict[str, str]]
-                dtypes by column name; by default, all dtypes will be inferred
-                from the file contents.
+        dtypes: Optional[Dict[str, str]]
+            dtypes by column name; by default, all dtypes will be inferred
+            from the file contents.
 
-            **csvkw: Dict[str, Any]
-                Additional keyword arguments passed to csv.reader.
+        **csvkw: Dict[str, Any]
+            Additional keyword arguments passed to csv.reader.
 
         Returns
         -------
-            tafra: Tafra
-                The constructed :class:`Tafra`.
+        tafra: Tafra
+            The constructed :class:`Tafra`.
         """
         reader = CSVReader(cast(_Union[str, Path, TextIOWrapper], csv_file),
                            guess_rows, missing, **csvkw)
@@ -1085,14 +1085,14 @@ class Tafra:
 
         Parameters
         ----------
-            maybe_tafra: Union['tafra', DataFrame]
-                The object to ensure is a :class:`Tafra`.
+        maybe_tafra: Union['tafra', DataFrame]
+            The object to ensure is a :class:`Tafra`.
 
         Returns
         -------
-            tafra: Optional[Tafra]
-                The :class:`Tafra`, or None is ``maybe_tafra`` is an unknown
-                type.
+        tafra: Optional[Tafra]
+            The :class:`Tafra`, or None is ``maybe_tafra`` is an unknown
+            type.
         """
         if isinstance(maybe_tafra, Tafra):
             return maybe_tafra
@@ -1121,8 +1121,8 @@ class Tafra:
 
         Returns
         -------
-            columns: Tuple[str, ...]
-                The column names.
+        columns: Tuple[str, ...]
+            The column names.
         """
         return tuple(self._data.keys())
 
@@ -1138,8 +1138,8 @@ class Tafra:
 
         Returns
         -------
-            rows: int
-                The number of rows of the :class:`Tafra`.
+        rows: int
+            The number of rows of the :class:`Tafra`.
         """
         return self.__len__()
 
@@ -1154,8 +1154,8 @@ class Tafra:
 
         Returns
         -------
-            data: Dict[str, np.ndarray]
-                The data.
+        data: Dict[str, np.ndarray]
+            The data.
         """
         return self._data
 
@@ -1170,8 +1170,8 @@ class Tafra:
 
         Returns
         -------
-            dtypes: Dict[str, str]
-                The dtypes.
+        dtypes: Dict[str, str]
+            The dtypes.
         """
         return self._dtypes
 
@@ -1186,8 +1186,8 @@ class Tafra:
 
         Returns
         -------
-            size: int
-                The size.
+        size: int
+            The size.
         """
         return self.rows * len(self.columns)
 
@@ -1202,8 +1202,8 @@ class Tafra:
 
         Returns
         -------
-            ndim: int
-                The number of dimensions.
+        ndim: int
+            The number of dimensions.
         """
         return 2
 
@@ -1218,8 +1218,8 @@ class Tafra:
 
         Returns
         -------
-            shape: int
-                The shape.
+        shape: int
+            The shape.
         """
         return self.rows, len(self.columns)
 
@@ -1234,19 +1234,19 @@ class Tafra:
 
         Parameters
         ----------
-            fn: Callable[..., Any]
-                The function to map.
+        fn: Callable[..., Any]
+            The function to map.
 
-            *args: Any
-                Additional positional arguments to ``fn``.
+        *args: Any
+            Additional positional arguments to ``fn``.
 
-            **kwargs: Any
-                Additional keyword arguments to ``fn``.
+        **kwargs: Any
+            Additional keyword arguments to ``fn``.
 
         Returns
         -------
-            iter_tf: Iterator[Any]
-                An iterator to map the function.
+        iter_tf: Iterator[Any]
+            An iterator to map the function.
         """
         return (fn(tf, *args, **kwargs) for tf in self.__iter__())
 
@@ -1262,24 +1262,24 @@ class Tafra:
 
         Parameters
         ----------
-            fn: Callable[..., Any]
-                The function to map.
+        fn: Callable[..., Any]
+            The function to map.
 
-            name: Optional[str] = 'Tafra'
-                The name for the :class:`NamedTuple`. If ``None``, use plain
-                tuples for ~2--4x faster iteration. Must be given as a keyword
-                argument.
+        name: Optional[str] = 'Tafra'
+            The name for the :class:`NamedTuple`. If ``None``, use plain
+            tuples for ~2--4x faster iteration. Must be given as a keyword
+            argument.
 
-            *args: Any
-                Additional positional arguments to ``fn``.
+        *args: Any
+            Additional positional arguments to ``fn``.
 
-            **kwargs: Any
-                Additional keyword arguments to ``fn``.
+        **kwargs: Any
+            Additional keyword arguments to ``fn``.
 
         Returns
         -------
-            iter_tf: Iterator[Any]
-                An iterator to map the function.
+        iter_tf: Iterator[Any]
+            An iterator to map the function.
         """
         name = kwargs.pop('name', 'Tafra')
         if name is None:
@@ -1294,19 +1294,19 @@ class Tafra:
 
         Parameters
         ----------
-            fn: Callable[..., Any]
-                The function to map.
+        fn: Callable[..., Any]
+            The function to map.
 
-            *args: Any
-                Additional positional arguments to ``fn``.
+        *args: Any
+            Additional positional arguments to ``fn``.
 
-            **kwargs: Any
-                Additional keyword arguments to ``fn``.
+        **kwargs: Any
+            Additional keyword arguments to ``fn``.
 
         Returns
         -------
-            iter_tf: Iterator[Any]
-                An iterator to map the function.
+        iter_tf: Iterator[Any]
+            An iterator to map the function.
         """
 
         return (fn(value, *args, **kwargs) for column, value in self.itercols())
@@ -1320,19 +1320,19 @@ class Tafra:
 
         Parameters
         ----------
-            fn: Callable[..., Any]
-                The function to map.
+        fn: Callable[..., Any]
+            The function to map.
 
-            *args: Any
-                Additional positional arguments to ``fn``.
+        *args: Any
+            Additional positional arguments to ``fn``.
 
-            **kwargs: Any
-                Additional keyword arguments to ``fn``.
+        **kwargs: Any
+            Additional keyword arguments to ``fn``.
 
         Returns
         -------
-            iter_tf: Iterator[Any]
-                An iterator to map the function.
+        iter_tf: Iterator[Any]
+            An iterator to map the function.
         """
         return ((column, fn(value, *args, **kwargs)) for column, value in self.itercols())
 
@@ -1344,19 +1344,19 @@ class Tafra:
 
         Parameters
         ----------
-            fn: Callable[[], 'Tafra']
-                The function to apply.
+        fn: Callable[[], 'Tafra']
+            The function to apply.
 
-            *args: Any
-                Additional positional arguments to ``fn``.
+        *args: Any
+            Additional positional arguments to ``fn``.
 
-            **kwargs: Any
-                Additional keyword arguments to ``fn``.
+        **kwargs: Any
+            Additional keyword arguments to ``fn``.
 
         Returns
         -------
-            tafra: Tafra
-                A new :class:`Tafra` result of the function.
+        tafra: Tafra
+            A new :class:`Tafra` result of the function.
         """
         return fn(self, *args, **kwargs)
 
@@ -1368,13 +1368,13 @@ class Tafra:
 
         Parameters
         ----------
-            columns: Iterable[str]
-                The column names to slice from the :class:`Tafra`.
+        columns: Iterable[str]
+            The column names to slice from the :class:`Tafra`.
 
         Returns
         -------
-            tafra: Tafra
-                the :class:`Tafra` with the sliced columns.
+        tafra: Tafra
+            the :class:`Tafra` with the sliced columns.
         """
         if isinstance(columns, str):
             columns = [columns]
@@ -1392,12 +1392,12 @@ class Tafra:
 
         Parameters
         ----------
-            n: int = 5
-                The number of rows to display.
+        n: int = 5
+            The number of rows to display.
 
         Returns
         -------
-            None: None
+        None: None
         """
         return self._slice(slice(n))
 
@@ -1407,13 +1407,13 @@ class Tafra:
 
         Parameters
         ----------
-            n: int = 5
-                The number of rows to return.
+        n: int = 5
+            The number of rows to return.
 
         Returns
         -------
-            tafra: Tafra
-                The last ``n`` rows.
+        tafra: Tafra
+            The last ``n`` rows.
         """
         return self._slice(slice(-n, None))
 
@@ -1424,16 +1424,16 @@ class Tafra:
 
         Parameters
         ----------
-            columns: Union[str, Iterable[str]]
-                Column(s) to sort by. First column is the primary sort key.
+        columns: Union[str, Iterable[str]]
+            Column(s) to sort by. First column is the primary sort key.
 
-            reverse: bool = False
-                Sort in descending order.
+        reverse: bool = False
+            Sort in descending order.
 
         Returns
         -------
-            tafra: Tafra
-                The sorted :class:`Tafra`.
+        tafra: Tafra
+            The sorted :class:`Tafra`.
         """
         if isinstance(columns, str):
             columns = [columns]
@@ -1448,16 +1448,16 @@ class Tafra:
 
         Parameters
         ----------
-            n: int
-                Number of rows to sample.
+        n: int
+            Number of rows to sample.
 
-            seed: Optional[int]
-                Random seed for reproducibility.
+        seed: Optional[int]
+            Random seed for reproducibility.
 
         Returns
         -------
-            tafra: Tafra
-                The sampled :class:`Tafra`.
+        tafra: Tafra
+            The sampled :class:`Tafra`.
         """
         if n > self._rows:
             raise ValueError(f'Cannot sample {n} rows from {self._rows} rows.')
@@ -1471,13 +1471,13 @@ class Tafra:
 
         Parameters
         ----------
-            columns: Optional[Iterable[str]]
-                Columns to check for duplicates. If ``None``, use all columns.
+        columns: Optional[Iterable[str]]
+            Columns to check for duplicates. If ``None``, use all columns.
 
         Returns
         -------
-            tafra: Tafra
-                The deduplicated :class:`Tafra`.
+        tafra: Tafra
+            The deduplicated :class:`Tafra`.
         """
         cols = list(columns) if columns is not None else list(self._data.keys())
         self._validate_columns(cols)
@@ -1511,14 +1511,14 @@ class Tafra:
 
         Parameters
         ----------
-            column: str
-                The column to count.
+        column: str
+            The column to count.
 
         Returns
         -------
-            tafra: Tafra
-                A :class:`Tafra` with columns ``column`` and ``'count'``,
-                sorted by count descending.
+        tafra: Tafra
+            A :class:`Tafra` with columns ``column`` and ``'count'``,
+            sorted by count descending.
         """
         self._validate_columns([column])
         data = self._data[column]
@@ -1536,9 +1536,9 @@ class Tafra:
 
         Returns
         -------
-            tafra: Tafra
-                A :class:`Tafra` with a ``'stat'`` column and one column per
-                numeric column in the original.
+        tafra: Tafra
+            A :class:`Tafra` with a ``'stat'`` column and one column per
+            numeric column in the original.
         """
         stats = ['count', 'mean', 'std', 'min', '25%', '50%', '75%', 'max']
         result: Dict[str, np.ndarray[Any, Any]] = {
@@ -1573,13 +1573,13 @@ class Tafra:
 
         Parameters
         ----------
-            n: int = 1
-                Number of rows to shift. Positive = lag, negative = lead.
+        n: int = 1
+            Number of rows to shift. Positive = lag, negative = lead.
 
         Returns
         -------
-            tafra: Tafra
-                The shifted :class:`Tafra`.
+        tafra: Tafra
+            The shifted :class:`Tafra`.
         """
         if n == 0:
             return self.copy()
@@ -1611,8 +1611,8 @@ class Tafra:
 
         Returns
         -------
-            data keys: KeysView[str]
-                The keys of the data property.
+        data keys: KeysView[str]
+            The keys of the data property.
         """
         return self._data.keys()
 
@@ -1622,8 +1622,8 @@ class Tafra:
 
         Returns
         -------
-            data values: ValuesView[np.ndarray]
-                The values of the data property.
+        data values: ValuesView[np.ndarray]
+            The values of the data property.
         """
         return self._data.values()
 
@@ -1633,8 +1633,8 @@ class Tafra:
 
         Returns
         -------
-            items: ItemsView[str, np.ndarray]
-                The data items.
+        items: ItemsView[str, np.ndarray]
+            The data items.
         """
         return self._data.items()
 
@@ -1645,17 +1645,17 @@ class Tafra:
 
         Parameters
         ----------
-            key: str
-                The key value in the data property.
+        key: str
+            The key value in the data property.
 
-            default: Any
-                The default to return if the key does not exist.
+        default: Any
+            The default to return if the key does not exist.
 
         Returns
         -------
-            value: Any
-                The value for the key, or the default if the key does not
-                exist.
+        value: Any
+            The value for the key, or the default if the key does not
+            exist.
         """
         return self._data.get(key, default)
 
@@ -1666,12 +1666,12 @@ class Tafra:
 
         Parameters
         ----------
-            other: Tafra
-                The other :class:`Tafra` from which to update.
+        other: Tafra
+            The other :class:`Tafra` from which to update.
 
         Returns
         -------
-            None: None
+        None: None
         """
         tafra = self.copy()
         tafra.update_inplace(other)
@@ -1686,12 +1686,12 @@ class Tafra:
 
         Parameters
         ----------
-            other: Tafra
-                The other :class:`Tafra` from which to update.
+        other: Tafra
+            The other :class:`Tafra` from which to update.
 
         Returns
         -------
-            None: None
+        None: None
         """
         if not isinstance(other, Tafra):
             # should be a Tafra, but if not let's construct one
@@ -1716,7 +1716,7 @@ class Tafra:
 
         Returns
         -------
-            None: None
+        None: None
         """
         for column in self._data.keys():
             if column not in self._dtypes:
@@ -1728,13 +1728,13 @@ class Tafra:
 
         Parameters
         ----------
-            dtypes: Dict[str, Any]
-                The dtypes to update. If ``None``, create from entries in :attr:`data`.
+        dtypes: Dict[str, Any]
+            The dtypes to update. If ``None``, create from entries in :attr:`data`.
 
         Returns
         -------
-            tafra: Optional[Tafra]
-                The updated :class:`Tafra`.
+        tafra: Optional[Tafra]
+            The updated :class:`Tafra`.
         """
         tafra = self.copy()
         tafra.update_dtypes_inplace(dtypes)
@@ -1748,13 +1748,13 @@ class Tafra:
 
         Parameters
         ----------
-            dtypes: Dict[str, Any]
-                The dtypes to update. If ``None``, create from entries in :attr:`data`.
+        dtypes: Dict[str, Any]
+            The dtypes to update. If ``None``, create from entries in :attr:`data`.
 
         Returns
         -------
-            tafra: Optional[Tafra]
-                The updated :class:`Tafra`.
+        tafra: Optional[Tafra]
+            The updated :class:`Tafra`.
         """
         dtypes = self._validate_dtypes(dtypes)
         self._dtypes.update(dtypes)
@@ -1777,13 +1777,13 @@ class Tafra:
 
         Parameters
         ----------
-            renames: Dict[str, str]
-                The map from current names to new names.
+        renames: Dict[str, str]
+            The map from current names to new names.
 
         Returns
         -------
-            tafra: Optional[Tafra]
-                The :class:`Tafra` with update names.
+        tafra: Optional[Tafra]
+            The :class:`Tafra` with update names.
         """
 
         tafra = self.copy()
@@ -1798,13 +1798,13 @@ class Tafra:
 
         Parameters
         ----------
-            renames: Dict[str, str]
-                The map from current names to new names.
+        renames: Dict[str, str]
+            The map from current names to new names.
 
         Returns
         -------
-            tafra: Optional[Tafra]
-                The :class:`Tafra` with update names.
+        tafra: Optional[Tafra]
+            The :class:`Tafra` with update names.
         """
         self._validate_columns(renames.keys())
 
@@ -1819,13 +1819,13 @@ class Tafra:
 
         Parameters
         ----------
-            column: str
-                The column to remove.
+        columns: str
+            The column to remove.
 
         Returns
         -------
-            tafra: Optional[Tafra]
-                The :class:`Tafra` with the deleted column.
+        tafra: Optional[Tafra]
+            The :class:`Tafra` with the deleted column.
         """
         if isinstance(columns, str):
             columns = [columns]
@@ -1847,13 +1847,13 @@ class Tafra:
 
         Parameters
         ----------
-            column: str
-                The column to remove.
+        columns: str
+            The column to remove.
 
         Returns
         -------
-            tafra: Optional[Tafra]
-                The :class:`Tafra` with the deleted column.
+        tafra: Optional[Tafra]
+            The :class:`Tafra` with the deleted column.
         """
         if isinstance(columns, str):
             columns = [columns]
@@ -1869,15 +1869,15 @@ class Tafra:
 
         Parameters
         ----------
-            order: str = 'C' {‘C’, ‘F’, ‘A’, ‘K’}
-                Controls the memory layout of the copy. ‘C’ means C-order, ‘F’ means
-                F-order, ‘A’ means ‘F’ if a is Fortran contiguous, ‘C’ otherwise. ‘K’
-                means match the layout of a as closely as possible.
+        order: str = 'C' {‘C’, ‘F’, ‘A’, ‘K’}
+            Controls the memory layout of the copy. ‘C’ means C-order, ‘F’ means
+            F-order, ‘A’ means ‘F’ if a is Fortran contiguous, ‘C’ otherwise. ‘K’
+            means match the layout of a as closely as possible.
 
         Returns
         -------
-            tafra: Tafra
-                A copied :class:`Tafra`.
+        tafra: Tafra
+            A copied :class:`Tafra`.
         """
         return Tafra(
             {column: value.copy(order=order)
@@ -1895,15 +1895,15 @@ class Tafra:
 
         Parameters
         ----------
-            column: str
-                The column to coalesce.
+        column: str
+            The column to coalesce.
 
-            fills: Iterable[Union[str, int, float, bool, np.ndarray]:
+        fills: Iterable[Union[str, int, float, bool, np.ndarray]:
 
         Returns
         -------
-            data: np.ndarray
-                The coalesced data.
+        data: np.ndarray
+            The coalesced data.
         """
         # TODO: handle dtype?
         iter_fills = iter(fills)
@@ -1941,15 +1941,15 @@ class Tafra:
 
         Parameters
         ----------
-            column: str
-                The column to coalesce.
+        column: str
+            The column to coalesce.
 
-            fills: Iterable[Union[str, int, float, bool, np.ndarray]:
+        fills: Iterable[Union[str, int, float, bool, np.ndarray]:
 
         Returns
         -------
-            data: np.ndarray
-                The coalesced data.
+        data: np.ndarray
+            The coalesced data.
         """
         self._data[column] = self.coalesce(column, fills)
         self.update_dtypes_inplace({column: self._data[column].dtype})
@@ -1964,19 +1964,19 @@ class Tafra:
 
         Parameters
         ----------
-            dtype: str
-                The dtype of the data value.
+        dtype: str
+            The dtype of the data value.
 
-            data: np.ndarray
-                The data to have its values cast.
+        data: np.ndarray
+            The data to have its values cast.
 
-            cast_null: bool
-                Perform the cast for ``np.nan``
+        cast_null: bool
+            Perform the cast for ``np.nan``
 
         Returns
         -------
-            value: Any
-                The cast value.
+        value: Any
+            The cast value.
         """
         _dtype = self._reduce_dtype(dtype)
         value: Any = RECORD_TYPE[_dtype](data.item())
@@ -1993,15 +1993,15 @@ class Tafra:
 
         Parameters
         ----------
-            columns: Optional[Iterable[str]] = None
-                The columns to extract. If ``None``, extract all columns.
+        columns: Optional[Iterable[str]] = None
+            The columns to extract. If ``None``, extract all columns.
 
-            cast_null: bool
-                Cast ``np.nan`` to None. Necessary for :mod:``pyodbc``
+        cast_null: bool
+            Cast ``np.nan`` to None. Necessary for :mod:``pyodbc``
 
         Returns
         -------
-            records: Iterator[Tuple[Any, ...]]
+        records: Iterator[Tuple[Any, ...]]
         """
         if columns is None:
             columns = self.columns
@@ -2027,15 +2027,15 @@ class Tafra:
 
         Parameters
         ----------
-            columns: Optional[Iterable[str]] = None
-                The columns to extract. If ``None``, extract all columns.
+        columns: Optional[Iterable[str]] = None
+            The columns to extract. If ``None``, extract all columns.
 
-            inner: bool = False
-                Cast all :class:`np.ndarray` to :class`List`.
+        inner: bool = False
+            Cast all :class:`np.ndarray` to :class`List`.
 
         Returns
         -------
-            list: Union[List[np.ndarray], List[List[Any]]]
+        list: Union[List[np.ndarray], List[List[Any]]]
         """
         if columns is None:
             columns = self.columns
@@ -2059,19 +2059,19 @@ class Tafra:
 
         Parameters
         ----------
-            columns: Optional[Iterable[str]] = None
-                The columns to extract. If ``None``, extract all columns.
+        columns: Optional[Iterable[str]] = None
+            The columns to extract. If ``None``, extract all columns.
 
-            name: Optional[str] = 'Tafra'
-                The name for the :class:`NamedTuple`. If ``None``, construct a
-                :class:`Tuple` instead.
+        name: Optional[str] = 'Tafra'
+            The name for the :class:`NamedTuple`. If ``None``, construct a
+            :class:`Tuple` instead.
 
-            inner: bool = False
-                Cast all :class:`np.ndarray` to :class`List`.
+        inner: bool = False
+            Cast all :class:`np.ndarray` to :class`List`.
 
         Returns
         -------
-            list: Union[Tuple[np.ndarray], Tuple[Tuple[Any, ...]]]
+        list: Union[Tuple[np.ndarray], Tuple[Tuple[Any, ...]]]
         """
         if columns is None:
             columns = self.columns
@@ -2097,12 +2097,12 @@ class Tafra:
 
         Parameters
         ----------
-            columns: Optional[Iterable[str]] = None
-                The columns to extract. If ``None``, extract all columns.
+        columns: Optional[Iterable[str]] = None
+            The columns to extract. If ``None``, extract all columns.
 
         Returns
         -------
-            array: np.ndarray
+        array: np.ndarray
         """
         if columns is None:
             columns = self.columns
@@ -2119,12 +2119,12 @@ class Tafra:
 
         Parameters
         ----------
-            columns: Iterable[str]
-                The columns to write. IF ``None``, write all columns.
+        columns: Iterable[str]
+            The columns to write. IF ``None``, write all columns.
 
         Returns
         -------
-            dataframe: :class:`pandas.DataFrame`
+        dataframe: :class:`pandas.DataFrame`
         """
         try:
             import pandas as pd  # type: ignore
@@ -2150,11 +2150,11 @@ class Tafra:
 
         Parameters
         ----------
-            filename: Union[str, Path]
-                The path of the filename to write.
+        filename: Union[str, Path]
+            The path of the filename to write.
 
-            columns: Iterable[str]
-                The columns to write. IF ``None``, write all columns.
+        columns: Iterable[str]
+            The columns to write. IF ``None``, write all columns.
         """
         if columns is None:
             columns = self.columns
@@ -2195,13 +2195,13 @@ class Tafra:
 
         Parameters
         ----------
-            other: Tafra
-                The other tafra to union.
+        other: Tafra
+            The other tafra to union.
 
         Returns
         -------
-            tafra: Tafra
-                A new tafra with the unioned data.
+        tafra: Tafra
+            A new tafra with the unioned data.
         """
         return Union().apply(self, other)
 
@@ -2217,12 +2217,12 @@ class Tafra:
 
         Parameters
         ----------
-            other: Tafra
-                The other tafra to union.
+        other: Tafra
+            The other tafra to union.
 
         Returns
         -------
-            None: None
+        None: None
         """
         Union().apply_inplace(self, other)
 
@@ -2238,22 +2238,22 @@ class Tafra:
 
         Parameters
         ----------
-            columns: Iterable[str]
-                The column names to group by.
+        columns: Iterable[str]
+            The column names to group by.
 
-            aggregation: Mapping[str, Union[Callable[[np.ndarray[Any, Any]], Any], \
-            Tuple[Callable[[np.ndarray[Any, Any]], Any], str]]]
-                Optional. A mapping for columns and aggregation functions. Should be
-                given as {'column': fn} or {'new_column': (fn, 'column')}.
+        aggregation: Mapping[str, Union[Callable[[np.ndarray[Any, Any]], Any], \
+        Tuple[Callable[[np.ndarray[Any, Any]], Any], str]]]
+            Optional. A mapping for columns and aggregation functions. Should be
+            given as {'column': fn} or {'new_column': (fn, 'column')}.
 
-            iter_fn: Mapping[str, Callable[[np.ndarray[Any, Any]], Any]]
-                Optional. A mapping for new columns names to the function to apply to
-                the enumeration. Should be given as {'new_column': fn}.
+        iter_fn: Mapping[str, Callable[[np.ndarray[Any, Any]], Any]]
+            Optional. A mapping for new columns names to the function to apply to
+            the enumeration. Should be given as {'new_column': fn}.
 
         Returns
         -------
-            tafra: Tafra
-                The aggregated :class:`Tafra`.
+        tafra: Tafra
+            The aggregated :class:`Tafra`.
         """
         if aggregation is None:
             aggregation = {}
@@ -2273,22 +2273,22 @@ class Tafra:
 
         Parameters
         ----------
-            group_by: Iterable[str]
-                The column names to group by.
+        columns: Iterable[str]
+            The column names to group by.
 
-            aggregation: Mapping[str, Union[Callable[[np.ndarray[Any, Any]], Any], \
-            Tuple[Callable[[np.ndarray[Any, Any]], Any], str]]]
-                Optional. A mapping for columns and aggregation functions. Should be
-                given as {'column': fn} or {'new_column': (fn, 'column')}.
+        aggregation: Mapping[str, Union[Callable[[np.ndarray[Any, Any]], Any], \
+        Tuple[Callable[[np.ndarray[Any, Any]], Any], str]]]
+            Optional. A mapping for columns and aggregation functions. Should be
+            given as {'column': fn} or {'new_column': (fn, 'column')}.
 
-            iter_fn: Mapping[str, Callable[[np.ndarray[Any, Any]], Any]]
-                Optional. A mapping for new columns names to the function to apply to
-                the enumeration. Should be given as {'new_column': fn}.
+        iter_fn: Mapping[str, Callable[[np.ndarray[Any, Any]], Any]]
+            Optional. A mapping for new columns names to the function to apply to
+            the enumeration. Should be given as {'new_column': fn}.
 
         Returns
         -------
-            tafra: Tafra
-                The transformed :class:`Tafra`.
+        tafra: Tafra
+            The transformed :class:`Tafra`.
         """
         if aggregation is None:
             aggregation = {}
@@ -2308,13 +2308,13 @@ class Tafra:
 
         Parameters
         ----------
-            group_by: Iterable[str]
-                The column names to group by.
+        columns: Iterable[str]
+            The column names to group by.
 
         Returns
         -------
-            tafras: Iterator[GroupDescription]
-                An iterator over the grouped :class:`Tafra`.
+        tafras: Iterator[GroupDescription]
+            An iterator over the grouped :class:`Tafra`.
         """
         yield from IterateBy(columns).apply(self)
 
@@ -2329,29 +2329,29 @@ class Tafra:
 
         Parameters
         ----------
-            right: Tafra
-                The right-side :class:`Tafra` to join.
+        right: Tafra
+            The right-side :class:`Tafra` to join.
 
-            on: Iterable[Tuple[str, str, str]]
-                The columns and operator to join on. Should be given as
-                ('left column', 'right column', 'op') Valid ops are:
+        on: Iterable[Tuple[str, str, str]]
+            The columns and operator to join on. Should be given as
+            ('left column', 'right column', 'op') Valid ops are:
 
-                '==' : equal to
-                '!=' : not equal to
-                '<'  : less than
-                '<=' : less than or equal to
-                '>'  : greater than
-                '>=' : greater than or equal to
+            '==' : equal to
+            '!=' : not equal to
+            '<'  : less than
+            '<=' : less than or equal to
+            '>'  : greater than
+            '>=' : greater than or equal to
 
-            select: Iterable[str] = []
-                The columns to return. If not given, all unique columns names are
-                returned. If the column exists in both :class`Tafra`, prefers the left
-                over the right.
+        select: Iterable[str] = []
+            The columns to return. If not given, all unique columns names are
+            returned. If the column exists in both :class`Tafra`, prefers the left
+            over the right.
 
         Returns
         -------
-            tafra: Tafra
-                The joined :class:`Tafra`.
+        tafra: Tafra
+            The joined :class:`Tafra`.
         """
         if select is None:
             select = []
@@ -2368,29 +2368,29 @@ class Tafra:
 
         Parameters
         ----------
-            right: Tafra
-                The right-side :class:`Tafra` to join.
+        right: Tafra
+            The right-side :class:`Tafra` to join.
 
-            on: Iterable[Tuple[str, str, str]]
-                The columns and operator to join on. Should be given as
-                ('left column', 'right column', 'op') Valid ops are:
+        on: Iterable[Tuple[str, str, str]]
+            The columns and operator to join on. Should be given as
+            ('left column', 'right column', 'op') Valid ops are:
 
-                '==' : equal to
-                '!=' : not equal to
-                '<'  : less than
-                '<=' : less than or equal to
-                '>'  : greater than
-                '>=' : greater than or equal to
+            '==' : equal to
+            '!=' : not equal to
+            '<'  : less than
+            '<=' : less than or equal to
+            '>'  : greater than
+            '>=' : greater than or equal to
 
-            select: Iterable[str] = []
-                The columns to return. If not given, all unique columns names are
-                returned. If the column exists in both :class`Tafra`, prefers the left
-                over the right.
+        select: Iterable[str] = []
+            The columns to return. If not given, all unique columns names are
+            returned. If the column exists in both :class`Tafra`, prefers the left
+            over the right.
 
         Returns
         -------
-            tafra: Tafra
-                The joined :class:`Tafra`.
+        tafra: Tafra
+            The joined :class:`Tafra`.
         """
         if select is None:
             select = []
@@ -2408,18 +2408,18 @@ class Tafra:
 
         Parameters
         ----------
-            right: Tafra
-                The right-side :class:`Tafra` to join.
+        right: Tafra
+            The right-side :class:`Tafra` to join.
 
-            select: Iterable[str] = []
-                The columns to return. If not given, all unique columns names are
-                returned. If the column exists in both :class`Tafra`, prefers the left
-                over the right.
+        select: Iterable[str] = []
+            The columns to return. If not given, all unique columns names are
+            returned. If the column exists in both :class`Tafra`, prefers the left
+            over the right.
 
         Returns
         -------
-            tafra: Tafra
-                The joined :class:`Tafra`.
+        tafra: Tafra
+            The joined :class:`Tafra`.
         """
         if select is None:
             select = []
@@ -2431,16 +2431,16 @@ class Tafra:
 
         Parameters
         ----------
-            n: int
-                Number of chunks.
+        n: int
+            Number of chunks.
 
-            sort_by: Optional[Iterable[str]]
-                Columns to sort by before splitting.
+        sort_by: Optional[Iterable[str]]
+            Columns to sort by before splitting.
 
         Returns
         -------
-            chunks: List[Tafra]
-                The chunked :class:`Tafra` instances.
+        chunks: List[Tafra]
+            The chunked :class:`Tafra` instances.
         """
         if n < 1:
             raise ValueError('n must be >= 1')
@@ -2462,16 +2462,16 @@ class Tafra:
 
         Parameters
         ----------
-            size: int
-                Maximum rows per chunk.
+        size: int
+            Maximum rows per chunk.
 
-            sort_by: Optional[Iterable[str]]
-                Columns to sort by before splitting.
+        sort_by: Optional[Iterable[str]]
+            Columns to sort by before splitting.
 
         Returns
         -------
-            chunks: List[Tafra]
-                The chunked :class:`Tafra` instances.
+        chunks: List[Tafra]
+            The chunked :class:`Tafra` instances.
         """
         if size < 1:
             raise ValueError('size must be >= 1')
@@ -2488,16 +2488,16 @@ class Tafra:
 
         Parameters
         ----------
-            columns: Iterable[str]
-                Columns to partition by.
+        columns: Iterable[str]
+            Columns to partition by.
 
-            sort_by: Optional[Iterable[str]]
-                Columns to sort by within each partition.
+        sort_by: Optional[Iterable[str]]
+            Columns to sort by within each partition.
 
         Returns
         -------
-            partitions: List[Tuple[Tuple[Any, ...], Tafra]]
-                List of (group_key, sub_tafra) pairs.
+        partitions: List[Tuple[Tuple[Any, ...], Tafra]]
+            List of (group_key, sub_tafra) pairs.
         """
         from .group import GroupSet
 
@@ -2538,13 +2538,13 @@ class Tafra:
 
         Parameters
         ----------
-            tafras: Iterable[Tafra]
-                The tafras to concatenate.
+        tafras: Iterable[Tafra]
+            The tafras to concatenate.
 
         Returns
         -------
-            tafra: Tafra
-                The concatenated :class:`Tafra`.
+        tafra: Tafra
+            The concatenated :class:`Tafra`.
         """
         tafra_list = list(tafras)
         if not tafra_list:
@@ -2585,7 +2585,7 @@ def _in_notebook() -> bool:  # pragma: no cover
 
     Returns
     -------
-        in_notebook: bool
+    in_notebook: bool
     """
     try:
         from IPython import get_ipython

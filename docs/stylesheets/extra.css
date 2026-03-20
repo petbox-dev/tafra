@@ -38,26 +38,37 @@
 }
 
 /* ── API Reference: function/method name highlighting ── */
-/* Function name: first span.n in the heading — blue + bold */
-.md-typeset .doc.doc-heading code.highlight span.n:first-child {
+/* Function name in heading */
+.md-typeset .doc.doc-heading .doc-function-name,
+.md-typeset .doc.doc-heading .doc-class-name {
+  color: #2563eb !important;
+  font-weight: 600;
+  font-family: var(--md-code-font-family);
+}
+/* Signature block: function name */
+.md-typeset .doc-signature span.nf {
   color: #2563eb !important;
   font-weight: 600;
 }
-/* Parameter names: all other span.n — teal */
-.md-typeset .doc.doc-heading code.highlight span.n:not(:first-child) {
+/* Signature block: parameter names — teal */
+.md-typeset .doc-signature span.n {
   color: var(--accent) !important;
-  font-weight: 400;
 }
-/* Punctuation (parens, commas) */
-.md-typeset .doc.doc-heading code.highlight span.p {
+/* Signature block: punctuation (parens, commas) */
+.md-typeset .doc-signature span.p {
   color: #64748b !important;
 }
-/* Operators (=) and keywords (None) */
-.md-typeset .doc.doc-heading code.highlight span.o {
+/* Signature block: operators (=, *, **) */
+.md-typeset .doc-signature span.o {
   color: #64748b !important;
 }
-.md-typeset .doc.doc-heading code.highlight span.kc {
+/* Signature block: keywords (None, True, False) */
+.md-typeset .doc-signature span.kc {
   color: #7c3aed !important;
+}
+/* Signature block: self parameter */
+.md-typeset .doc-signature span.bp {
+  color: #64748b !important;
 }
 
 /* ── API Reference: TOC styling ── */
@@ -80,7 +91,37 @@
   border-left-color: var(--accent);
 }
 
-/* ── API Reference: parameter/return pre blocks ── */
+/* ── API Reference: parameter/return tables ── */
+.doc-contents table {
+  margin: 0.5rem 0;
+  font-size: 0.72rem;
+}
+.doc-contents table th {
+  font-weight: 600;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  background: var(--bg-alt);
+}
+/* Parameter name (first column) — teal */
+.doc-contents .doc-section-item td:first-child code {
+  color: var(--accent) !important;
+  font-weight: 600;
+  background: none;
+}
+/* Type annotation (second column) */
+.doc-contents .doc-section-item td:nth-child(2) {
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+/* Section title (Parameters:, Returns:) */
+.doc-section-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.75rem;
+}
+/* Fallback pre blocks (unparsed docstrings) */
 .doc-contents .highlight pre {
   white-space: pre-wrap;
   word-break: break-word;

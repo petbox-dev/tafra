@@ -201,18 +201,18 @@ def percentile(q: float) -> _PercentileAgg:
 
     Parameters
     ----------
-        q: float
-            Percentile in range [0, 100].
+    q: float
+        Percentile in range [0, 100].
 
     Returns
     -------
-        agg: callable
-            A callable suitable for ``group_by`` aggregation that also
-            hits the vectorized fast path.
+    agg: callable
+        A callable suitable for ``group_by`` aggregation that also
+        hits the vectorized fast path.
 
     Example
     -------
-        >>> tf.group_by(['g'], {'p90': (percentile(90), 'value')})
+    >>> tf.group_by(['g'], {'p90': (percentile(90), 'value')})
     """
     return _PercentileAgg(q)
 
@@ -357,16 +357,16 @@ class Union:
 
         Parameters
         ----------
-            left: Tafra
-                The left :class:`Tafra` to union.
+        left: Tafra
+            The left :class:`Tafra` to union.
 
-            right: Tafra
-                The right :class:`Tafra` to union.
+        right: Tafra
+            The right :class:`Tafra` to union.
 
         Returns
         -------
-            tafra: Tafra
-                The unioned :class`Tafra`.
+        tafra: Tafra
+            The unioned :class`Tafra`.
         """
         self._validate(left, right)
 
@@ -383,16 +383,16 @@ class Union:
 
         Parameters
         ----------
-            left: Tafra
-                The left :class:`Tafra` to union.
+        left: Tafra
+            The left :class:`Tafra` to union.
 
-            right: Tafra
-                The right :class:`Tafra` to union.
+        right: Tafra
+            The right :class:`Tafra` to union.
 
         Returns
         -------
-            tafra: Tafra
-                The unioned :class`Tafra`.
+        tafra: Tafra
+            The unioned :class`Tafra`.
         """
         self._validate(left, right)
 
@@ -682,17 +682,17 @@ class GroupBy(AggMethod):
 
     Parameters
     ----------
-        columns: Iterable[str]
-            The column names to group by.
+    group_by_cols: Iterable[str]
+        The column names to group by.
 
-        aggregation: Mapping[str, Union[Callable[[np.ndarray], Any], \
-            Optional. Tuple[Callable[[np.ndarray], Any], str]]]
-            A mapping for columns and aggregation functions. Should be
-            given as {'column': fn} or {'new_column': (fn, 'column')}.
+    aggregation: Mapping[str, Union[Callable[[np.ndarray], Any], \
+        Optional. Tuple[Callable[[np.ndarray], Any], str]]]
+        A mapping for columns and aggregation functions. Should be
+        given as {'column': fn} or {'new_column': (fn, 'column')}.
 
-        iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
-            Optional. A mapping for new columns names to the function to apply to
-            the enumeration. Should be given as {'new_column': fn}.
+    iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
+        Optional. A mapping for new columns names to the function to apply to
+        the enumeration. Should be given as {'new_column': fn}.
     """
 
     def apply(self, tafra: 'Tafra') -> 'Tafra':
@@ -701,13 +701,13 @@ class GroupBy(AggMethod):
 
         Parameters
         ----------
-            tafra: Tafra
-                The tafra to apply the operation to.
+        tafra: Tafra
+            The tafra to apply the operation to.
 
         Returns
         -------
-            tafra: Tafra
-                The aggregated :class:`Tafra`.
+        tafra: Tafra
+            The aggregated :class:`Tafra`.
         """
         self._validate(tafra, (
             *self.group_by_cols,
@@ -775,17 +775,17 @@ class Transform(AggMethod):
 
     Parameters
     ----------
-        group_by: Iterable[str]
-            The column names to group by.
+    group_by_cols: Iterable[str]
+        The column names to group by.
 
-        aggregation: Mapping[str, Union[Callable[[np.ndarray], Any], \
-        Tuple[Callable[[np.ndarray], Any], str]]]
-            Optional. A mapping for columns and aggregation functions. Should be
-            given as {'column': fn} or {'new_column': (fn, 'column')}.
+    aggregation: Mapping[str, Union[Callable[[np.ndarray], Any], \
+    Tuple[Callable[[np.ndarray], Any], str]]]
+        Optional. A mapping for columns and aggregation functions. Should be
+        given as {'column': fn} or {'new_column': (fn, 'column')}.
 
-        iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
-            Optional. A mapping for new columns names to the function to apply to
-            the enumeration. Should be given as {'new_column': fn}.
+    iter_fn: Mapping[str, Callable[[np.ndarray], Any]]
+        Optional. A mapping for new columns names to the function to apply to
+        the enumeration. Should be given as {'new_column': fn}.
     """
 
     def apply(self, tafra: 'Tafra') -> 'Tafra':
@@ -794,13 +794,13 @@ class Transform(AggMethod):
 
         Parameters
         ----------
-            tafra: Tafra
-                The tafra to apply the operation to.
+        tafra: Tafra
+            The tafra to apply the operation to.
 
         Returns
         -------
-            tafra: Tafra
-                The transformed :class:`Tafra`.
+        tafra: Tafra
+            The transformed :class:`Tafra`.
         """
         self._validate(tafra, (
             *self.group_by_cols,
@@ -863,8 +863,8 @@ class IterateBy(GroupSet):
 
     Parameters
     ----------
-        group_by: Iterable[str]
-            The column names to group by.
+    group_by_cols: Iterable[str]
+        The column names to group by.
     """
     group_by_cols: Iterable[str]
 
@@ -874,13 +874,13 @@ class IterateBy(GroupSet):
 
         Parameters
         ----------
-            tafra: Tafra
-                The tafra to apply the operation to.
+        tafra: Tafra
+            The tafra to apply the operation to.
 
         Returns
         -------
-            tafras: Iterator[GroupDescription]
-                An iterator over the grouped :class:`Tafra`.
+        tafras: Iterator[GroupDescription]
+            An iterator over the grouped :class:`Tafra`.
         """
         self._validate(tafra, self.group_by_cols)
         unique, group_indices = self._build_group_indices(tafra, self.group_by_cols)
@@ -1044,24 +1044,21 @@ class InnerJoin(Join):
 
     Parameters
     ----------
-        right: Tafra
-            The right-side :class:`Tafra` to join.
+    on: Iterable[Tuple[str, str, str]]
+        The columns and operator to join on. Should be given as
+        ('left column', 'right column', 'op') Valid ops are:
 
-        on: Iterable[Tuple[str, str, str]]
-            The columns and operator to join on. Should be given as
-            ('left column', 'right column', 'op') Valid ops are:
+        '==' : equal to
+        '!=' : not equal to
+        '<'  : less than
+        '<=' : less than or equal to
+        '>'  : greater than
+        '>=' : greater than or equal to
 
-            '==' : equal to
-            '!=' : not equal to
-            '<'  : less than
-            '<=' : less than or equal to
-            '>'  : greater than
-            '>=' : greater than or equal to
-
-        select: Iterable[str] = []
-            The columns to return. If not given, all unique columns names
-            are returned. If the column exists in both :class`Tafra`,
-            prefers the left over the right.
+    select: Iterable[str] = []
+        The columns to return. If not given, all unique columns names
+        are returned. If the column exists in both :class`Tafra`,
+        prefers the left over the right.
     """
 
     def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
@@ -1070,16 +1067,16 @@ class InnerJoin(Join):
 
         Parameters
         ----------
-            left_t: Tafra
-                The left tafra to join.
+        left_t: Tafra
+            The left tafra to join.
 
-            right_t: Tafra
-                The right tafra to join.
+        right_t: Tafra
+            The right tafra to join.
 
         Returns
         -------
-            tafra: Tafra
-                The joined :class:`Tafra`.
+        tafra: Tafra
+            The joined :class:`Tafra`.
         """
         left_cols, right_cols, ops = list(zip(*self.on))
         self._validate(left_t, left_cols)
@@ -1165,24 +1162,21 @@ class LeftJoin(Join):
 
     Parameters
     ----------
-        right: Tafra
-            The right-side :class:`Tafra` to join.
+    on: Iterable[Tuple[str, str, str]]
+        The columns and operator to join on. Should be given as
+        ('left column', 'right column', 'op') Valid ops are:
 
-        on: Iterable[Tuple[str, str, str]]
-            The columns and operator to join on. Should be given as
-            ('left column', 'right column', 'op') Valid ops are:
+        '==' : equal to
+        '!=' : not equal to
+        '<'  : less than
+        '<=' : less than or equal to
+        '>'  : greater than
+        '>=' : greater than or equal to
 
-            '==' : equal to
-            '!=' : not equal to
-            '<'  : less than
-            '<=' : less than or equal to
-            '>'  : greater than
-            '>=' : greater than or equal to
-
-        select: Iterable[str] = []
-            The columns to return. If not given, all unique columns names
-            are returned. If the column exists in both :class`Tafra`,
-            prefers the left over the right.
+    select: Iterable[str] = []
+        The columns to return. If not given, all unique columns names
+        are returned. If the column exists in both :class`Tafra`,
+        prefers the left over the right.
     """
 
     def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
@@ -1191,16 +1185,16 @@ class LeftJoin(Join):
 
         Parameters
         ----------
-            left_t: Tafra
-                The left tafra to join.
+        left_t: Tafra
+            The left tafra to join.
 
-            right_t: Tafra
-                The right tafra to join.
+        right_t: Tafra
+            The right tafra to join.
 
         Returns
         -------
-            tafra: Tafra
-                The joined :class:`Tafra`.
+        tafra: Tafra
+            The joined :class:`Tafra`.
         """
         left_cols, right_cols, ops = list(zip(*self.on))
         self._validate(left_t, left_cols)
@@ -1293,13 +1287,10 @@ class CrossJoin(Join):
 
     Parameters
     ----------
-        right: Tafra
-            The right-side :class:`Tafra` to join.
-
-        select: Iterable[str] = []
-            The columns to return. If not given, all unique columns names
-            are returned. If the column exists in both :class`Tafra`,
-            prefers the left over the right.
+    select: Iterable[str] = []
+        The columns to return. If not given, all unique columns names
+        are returned. If the column exists in both :class`Tafra`,
+        prefers the left over the right.
     """
 
     def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
@@ -1308,16 +1299,16 @@ class CrossJoin(Join):
 
         Parameters
         ----------
-            left_t: Tafra
-                The left tafra to join.
+        left_t: Tafra
+            The left tafra to join.
 
-            right_t: Tafra
-                The right tafra to join.
+        right_t: Tafra
+            The right tafra to join.
 
         Returns
         -------
-            tafra: Tafra
-                The joined :class:`Tafra`.
+        tafra: Tafra
+            The joined :class:`Tafra`.
         """
         self._validate_dtypes(left_t, right_t)
 

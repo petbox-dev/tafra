@@ -2,6 +2,7 @@ site_name: tafra
 site_url: https://petbox-dev.github.io/tafra/
 repo_url: https://github.com/petbox-dev/tafra
 repo_name: petbox-dev/tafra
+strict: !ENV [CI, false]
 
 theme:
   name: material
@@ -27,6 +28,7 @@ theme:
 extra_css:
   - stylesheets/extra.css
 
+
 plugins:
   - search
   - mkdocstrings:
@@ -36,6 +38,8 @@ plugins:
             show_source: true
             show_root_heading: true
             separate_signature: true
+            docstring_style: numpy
+            docstring_section_style: table
 
 markdown_extensions:
   - toc:

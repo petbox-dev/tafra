@@ -88,13 +88,13 @@ class ObjectFormatter(Dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any,
 
         Parameters
         ----------
-            value: np.ndarray
-                The :class:`np.ndarray` to be parsed.
+        value: np.ndarray
+            The :class:`np.ndarray` to be parsed.
 
         Returns
         -------
-            value, modified: Tuple(np.ndarray, bool)
-                The :class:`np.ndarray` and whether it was modified or not.
+        value, modified: Tuple(np.ndarray, bool)
+            The :class:`np.ndarray` and whether it was modified or not.
         """
         if value.dtype.kind != 'O':
             return None
