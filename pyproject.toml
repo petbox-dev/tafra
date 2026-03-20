@@ -104,7 +104,7 @@ module = "test.*"
 ignore_errors = true
 
 [tool.pytest.ini_options]
-addopts = "--cov=tafra --cov-report=term-missing --hypothesis-show-statistics -v test"
+addopts = "--cov=tafra --cov-report=term-missing --cov-report=lcov:coverage.lcov --hypothesis-show-statistics -v test"
 
 [tool.coverage.run]
 # branch = true

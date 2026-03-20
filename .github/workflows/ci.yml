@@ -30,6 +30,12 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[test]" 2>/dev/null || pip install -e . && pip install pytest pytest-cov hypothesis pandas
       - run: pytest
+      - name: Upload coverage to Coveralls
+        if: matrix.python-version == '3.12'
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          file: coverage.lcov
 
   docs:
     runs-on: ubuntu-latest
