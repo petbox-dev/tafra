@@ -23,15 +23,15 @@ class ObjectFormatter(dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any,
                       MutableMapping[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]]]):
     """
     A dictionary that contains mappings for formatting objects. Some numpy objects
-    should be cast to other types, e.g. the :class:`decimal.Decimal` type cannot
-    operate with :class:`np.float`. These mappings are defined in this class.
+    should be cast to other types, e.g. the `decimal.Decimal` type cannot
+    operate with `np.float`. These mappings are defined in this class.
 
-    Each mapping must define a function that takes a :class:`np.ndarray` and
-    returns a :class:`np.ndarray`.
+    Each mapping must define a function that takes a `np.ndarray` and
+    returns a `np.ndarray`.
 
     The key for each mapping is the name of the type of the actual value,
-    looked up from the first element of the :class:`np.ndarray`, i.e.
-    ``type(array[0]).__name__``.
+    looked up from the first element of the `np.ndarray`, i.e.
+    `type(array[0]).__name__`.
     """
     test_array = np.arange(4)
 
@@ -45,12 +45,12 @@ class ObjectFormatter(dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any,
             result = value(self.test_array)
         except Exception as e:
             raise ValueError(
-                'Must provide a function that takes an ``np.ndarray`` and returns '
+                'Must provide a function that takes an `np.ndarray` and returns '
                 'an np.ndarray.') from e
 
         if not isinstance(result, np.ndarray):
             raise ValueError(
-                'Must provide a function that takes an ``np.ndarray`` and returns '
+                'Must provide a function that takes an `np.ndarray` and returns '
                 'an np.ndarray.')
 
         dict.__setitem__(self, dtype, value)
@@ -91,12 +91,12 @@ class ObjectFormatter(dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any,
         Parameters
         ----------
         value: np.ndarray
-            The :class:`np.ndarray` to be parsed.
+            The `np.ndarray` to be parsed.
 
         Returns
         -------
         value, modified: Tuple(np.ndarray, bool)
-            The :class:`np.ndarray` and whether it was modified or not.
+            The `np.ndarray` and whether it was modified or not.
         """
         if value.dtype.kind != 'O':
             return None

@@ -50,9 +50,9 @@
   color: #2563eb !important;
   font-weight: 600;
 }
-/* Signature block: parameter names — teal */
+/* Signature block: parameter names — default text color */
 .md-typeset .doc-signature span.n {
-  color: var(--accent) !important;
+  color: var(--text-primary) !important;
 }
 /* Signature block: punctuation (parens, commas) */
 .md-typeset .doc-signature span.p {
@@ -89,6 +89,63 @@
 .md-sidebar--secondary .md-nav__list > .md-nav__item > .md-nav > .md-nav__list > .md-nav__item > .md-nav__link:hover {
   color: var(--accent-hover);
   border-left-color: var(--accent);
+}
+
+/* ── Source code syntax highlighting (matches signature colors) ── */
+.md-typeset .highlight span.nf,
+.md-typeset .highlight span.fm {
+  color: #2563eb !important;
+  font-weight: 600;
+}
+.md-typeset .highlight span.k,
+.md-typeset .highlight span.kd {
+  color: #7c3aed !important;
+}
+.md-typeset .highlight span.kc {
+  color: #7c3aed !important;
+}
+.md-typeset .highlight span.bp {
+  color: #64748b !important;
+}
+.md-typeset .highlight span.n {
+  color: var(--text-primary) !important;
+}
+.md-typeset .highlight span.nb,
+.md-typeset .highlight span.ne {
+  color: var(--accent) !important;
+}
+.md-typeset .highlight span.o,
+.md-typeset .highlight span.ow {
+  color: #64748b !important;
+}
+.md-typeset .highlight span.s1,
+.md-typeset .highlight span.s2,
+.md-typeset .highlight span.sd {
+  color: #16803a !important;
+}
+.md-typeset .highlight span.si {
+  color: var(--accent) !important;
+}
+.md-typeset .highlight span.mi,
+.md-typeset .highlight span.mf {
+  color: #b45309 !important;
+}
+.md-typeset .highlight span.c1,
+.md-typeset .highlight span.cm {
+  color: var(--text-muted) !important;
+  font-style: italic;
+}
+.md-typeset .highlight span.p {
+  color: #64748b !important;
+}
+/* JS-applied class for function/method calls: name followed by ( */
+.md-typeset .highlight span.n.fn-call {
+  color: #2563eb !important;
+  font-weight: 600;
+}
+/* JS-applied class for type names in annotations */
+.md-typeset .highlight span.n.type-name {
+  color: var(--accent) !important;
 }
 
 /* ── API Reference: parameter/return tables ── */

@@ -199,7 +199,7 @@ class _PercentileAgg:
 
 def percentile(q: float) -> _PercentileAgg:
     """
-    Create a percentile aggregation function for use in ``group_by``.
+    Create a percentile aggregation function for use in `group_by`.
 
     Parameters
     ----------
@@ -209,7 +209,7 @@ def percentile(q: float) -> _PercentileAgg:
     Returns
     -------
     agg: callable
-        A callable suitable for ``group_by`` aggregation that also
+        A callable suitable for `group_by` aggregation that also
         hits the vectorized fast path.
 
     Example
@@ -220,12 +220,12 @@ def percentile(q: float) -> _PercentileAgg:
 
 
 def geomean(data: np.ndarray[Any, Any]) -> Any:
-    """Geometric mean aggregation for use in ``group_by``."""
+    """Geometric mean aggregation for use in `group_by`."""
     return np.exp(np.mean(np.log(data.astype(float))))
 
 
 def harmean(data: np.ndarray[Any, Any]) -> Any:
-    """Harmonic mean aggregation for use in ``group_by``."""
+    """Harmonic mean aggregation for use in `group_by`."""
     return len(data) / np.sum(1.0 / data.astype(float))
 
 
@@ -311,13 +311,13 @@ GroupDescription = tuple[
 
 class Union:
     """
-    Union two :class:`Tafra` together. Analogy to SQL UNION or
+    Union two `Tafra` together. Analogy to SQL UNION or
     `pandas.append`. All column names and dtypes must match.
     """
     @staticmethod
     def _validate(left: 'Tafra', right: 'Tafra') -> None:
         """
-        Validate the :class:`Tafra` before applying.
+        Validate the `Tafra` before applying.
         """
         # These should be unreachable unless attributes were directly modified
         if len(left._data) != len(left._dtypes):
@@ -353,15 +353,15 @@ class Union:
 
     def apply(self, left: 'Tafra', right: 'Tafra') -> 'Tafra':
         """
-        Apply the :class:`Union_` to the :class:`Tafra`.
+        Apply the `Union_` to the `Tafra`.
 
         Parameters
         ----------
         left: Tafra
-            The left :class:`Tafra` to union.
+            The left `Tafra` to union.
 
         right: Tafra
-            The right :class:`Tafra` to union.
+            The right `Tafra` to union.
 
         Returns
         -------
@@ -379,15 +379,15 @@ class Union:
         """
         In-place version.
 
-        Apply the :class:`Union_` to the :class:`Tafra`.
+        Apply the `Union_` to the `Tafra`.
 
         Parameters
         ----------
         left: Tafra
-            The left :class:`Tafra` to union.
+            The left `Tafra` to union.
 
         right: Tafra
-            The right :class:`Tafra` to union.
+            The right `Tafra` to union.
 
         Returns
         -------
@@ -616,7 +616,7 @@ class GroupSet:
     @staticmethod
     def _validate(tafra: 'Tafra', columns: Iterable[str]) -> None:  # pragma: no cover
         """
-        Validate the :class:`Tafra` before applying.
+        Validate the `Tafra` before applying.
         """
         if tafra._rows < 1:
             raise ValueError('No rows exist in `tafra`.')
@@ -678,7 +678,7 @@ class GroupBy(AggMethod):
     """
     Aggregation by a set of unique values.
 
-    Analogy to SQL ``GROUP BY``, not :meth:`pandas.DataFrame.groupby()`.
+    Analogy to SQL `GROUP BY`, not `pandas.DataFrame.groupby()`.
 
     Parameters
     ----------
@@ -697,7 +697,7 @@ class GroupBy(AggMethod):
 
     def apply(self, tafra: 'Tafra') -> 'Tafra':
         """
-        Apply the :class:`GroupBy` to the :class:`Tafra`.
+        Apply the `GroupBy` to the `Tafra`.
 
         Parameters
         ----------
@@ -707,7 +707,7 @@ class GroupBy(AggMethod):
         Returns
         -------
         tafra: Tafra
-            The aggregated :class:`Tafra`.
+            The aggregated `Tafra`.
         """
         self._validate(tafra, (
             *self.group_by_cols,
@@ -770,8 +770,8 @@ class Transform(AggMethod):
     """
     Apply a function to each unique set of values and join to the original table.
 
-    Analogy to :meth:`pandas.DataFrame.groupby().transform()`,
-    i.e. a SQL ``GROUP BY`` and ``LEFT JOIN`` back to the original table.
+    Analogy to `pandas.DataFrame.groupby().transform()`,
+    i.e. a SQL `GROUP BY` and `LEFT JOIN` back to the original table.
 
     Parameters
     ----------
@@ -790,7 +790,7 @@ class Transform(AggMethod):
 
     def apply(self, tafra: 'Tafra') -> 'Tafra':
         """
-        Apply the :class:`Transform` to the :class:`Tafra`.
+        Apply the `Transform` to the `Tafra`.
 
         Parameters
         ----------
@@ -800,7 +800,7 @@ class Transform(AggMethod):
         Returns
         -------
         tafra: Tafra
-            The transformed :class:`Tafra`.
+            The transformed `Tafra`.
         """
         self._validate(tafra, (
             *self.group_by_cols,
@@ -856,7 +856,7 @@ class Transform(AggMethod):
 @dc.dataclass
 class IterateBy(GroupSet):
     """
-    A generator that yields a :class:`Tafra` for each set of unique values.
+    A generator that yields a `Tafra` for each set of unique values.
 
     Analogy to `pandas.DataFrame.groupby()`, i.e. an Sequence of `Tafra` objects.
     Yields tuples of ((unique grouping values, ...), row indices array, subset tafra)
@@ -870,7 +870,7 @@ class IterateBy(GroupSet):
 
     def apply(self, tafra: 'Tafra') -> Iterator[GroupDescription]:
         """
-        Apply the :class:`IterateBy` to the :class:`Tafra`.
+        Apply the `IterateBy` to the `Tafra`.
 
         Parameters
         ----------
@@ -880,7 +880,7 @@ class IterateBy(GroupSet):
         Returns
         -------
         tafras: Iterator[GroupDescription]
-            An iterator over the grouped :class:`Tafra`.
+            An iterator over the grouped `Tafra`.
         """
         self._validate(tafra, self.group_by_cols)
         unique, group_indices = self._build_group_indices(tafra, self.group_by_cols)
@@ -1063,7 +1063,7 @@ class InnerJoin(Join):
 
     def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
         """
-        Apply the :class:`InnerJoin` to the :class:`Tafra`.
+        Apply the `InnerJoin` to the `Tafra`.
 
         Parameters
         ----------
@@ -1076,7 +1076,7 @@ class InnerJoin(Join):
         Returns
         -------
         tafra: Tafra
-            The joined :class:`Tafra`.
+            The joined `Tafra`.
         """
         left_cols, right_cols, ops = list(zip(*self.on))
         self._validate(left_t, left_cols)
@@ -1181,7 +1181,7 @@ class LeftJoin(Join):
 
     def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
         """
-        Apply the :class:`LeftJoin` to the :class:`Tafra`.
+        Apply the `LeftJoin` to the `Tafra`.
 
         Parameters
         ----------
@@ -1194,7 +1194,7 @@ class LeftJoin(Join):
         Returns
         -------
         tafra: Tafra
-            The joined :class:`Tafra`.
+            The joined `Tafra`.
         """
         left_cols, right_cols, ops = list(zip(*self.on))
         self._validate(left_t, left_cols)
@@ -1295,7 +1295,7 @@ class CrossJoin(Join):
 
     def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
         """
-        Apply the :class:`CrossJoin` to the :class:`Tafra`.
+        Apply the `CrossJoin` to the `Tafra`.
 
         Parameters
         ----------
@@ -1308,7 +1308,7 @@ class CrossJoin(Join):
         Returns
         -------
         tafra: Tafra
-            The joined :class:`Tafra`.
+            The joined `Tafra`.
         """
         self._validate_dtypes(left_t, right_t)
 
