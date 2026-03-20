@@ -34,8 +34,8 @@ jobs:
         if: matrix.python-version == '3.12'
         uses: coverallsapp/github-action@v2
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           file: coverage.lcov
+          format: lcov
 
   docs:
     runs-on: ubuntu-latest
