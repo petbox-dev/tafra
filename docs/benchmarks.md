@@ -104,6 +104,81 @@ result = plf.map_rows(lambda row: pl.Series([row_fn(row[0], row[1], row[2])]))
 | 100k rows | **62.2 ms** | 63.7 ms | 461 ms |
 | 1M rows | **664 ms** | 686 ms | 4,814 ms |
 
+<div class="chart">
+  <div class="chart-title">Row Map: 10k rows (ms)</div>
+  <div class="chart-row">
+    <span class="chart-label">tafra</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 15%"></div>
+      <span class="chart-value">6.24</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 15%"></div>
+      <span class="chart-value">6.63</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">polars</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">43.0</span>
+    </div>
+  </div>
+</div>
+
+<div class="chart">
+  <div class="chart-title">Row Map: 100k rows (ms)</div>
+  <div class="chart-row">
+    <span class="chart-label">tafra</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 13%"></div>
+      <span class="chart-value">62.2</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 14%"></div>
+      <span class="chart-value">63.7</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">polars</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">461</span>
+    </div>
+  </div>
+</div>
+
+<div class="chart">
+  <div class="chart-title">Row Map: 1M rows (ms)</div>
+  <div class="chart-row">
+    <span class="chart-label">tafra</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 14%"></div>
+      <span class="chart-value">664</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 14%"></div>
+      <span class="chart-value">686</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">polars</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">4,814</span>
+    </div>
+  </div>
+</div>
+
 With `name=None` (plain tuple fast path), `tafra` edges out `pandas`
 `itertuples` at all scales. `polars` `map_rows` is 7x slower — polars is
 optimized for columnar operations and explicitly discourages row-wise UDFs.
