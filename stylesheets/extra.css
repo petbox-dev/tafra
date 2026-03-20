@@ -1,0 +1,600 @@
+/* ── Color System ── */
+:root {
+  --bg-white: #ffffff;
+  --bg-alt: #f8fafa;
+  --bg-code: #f1f5f9;
+  --text-primary: #1a1a2e;
+  --text-secondary: #475569;
+  --text-muted: #7c8db0;
+  --accent: #0d9488;
+  --accent-hover: #0f766e;
+  --accent-light: #ccfbf1;
+  --accent-subtle: #f0fdfa;
+  --border: #e2e8f0;
+}
+
+/* ── Material Theme Overrides ── */
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #0d9488;
+  --md-primary-fg-color--light: #ccfbf1;
+  --md-primary-fg-color--dark: #0f766e;
+  --md-accent-fg-color: #0d9488;
+  --md-typeset-font-size: 0.75rem;
+}
+
+/* ── Tighter headings ── */
+.md-typeset h1 { font-size: 1.6rem; }
+.md-typeset h2 { font-size: 1.25rem; }
+.md-typeset h3 { font-size: 1.05rem; }
+.md-typeset h4 { font-size: 0.95rem; }
+
+/* ── Tighter code blocks ── */
+.md-typeset code,
+.md-typeset pre code {
+  font-size: 0.72rem;
+}
+.md-typeset pre {
+  line-height: 1.5;
+}
+
+/* ── API Reference: function/method name highlighting ── */
+/* Function name in heading */
+.md-typeset .doc.doc-heading .doc-function-name,
+.md-typeset .doc.doc-heading .doc-class-name {
+  color: #2563eb !important;
+  font-family: var(--md-code-font-family);
+}
+/* Signature block: function name */
+.md-typeset .doc-signature span.nf {
+  color: #2563eb !important;
+}
+/* Signature block: parameter names — default text color */
+.md-typeset .doc-signature span.n {
+  color: var(--text-primary) !important;
+}
+/* Signature block: punctuation (parens, commas) */
+.md-typeset .doc-signature span.p {
+  color: #64748b !important;
+}
+/* Signature block: operators (=, *, **) */
+.md-typeset .doc-signature span.o {
+  color: #64748b !important;
+}
+/* Signature block: keywords (None, True, False) */
+.md-typeset .doc-signature span.kc {
+  color: #7c3aed !important;
+}
+/* Signature block: self parameter */
+.md-typeset .doc-signature span.bp {
+  color: #64748b !important;
+}
+
+/* ── API Reference: TOC styling ── */
+/* Class-level TOC entries (h2) — bold, larger */
+.md-sidebar--secondary .md-nav__list > .md-nav__item > .md-nav__link {
+  font-weight: 600;
+  font-size: 0.72rem;
+  color: var(--text-primary);
+}
+/* Method-level TOC entries (h3) — normal weight, blue, indented */
+.md-sidebar--secondary .md-nav__list > .md-nav__item > .md-nav > .md-nav__list > .md-nav__item > .md-nav__link {
+  font-weight: 400;
+  font-size: 0.65rem;
+  color: #2563eb;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--border);
+}
+.md-sidebar--secondary .md-nav__list > .md-nav__item > .md-nav > .md-nav__list > .md-nav__item > .md-nav__link:hover {
+  color: var(--accent-hover);
+  border-left-color: var(--accent);
+}
+
+/* ── Source code syntax highlighting (matches signature colors) ── */
+.md-typeset .highlight span.nf,
+.md-typeset .highlight span.fm {
+  color: #2563eb !important;
+}
+.md-typeset .highlight span.k,
+.md-typeset .highlight span.kd {
+  color: #7c3aed !important;
+}
+.md-typeset .highlight span.kc {
+  color: #7c3aed !important;
+}
+.md-typeset .highlight span.bp {
+  color: #64748b !important;
+}
+.md-typeset .highlight span.n {
+  color: var(--text-primary) !important;
+}
+.md-typeset .highlight span.nb,
+.md-typeset .highlight span.ne {
+  color: var(--accent) !important;
+}
+.md-typeset .highlight span.o,
+.md-typeset .highlight span.ow {
+  color: #64748b !important;
+}
+.md-typeset .highlight span.s1,
+.md-typeset .highlight span.s2,
+.md-typeset .highlight span.sd {
+  color: #16803a !important;
+}
+.md-typeset .highlight span.si {
+  color: var(--accent) !important;
+}
+.md-typeset .highlight span.mi,
+.md-typeset .highlight span.mf {
+  color: #b45309 !important;
+}
+.md-typeset .highlight span.c1,
+.md-typeset .highlight span.cm {
+  color: var(--text-muted) !important;
+  font-style: italic;
+}
+.md-typeset .highlight span.p {
+  color: #64748b !important;
+}
+/* JS-applied class for function/method calls: name followed by ( */
+.md-typeset .highlight span.n.fn-call {
+  color: #2563eb !important;
+}
+/* JS-applied class for type names in annotations */
+.md-typeset .highlight span.n.type-name {
+  color: var(--accent) !important;
+}
+
+/* ── API Reference: parameter/return tables ── */
+.doc-contents table {
+  margin: 0.5rem 0;
+  font-size: 0.72rem;
+}
+.doc-contents table th {
+  font-weight: 600;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  background: var(--bg-alt);
+}
+/* Parameter name (first column) — teal */
+.doc-contents .doc-section-item td:first-child code {
+  color: var(--accent) !important;
+  background: none;
+}
+/* Type annotation (second column) */
+.doc-contents .doc-section-item td:nth-child(2) {
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+/* Section title (Parameters:, Returns:) */
+.doc-section-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.75rem;
+}
+/* Fallback pre blocks (unparsed docstrings) */
+.doc-contents .highlight pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+  padding: 0.75rem 1rem;
+  font-size: 0.72rem;
+}
+
+/* ── Hero ── */
+.hero {
+  padding: 3.5rem 2rem 3rem;
+  text-align: center;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.hero h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+}
+
+.hero h1 span {
+  color: var(--accent);
+}
+
+.hero p {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  max-width: 700px;
+  margin: 0 auto 1.5rem;
+}
+
+.cta-row {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-decoration: none;
+  transition: all 0.2s;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-primary,
+.btn-primary:link,
+.btn-primary:visited {
+  background: var(--accent-hover);
+  color: #fff !important;
+}
+
+.btn-primary:hover {
+  background: #115e59;
+  color: #fff !important;
+}
+
+.btn-secondary {
+  background: var(--bg-code);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+}
+
+.btn-secondary:hover {
+  border-color: var(--accent);
+}
+.btn-secondary .copy-icon {
+  vertical-align: -2px;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+.btn-secondary:hover .copy-icon {
+  opacity: 1;
+}
+
+/* ── Code block in hero ── */
+.hero-code {
+  max-width: 860px;
+  margin: 2rem auto 0;
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  text-align: left;
+  padding: 1.25rem 1.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  overflow-x: auto;
+}
+
+.hero-code .kw { color: #7c3aed; }
+.hero-code .fn { color: #2563eb; }
+.hero-code .str { color: #059669; }
+.hero-code .num { color: #d97706; }
+.hero-code .cm { color: var(--text-muted); }
+.hero-code .op { color: #64748b; }
+
+/* ── Features ── */
+.features {
+  background: var(--bg-alt);
+  padding: 3rem 2rem;
+}
+
+.features-grid {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+.feature-card {
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem;
+  transition: border-color 0.2s;
+}
+
+.feature-card:hover {
+  border-color: var(--accent);
+}
+
+.feature-icon {
+  width: 40px;
+  height: 40px;
+  background: var(--accent-subtle);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  color: var(--accent);
+  font-size: 1.2rem;
+}
+
+.feature-card h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.feature-card p {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* ── Benchmarks ── */
+.benchmarks {
+  padding: 3rem 2rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.hero-benchmarks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.hero-benchmarks .chart {
+  margin: 0;
+  padding: 1rem 1.25rem;
+}
+
+.hero-benchmarks .chart-title {
+  font-size: 0.78rem;
+  margin-bottom: 0.75rem;
+}
+
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.section-subtitle {
+  text-align: center;
+  color: var(--text-secondary);
+  margin-bottom: 2rem;
+  font-size: 0.85rem;
+}
+
+.bench-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.bench-table th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid var(--border);
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.bench-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.bench-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--accent-light);
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.5rem;
+}
+
+.bench-bar.tafra { background: var(--accent); }
+.bench-bar.pandas { background: #e2e8f0; }
+.bench-bar.polars { background: #cbd5e1; }
+.bench-fastest { color: var(--accent); font-weight: 600; }
+
+/* ── Comparison ── */
+.comparison {
+  background: var(--bg-alt);
+  padding: 3rem 2rem;
+}
+
+.comparison-grid {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.comparison-block {
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.comparison-block.highlight {
+  border-color: var(--accent);
+}
+
+.comparison-block .label {
+  padding: 0.75rem 1.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.comparison-block.highlight .label {
+  color: var(--accent);
+}
+
+.comparison-block pre {
+  padding: 1rem 1.25rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  overflow-x: auto;
+  margin: 0;
+}
+
+/* ── Landing Footer ── */
+.landing-footer {
+  border-top: 1px solid var(--border);
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.landing-footer a,
+.landing-footer a:link,
+.landing-footer a:visited {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.landing-footer a:hover {
+  text-decoration: underline;
+}
+
+/* ── Wider content area ── */
+.md-grid {
+  max-width: 1800px;
+}
+
+.md-content__inner {
+  max-width: none;
+}
+
+
+/* ── API Reference spacing ── */
+.doc-object:not(.doc-object .doc-object) {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 2px solid var(--border);
+}
+
+.doc-object:not(.doc-object .doc-object):first-child {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+/* Method-level objects within a class */
+.doc-object .doc-object {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--bg-alt);
+}
+
+/* Give method signatures more visual weight */
+.doc-heading {
+  font-size: 1rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-code);
+  border-radius: 4px;
+  border-left: 3px solid var(--accent);
+  margin-bottom: 1rem;
+}
+
+/* More breathing room for doc content */
+.doc-contents {
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+/* ── Inline bar charts ── */
+.chart {
+  margin: 1.5rem 0;
+  padding: 1.5rem;
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.chart-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.chart-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.chart-row:last-child {
+  margin-bottom: 0;
+}
+
+.chart-label {
+  width: 100px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-align: right;
+  padding-right: 0.75rem;
+  flex-shrink: 0;
+}
+
+.chart-bar-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chart-bar {
+  height: 20px;
+  border-radius: 4px;
+  background: var(--border);
+  min-width: 4px;
+  transition: width 0.3s;
+}
+
+.chart-bar.fastest {
+  background: var(--accent);
+}
+
+.chart-value {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  white-space: nowrap;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+  .comparison-grid {
+    grid-template-columns: 1fr;
+  }
+  .hero h1 {
+    font-size: 1.6rem;
+  }
+}
