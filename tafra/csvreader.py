@@ -164,6 +164,9 @@ class CSVReader:
             raise ValueError(f"length of row #{self._rows} does not match header length")
 
         for col, val in zip(self._header, row):
+            if val is None:
+                self._data[col].append(None)
+                continue
             try:
                 self._data[col].append(self._guess_types[col].parse(val))
             except Exception:
