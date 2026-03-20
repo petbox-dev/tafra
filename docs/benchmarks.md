@@ -78,29 +78,35 @@ faster than `pandas` but still 6x slower than `Tafra`'s direct dict lookup.
 
 ## Row Mapping
 
-`pandas` provides a wide variety of useful features but is not particularly
-aimed at maximizing row-mapping performance. Here we map a hyperbolic decline
-function over 100 rows of well parameters:
+Row-wise mapping applies a Python function to each row. `Tafra` uses
+`tuple_map` (NamedTuple access), `pandas` uses `itertuples`, and `polars`
+uses `map_rows`. All apply a scalar function per row:
 
 ```python
 import math
 
-def hyp(qi: float, Di: float, bi: float, t: np.ndarray) -> np.ndarray:
-    Dn = ((1.0 - Di) ** -bi - 1.0) / bi
-    return qi / (1.0 + Dn * bi * t) ** (1.0 / bi)
+def row_fn(a: float, b: float, c: float) -> float:
+    return math.sqrt(a * a + b * b) + math.log1p(abs(c))
 
-t = 10 ** np.linspace(0, 4, 101)
+# tafra
+result = list(tf.tuple_map(lambda r: (row_fn(r.a, r.b, r.c),)))
 
-# row_map returns dict-of-arrays
-result = Tafra(tf.row_map(mapper))
+# pandas
+result = [row_fn(r.a, r.b, r.c) for r in df.itertuples()]
 
-# tuple_map is faster — uses NamedTuple access
-result = Tafra(tf.tuple_map(tuple_mapper))
+# polars
+result = plf.map_rows(lambda row: pl.Series([row_fn(row[0], row[1], row[2])]))
 ```
 
-| Method | tafra | pandas 3.0 | polars |
+| Scale | tafra | pandas 3.0 | polars |
 |---|---|---|---|
-| tuple_map / itertuples / map_rows | **0.71 ms** | 1.14 ms (1.6x) | 1.61 ms (2.3x) |
+| 10k rows | 8.48 ms | **6.58 ms** | 44.9 ms |
+| 100k rows | 87.6 ms | **65.7 ms** | 466 ms |
+| 1M rows | 894 ms | **651 ms** | 4,700 ms |
+
+`pandas` `itertuples` is the fastest row-wise iterator (1.4x faster than
+tafra). `polars` `map_rows` is 5--7x slower than pandas — polars is
+optimized for columnar operations and explicitly discourages row-wise UDFs.
 
 
 ## GroupBy & Transform
@@ -529,7 +535,8 @@ result = ndarray_map(tf['qi'], tf['Di'], tf['bi'], t)
 * **Construction and teardown** -- 308x faster than pandas, 3x faster
   than polars
 * **Column access** -- 128x faster than pandas, 6x faster than polars
-* **Row-wise mapping** -- 1.6x faster than pandas, 2.3x faster than polars
+* **Row-wise mapping** -- 1.4x slower than pandas itertuples, but 5x faster
+  than polars map_rows. For row-wise UDFs, pandas is fastest; polars is slowest
 * **GroupBy at <=10k rows** -- with C extension, 3--5x faster
   than both pandas and polars
 * **Transform at all scales** -- Tafra+C wins every benchmark, from 8x
@@ -568,7 +575,9 @@ Tafra+C = with optional C extension. Tafra = pure Python + numpy only.
 |---|---|---|---|---|
 | Construction (100k rows) | **0.01** | 0.01 | 3.08 | 0.03 |
 | Column access (per call, us) | **0.09** | 0.09 | 11.5 | 0.56 |
-| Row map (100 rows, tuple_map) | **0.71** | 0.71 | 1.14 | 1.61 |
+| Row map (10k rows) | 8.48 | 8.48 | **6.58** | 44.9 |
+| Row map (100k rows) | 87.6 | 87.6 | **65.7** | 466 |
+| Row map (1M rows) | 894 | 894 | **651** | 4,700 |
 | GroupBy (10k, 50 grp, sum+mean) | **0.15** | 0.16 | 0.71 | 0.54 |
 | GroupBy (10k, 500 grp) | **0.18** | 0.20 | 0.71 | 0.58 |
 | GroupBy (100k, 100 grp) | 1.53 | 1.78 | 2.54 | **0.98** |

@@ -141,45 +141,39 @@ def bench_column_access():
 
 
 def bench_row_mapping():
-    print("\n--- Row Mapping (100 wells x 101 time steps) ---")
+    print("\n--- Row Mapping (tuple_map / itertuples / map_rows) ---")
     print_header()
-    np.random.seed(42)
-    tf = Tafra({
-        'wellid': np.arange(0, 100),
-        'qi': np.random.lognormal(np.log(2000.), np.log(3000. / 1000.) / (2 * 1.28), 100),
-        'Di': np.random.uniform(.5, .9, 100),
-        'bi': np.random.normal(1.0, .2, 100)
-    })
-    df = pd.DataFrame(tf.data)
-    t = 10 ** np.linspace(0, 4, 101)
+    rng = np.random.default_rng(42)
 
-    def tan_to_nominal(D):
-        return -math.log1p(-D)
+    def row_fn(a: float, b: float, c: float) -> float:
+        return math.sqrt(a * a + b * b) + math.log1p(abs(c))
 
-    def sec_to_nominal(D, b):
-        if b <= 1e-4:
-            return tan_to_nominal(D)
-        return ((1.0 - D) ** -b - 1.0) / b
+    for n_rows, label in [
+        (10_000, "10k rows"),
+        (100_000, "100k rows"),
+        (1_000_000, "1M rows"),
+    ]:
+        tf = Tafra({
+            'a': rng.standard_normal(n_rows),
+            'b': rng.standard_normal(n_rows),
+            'c': rng.standard_normal(n_rows),
+        })
+        df = pd.DataFrame(tf.data)
 
-    def hyp(qi, Di, bi, t):
-        Dn = sec_to_nominal(Di, bi)
-        if bi <= 1e-4:
-            return qi * np.exp(-Dn * t)
-        return qi / (1.0 + Dn * bi * t) ** (1.0 / bi)
+        def tuple_mapper(r: tuple) -> tuple:
+            return (row_fn(r.a, r.b, r.c),)
 
-    def tuple_mapper(tf_row):
-        return tf_row.wellid, hyp(tf_row.qi, tf_row.Di, tf_row.bi, t)
-
-    t_tafra = median_of(lambda: Tafra(tf.tuple_map(tuple_mapper)))
-    t_pandas = median_of(
-        lambda: pd.DataFrame(dict(tuple_mapper(row) for row in df.itertuples())))
-    t_polars = None
-    if HAS_POLARS:
-        plf = pl.DataFrame(tf.data)
-        def polars_mapper(row):
-            return pl.Series([hyp(row[1], row[2], row[3], t)])
-        t_polars = median_of(lambda: plf.map_rows(polars_mapper))
-    print_row("tuple_map", t_tafra, t_tafra, t_pandas, t_polars)
+        n_rep = max(1, min(7, 50_000 // n_rows))
+        t_tafra = median_of(lambda: list(tf.tuple_map(tuple_mapper)), n=n_rep)
+        t_pandas = median_of(
+            lambda: [row_fn(r.a, r.b, r.c) for r in df.itertuples()], n=n_rep)
+        t_polars = None
+        if HAS_POLARS:
+            plf = pl.DataFrame(tf.data)
+            def polars_mapper(row):
+                return pl.Series([row_fn(row[0], row[1], row[2])])
+            t_polars = median_of(lambda: plf.map_rows(polars_mapper), n=n_rep)
+        print_row(label, t_tafra, t_tafra, t_pandas, t_polars)
 
 
 def bench_groupby():
