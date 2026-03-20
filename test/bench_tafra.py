@@ -5,10 +5,11 @@ Run with:
     python test/bench_tafra.py
     pytest test/bench_tafra.py -v  (if pytest-benchmark is installed)
 """
+from __future__ import annotations
+
 import time
 import numpy as np
 from contextlib import contextmanager
-from typing import Callable, Any, Dict, List
 
 from tafra import Tafra, GroupBy, Transform, IterateBy, InnerJoin, LeftJoin
 

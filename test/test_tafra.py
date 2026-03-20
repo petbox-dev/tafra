@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 import platform
 import warnings
@@ -9,7 +11,7 @@ from tafra import Tafra, object_formatter
 import pandas as pd  # type: ignore
 from itertools import islice
 
-from typing import Dict, List, Any, Iterator, Iterable, Sequence, Tuple, Optional, Type
+from typing import Any, Iterator
 
 import pytest  # type: ignore
 from unittest.mock import MagicMock
@@ -26,9 +28,9 @@ class Series:
 
 
 class DataFrame:
-    _data: Dict[str, Series] = {'x': Series(), 'y': Series()}
-    columns: List[str] = ['x', 'y']
-    dtypes: List[str] = ['int', 'int']
+    _data: dict[str, Series] = {'x': Series(), 'y': Series()}
+    columns: list[str] = ['x', 'y']
+    dtypes: list[str] = ['int', 'int']
 
     def __getitem__(self, column: str) -> Series:
         return self._data[column]
@@ -49,10 +51,10 @@ class Cursor:
     ]
     idx = 0
 
-    def __iter__(self) -> Iterator[Tuple[Any, ...]]:
+    def __iter__(self) -> Iterator[tuple[Any, ...]]:
         return self
 
-    def __next__(self) -> Tuple[Any, ...]:
+    def __next__(self) -> tuple[Any, ...]:
         try:
             item = self._iter[self.idx]
         except IndexError:
@@ -63,16 +65,16 @@ class Cursor:
     def execute(self, sql: str) -> None:
         ...
 
-    def fetchone(self) -> Optional[Tuple[Any, ...]]:
+    def fetchone(self) -> tuple[Any, ...] | None:
         try:
             return next(self)
         except:
             return None
 
-    def fetchmany(self, size: int) -> List[Tuple[Any, ...]]:
+    def fetchmany(self, size: int) -> list[tuple[Any, ...]]:
         return list(islice(self, size))
 
-    def fetchall(self) -> List[Tuple[Any, ...]]:
+    def fetchall(self) -> list[tuple[Any, ...]]:
         return [rec for rec in self]
 
 
@@ -203,7 +205,7 @@ def test_constructions() -> None:
     t = Tafra(iter([{'x': np.arange(6)}, {'y': np.linspace(0, 1, 6)}]))
     check_tafra(t)
 
-    def iterator() -> Iterator[Dict[str, np.ndarray]]:
+    def iterator() -> Iterator[dict[str, np.ndarray]]:
         yield {'x': np.array([1, 2, 3, 4, 5, 6])}
         yield {'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType())}
         yield {'z': np.array([0, 0, 0, 1, 1, 1])}
@@ -212,7 +214,7 @@ def test_constructions() -> None:
     check_tafra(t)
 
     class DictIterable:
-        def __iter__(self) -> Iterator[Dict[str, np.ndarray]]:
+        def __iter__(self) -> Iterator[dict[str, np.ndarray]]:
             yield {'x': np.array([1, 2, 3, 4, 5, 6])}
             yield {'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType())}
             yield {'z': np.array([0, 0, 0, 1, 1, 1])}
@@ -334,7 +336,7 @@ def test_read_sql() -> None:
 
 
 def test_destructors() -> None:
-    def gen_values() -> Iterator[Dict[str, np.ndarray]]:
+    def gen_values() -> Iterator[dict[str, np.ndarray]]:
         yield {'x': np.arange(6)}
         yield {'y': np.arange(6)}
 
@@ -1246,13 +1248,13 @@ def test_to_csv_unsupported_type() -> None:
 
 def test_parse_iterable_true_iterable() -> None:
     """Constructing from a non-rewindable iterable should not skip/duplicate elements."""
-    def gen_pairs() -> Iterator[Tuple[str, np.ndarray]]:
+    def gen_pairs() -> Iterator[tuple[str, np.ndarray]]:
         yield ('a', np.array([1, 2, 3]))
         yield ('b', np.array([4, 5, 6]))
         yield ('c', np.array([7, 8, 9]))
 
     class PairIterable:
-        def __iter__(self) -> Iterator[Tuple[str, np.ndarray]]:
+        def __iter__(self) -> Iterator[tuple[str, np.ndarray]]:
             return gen_pairs()
 
     t = Tafra(PairIterable())

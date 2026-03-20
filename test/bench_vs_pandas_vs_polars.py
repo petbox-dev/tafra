@@ -3,6 +3,8 @@ Tafra vs pandas vs polars performance comparison.
 
 Run with: python test/bench_vs_pandas_vs_polars.py
 """
+from __future__ import annotations
+
 import time
 import math
 import sys

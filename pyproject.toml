@@ -99,6 +99,10 @@ warn_unused_ignores = true
 module = "IPython.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "test.*"
+ignore_errors = true
+
 [tool.pytest.ini_options]
 addopts = "--cov=tafra --cov-report=term-missing --hypothesis-show-statistics -v test"
 
