@@ -211,7 +211,7 @@ result = plf.with_columns(
 )
 ```
 
-| Scale | tafra/numpy | pandas | polars |
+| Scale | tafra | pandas | polars |
 |---|---|---|---|
 | 10k rows | **0.18 ms** | 0.35 ms | 0.97 ms |
 | 100k rows | 1.72 ms | 2.10 ms | **1.52 ms** |
@@ -220,7 +220,7 @@ result = plf.with_columns(
 <div class="chart">
   <div class="chart-title">Vectorized Expression: 10k rows (ms)</div>
   <div class="chart-row">
-    <span class="chart-label">tafra/numpy</span>
+    <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar fastest" style="width: 19%"></div>
       <span class="chart-value">0.18</span>
@@ -252,7 +252,7 @@ result = plf.with_columns(
     </div>
   </div>
   <div class="chart-row">
-    <span class="chart-label">tafra/numpy</span>
+    <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 82%"></div>
       <span class="chart-value">1.72</span>
@@ -284,7 +284,7 @@ result = plf.with_columns(
     </div>
   </div>
   <div class="chart-row">
-    <span class="chart-label">tafra/numpy</span>
+    <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
       <span class="chart-value">27.1</span>
@@ -295,7 +295,7 @@ result = plf.with_columns(
 At small scale (10k rows), `tafra`/numpy wins decisively — 5x faster than
 polars — because numpy array operations have minimal dispatch overhead.
 At 1M rows, polars' Rust SIMD internals pull ahead (2.8x faster than
-tafra/numpy). Pandas sits in between, benefiting from numpy under the hood
+tafra). Pandas sits in between, benefiting from numpy under the hood
 but paying additional wrapper overhead.
 
 
@@ -731,7 +731,7 @@ result = numba_fn(df['a'].values, df['b'].values, df['c'].values)
 result = numba_fn(plf['a'].to_numpy(), plf['b'].to_numpy(), plf['c'].to_numpy())
 ```
 
-| Scale | tafra/numpy | pandas | polars |
+| Scale | tafra | pandas | polars |
 |---|---|---|---|
 | 10k rows | **0.06 ms** | 0.10 ms | 0.17 ms |
 | 100k rows | 0.58 ms | 0.69 ms | **0.57 ms** |
@@ -740,7 +740,7 @@ result = numba_fn(plf['a'].to_numpy(), plf['b'].to_numpy(), plf['c'].to_numpy())
 <div class="chart">
   <div class="chart-title">Numba: 10k rows (ms)</div>
   <div class="chart-row">
-    <span class="chart-label">tafra/numpy</span>
+    <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar fastest" style="width: 35%"></div>
       <span class="chart-value">0.06</span>
@@ -772,7 +772,7 @@ result = numba_fn(plf['a'].to_numpy(), plf['b'].to_numpy(), plf['c'].to_numpy())
     </div>
   </div>
   <div class="chart-row">
-    <span class="chart-label">tafra/numpy</span>
+    <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 84%"></div>
       <span class="chart-value">0.58</span>
@@ -790,7 +790,7 @@ result = numba_fn(plf['a'].to_numpy(), plf['b'].to_numpy(), plf['c'].to_numpy())
 <div class="chart">
   <div class="chart-title">Numba: 1M rows (ms)</div>
   <div class="chart-row">
-    <span class="chart-label">tafra/numpy</span>
+    <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar fastest" style="width: 89%"></div>
       <span class="chart-value">7.38</span>
@@ -829,7 +829,7 @@ columns adds up.
 * **Column access** -- 128x faster than pandas, 6x faster than polars
 * **Row-wise mapping** -- with `name=None` fast path, fastest at 10k rows;
   polars `map_elements` wins at 100k+ but all three are within 1.3x
-* **Vectorized expressions** -- tafra/numpy wins at small scale (5x faster
+* **Vectorized expressions** -- tafra wins at small scale (5x faster
   than polars at 10k rows); polars SIMD wins at 1M rows (2.8x faster)
 * **GroupBy at <=10k rows** -- with C extension, 3--5x faster
   than both pandas and polars
