@@ -80,7 +80,7 @@ faster than `pandas` but still 6x slower than `Tafra`'s direct dict lookup.
 
 Row-wise mapping applies a Python function to each row. `Tafra` uses
 `tuple_map` (NamedTuple access), `pandas` uses `itertuples`, and `polars`
-uses `map_rows`. All apply a scalar function per row:
+uses `map_elements` on a struct column. All apply a scalar function per row:
 
 ```python
 import math
@@ -94,37 +94,42 @@ result = list(tf.tuple_map(lambda r: (row_fn(r[0], r[1], r[2]),), name=None))
 # pandas
 result = [row_fn(r.a, r.b, r.c) for r in df.itertuples()]
 
-# polars
-result = plf.map_rows(lambda row: pl.Series([row_fn(row[0], row[1], row[2])]))
+# polars (map_elements on struct)
+result = plf.with_columns(
+    pl.struct(['a', 'b', 'c']).map_elements(
+        lambda s: row_fn(s['a'], s['b'], s['c']),
+        return_dtype=pl.Float64
+    ).alias('result')
+)
 ```
 
 | Scale | tafra | pandas 3.0 | polars |
 |---|---|---|---|
-| 10k rows | **6.24 ms** | 6.63 ms | 43.0 ms |
-| 100k rows | **62.2 ms** | 63.7 ms | 461 ms |
-| 1M rows | **664 ms** | 686 ms | 4,814 ms |
+| 10k rows | **6.11 ms** | 6.77 ms | 6.30 ms |
+| 100k rows | 69.6 ms | 66.9 ms | **48.3 ms** |
+| 1M rows | 744 ms | 777 ms | **598 ms** |
 
 <div class="chart">
   <div class="chart-title">Row Map: 10k rows (ms)</div>
   <div class="chart-row">
     <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar fastest" style="width: 15%"></div>
-      <span class="chart-value">6.24</span>
-    </div>
-  </div>
-  <div class="chart-row">
-    <span class="chart-label">pandas</span>
-    <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 15%"></div>
-      <span class="chart-value">6.63</span>
+      <div class="chart-bar fastest" style="width: 90%"></div>
+      <span class="chart-value">6.11</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">polars</span>
     <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 93%"></div>
+      <span class="chart-value">6.30</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas</span>
+    <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">43.0</span>
+      <span class="chart-value">6.77</span>
     </div>
   </div>
 </div>
@@ -132,24 +137,24 @@ result = plf.map_rows(lambda row: pl.Series([row_fn(row[0], row[1], row[2])]))
 <div class="chart">
   <div class="chart-title">Row Map: 100k rows (ms)</div>
   <div class="chart-row">
-    <span class="chart-label">tafra</span>
+    <span class="chart-label">polars</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar fastest" style="width: 13%"></div>
-      <span class="chart-value">62.2</span>
+      <div class="chart-bar fastest" style="width: 69%"></div>
+      <span class="chart-value">48.3</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">pandas</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 14%"></div>
-      <span class="chart-value">63.7</span>
+      <div class="chart-bar" style="width: 96%"></div>
+      <span class="chart-value">66.9</span>
     </div>
   </div>
   <div class="chart-row">
-    <span class="chart-label">polars</span>
+    <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">461</span>
+      <span class="chart-value">69.6</span>
     </div>
   </div>
 </div>
@@ -157,31 +162,141 @@ result = plf.map_rows(lambda row: pl.Series([row_fn(row[0], row[1], row[2])]))
 <div class="chart">
   <div class="chart-title">Row Map: 1M rows (ms)</div>
   <div class="chart-row">
+    <span class="chart-label">polars</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 77%"></div>
+      <span class="chart-value">598</span>
+    </div>
+  </div>
+  <div class="chart-row">
     <span class="chart-label">tafra</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar fastest" style="width: 14%"></div>
-      <span class="chart-value">664</span>
+      <div class="chart-bar" style="width: 96%"></div>
+      <span class="chart-value">744</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">pandas</span>
     <div class="chart-bar-wrap">
-      <div class="chart-bar" style="width: 14%"></div>
-      <span class="chart-value">686</span>
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">777</span>
+    </div>
+  </div>
+</div>
+
+With `name=None` (plain tuple fast path), `tafra` wins at 10k rows. At
+100k+ rows, `polars` `map_elements` pulls ahead — its Rust-backed struct
+iteration is faster than Python tuple unpacking at scale. All three
+libraries are within 1.3x of each other, a dramatic improvement over the
+old `map_rows` API which was 7x slower.
+
+
+## Vectorized Expressions
+
+When the computation can be expressed as array operations, all three
+libraries avoid Python per-row overhead entirely. Each library uses its
+native expression API to evaluate `sqrt(a^2 + b^2) + log1p(|c|)`:
+
+```python
+# tafra / numpy — direct array ops
+result = np.sqrt(tf['a']**2 + tf['b']**2) + np.log1p(np.abs(tf['c']))
+
+# pandas — same numpy ops work through pandas API
+result = np.sqrt(df['a']**2 + df['b']**2) + np.log1p(np.abs(df['c']))
+
+# polars — native expression API
+result = plf.with_columns(
+    ((pl.col('a')**2 + pl.col('b')**2).sqrt()
+     + (pl.col('c').abs() + 1).log()).alias('result')
+)
+```
+
+| Scale | tafra/numpy | pandas | polars |
+|---|---|---|---|
+| 10k rows | **0.18 ms** | 0.35 ms | 0.97 ms |
+| 100k rows | 1.72 ms | 2.10 ms | **1.52 ms** |
+| 1M rows | 27.1 ms | 23.5 ms | **9.63 ms** |
+
+<div class="chart">
+  <div class="chart-title">Vectorized Expression: 10k rows (ms)</div>
+  <div class="chart-row">
+    <span class="chart-label">tafra/numpy</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 19%"></div>
+      <span class="chart-value">0.18</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 36%"></div>
+      <span class="chart-value">0.35</span>
     </div>
   </div>
   <div class="chart-row">
     <span class="chart-label">polars</span>
     <div class="chart-bar-wrap">
       <div class="chart-bar" style="width: 100%"></div>
-      <span class="chart-value">4,814</span>
+      <span class="chart-value">0.97</span>
     </div>
   </div>
 </div>
 
-With `name=None` (plain tuple fast path), `tafra` edges out `pandas`
-`itertuples` at all scales. `polars` `map_rows` is 7x slower — polars is
-optimized for columnar operations and explicitly discourages row-wise UDFs.
+<div class="chart">
+  <div class="chart-title">Vectorized Expression: 100k rows (ms)</div>
+  <div class="chart-row">
+    <span class="chart-label">polars</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 72%"></div>
+      <span class="chart-value">1.52</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">tafra/numpy</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 82%"></div>
+      <span class="chart-value">1.72</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">2.10</span>
+    </div>
+  </div>
+</div>
+
+<div class="chart">
+  <div class="chart-title">Vectorized Expression: 1M rows (ms)</div>
+  <div class="chart-row">
+    <span class="chart-label">polars</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar fastest" style="width: 36%"></div>
+      <span class="chart-value">9.63</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">pandas</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 87%"></div>
+      <span class="chart-value">23.5</span>
+    </div>
+  </div>
+  <div class="chart-row">
+    <span class="chart-label">tafra/numpy</span>
+    <div class="chart-bar-wrap">
+      <div class="chart-bar" style="width: 100%"></div>
+      <span class="chart-value">27.1</span>
+    </div>
+  </div>
+</div>
+
+At small scale (10k rows), `tafra`/numpy wins decisively — 5x faster than
+polars — because numpy array operations have minimal dispatch overhead.
+At 1M rows, polars' Rust SIMD internals pull ahead (2.8x faster than
+tafra/numpy). Pandas sits in between, benefiting from numpy under the hood
+but paying additional wrapper overhead.
 
 
 ## GroupBy & Transform
@@ -610,8 +725,10 @@ result = ndarray_map(tf['qi'], tf['Di'], tf['bi'], t)
 * **Construction and teardown** -- 308x faster than pandas, 3x faster
   than polars
 * **Column access** -- 128x faster than pandas, 6x faster than polars
-* **Row-wise mapping** -- with `name=None` fast path, slightly faster than
-  pandas itertuples at all scales; 7x faster than polars map_rows
+* **Row-wise mapping** -- with `name=None` fast path, fastest at 10k rows;
+  polars `map_elements` wins at 100k+ but all three are within 1.3x
+* **Vectorized expressions** -- tafra/numpy wins at small scale (5x faster
+  than polars at 10k rows); polars SIMD wins at 1M rows (2.8x faster)
 * **GroupBy at <=10k rows** -- with C extension, 3--5x faster
   than both pandas and polars
 * **Transform at all scales** -- Tafra+C wins every benchmark, from 8x
@@ -650,9 +767,12 @@ Tafra+C = with optional C extension. Tafra = pure Python + numpy only.
 |---|---|---|---|---|
 | Construction (100k rows) | **0.01** | 0.01 | 3.08 | 0.03 |
 | Column access (per call, us) | **0.09** | 0.09 | 11.5 | 0.56 |
-| Row map (10k rows) | **6.24** | 6.24 | 6.63 | 43.0 |
-| Row map (100k rows) | **62.2** | 62.2 | 63.7 | 461 |
-| Row map (1M rows) | **664** | 664 | 686 | 4,814 |
+| Row map (10k rows) | **6.11** | 6.11 | 6.77 | 6.30 |
+| Row map (100k rows) | 69.6 | 69.6 | 66.9 | **48.3** |
+| Row map (1M rows) | 744 | 744 | 777 | **598** |
+| Vectorized expr (10k rows) | **0.18** | 0.18 | 0.35 | 0.97 |
+| Vectorized expr (100k rows) | 1.72 | 1.72 | 2.10 | **1.52** |
+| Vectorized expr (1M rows) | 27.1 | 27.1 | 23.5 | **9.63** |
 | GroupBy (10k, 50 grp, sum+mean) | **0.15** | 0.16 | 0.71 | 0.54 |
 | GroupBy (10k, 500 grp) | **0.18** | 0.20 | 0.71 | 0.58 |
 | GroupBy (100k, 100 grp) | 1.53 | 1.78 | 2.54 | **0.98** |
