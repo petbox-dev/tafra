@@ -19,27 +19,45 @@ t = Tafra({
     'name': np.array(['a', 'b', 'c']),
 })
 
-arr = t['x']          # np.ndarray([1, 2, 3])
-print(type(arr))      # <class 'numpy.ndarray'>
+arr = t['x']
+print(type(arr))
 ```
+
+???+ example "Output"
+
+    ```
+    <class 'numpy.ndarray'>
+    ```
 
 ### By integer index
 
 Returns a single-row `Tafra`:
 
 ```python
-row = t[0]            # Tafra with 1 row: x=1, y=4.0, name='a'
-print(row.rows)       # 1
+row = t[0]
+print(row.rows)
 ```
+
+???+ example "Output"
+
+    ```
+    1
+    ```
 
 ### By slice
 
 Returns a sliced `Tafra`:
 
 ```python
-first_two = t[0:2]    # Tafra with rows 0 and 1
-print(first_two.rows) # 2
+first_two = t[0:2]
+print(first_two.rows)
 ```
+
+???+ example "Output"
+
+    ```
+    2
+    ```
 
 ### By boolean array
 
@@ -47,8 +65,14 @@ Filters rows where the condition is `True`:
 
 ```python
 mask = t['x'] > 1
-filtered = t[mask]     # Tafra with x=[2, 3], y=[5.0, 6.0], name=['b', 'c']
+filtered = t[mask]
 ```
+
+???+ example "Output"
+
+    ```
+    Tafra with x=[2, 3], y=[5.0, 6.0], name=['b', 'c']
+    ```
 
 ### By list of column names
 
@@ -56,8 +80,14 @@ Returns a `Tafra` with only the listed columns (like `select`):
 
 ```python
 subset = t[['x', 'name']]
-print(subset.columns)  # ('x', 'name')
+print(subset.columns)
 ```
+
+???+ example "Output"
+
+    ```
+    ('x', 'name')
+    ```
 
 ## Setting Columns
 
@@ -75,10 +105,18 @@ t['flag'] = True                     # scalar broadcast to all rows
 ### `keys()`, `values()`, `items()`
 
 ```python
-t.keys()    # dict_keys(['x', 'y', 'name', 'z', 'flag'])
-t.values()  # dict_values([array([10, 20, 30]), array([4., 5., 6.]), ...])
-t.items()   # dict_items([('x', array([10, 20, 30])), ...])
+print(t.keys())
+print(t.values())
+print(t.items())
 ```
+
+???+ example "Output"
+
+    ```
+    dict_keys(['x', 'y', 'name', 'z', 'flag'])
+    dict_values([array([10, 20, 30]), array([4., 5., 6.]), ...])
+    dict_items([('x', array([10, 20, 30])), ...])
+    ```
 
 ### `get()`
 
@@ -97,8 +135,16 @@ arrays.
 
 ```python
 sub = t.select(['x', 'y'])
-print(sub.columns)  # ('x', 'y')
+print(sub.columns)
+```
 
+???+ example "Output"
+
+    ```
+    ('x', 'y')
+    ```
+
+```python
 # With copy
 sub_copy = t.select(['x', 'y']).copy()
 ```
@@ -111,8 +157,14 @@ the same row count. Returns a new `Tafra`.
 ```python
 other = Tafra({'w': np.array([100, 200, 300])})
 t2 = t.update(other)
-print('w' in t2.keys())  # True
+print('w' in t2.keys())
 ```
+
+???+ example "Output"
+
+    ```
+    True
+    ```
 
 Use `update_inplace()` for the in-place version:
 
@@ -126,8 +178,14 @@ t.update_inplace(other)
 
 ```python
 t2 = t.update_dtypes({'x': 'float64'})
-print(t2['x'].dtype)  # float64
+print(t2['x'].dtype)
 ```
+
+???+ example "Output"
+
+    ```
+    float64
+    ```
 
 Use `update_dtypes_inplace()` for the in-place version:
 
@@ -141,8 +199,14 @@ t.update_dtypes_inplace({'x': 'float64'})
 
 ```python
 t2 = t.rename({'x': 'x_val', 'y': 'y_val'})
-print(t2.columns)  # ('x_val', 'y_val', 'name', ...)
+print(t2.columns)
 ```
+
+???+ example "Output"
+
+    ```
+    ('x_val', 'y_val', 'name', ...)
+    ```
 
 Use `rename_inplace()` for the in-place version.
 
@@ -152,8 +216,14 @@ Use `rename_inplace()` for the in-place version.
 
 ```python
 t2 = t.delete(['z', 'flag'])
-print('z' in t2.keys())  # False
+print('z' in t2.keys())
 ```
+
+???+ example "Output"
+
+    ```
+    False
+    ```
 
 Use `delete_inplace()` for the in-place version:
 
@@ -184,8 +254,14 @@ for row in t.itertuples():
 
 # As plain tuples (no named fields)
 for row in t.itertuples(name=None):
-    print(row)  # (10, 4.0, 'a', ...)
+    print(row)
 ```
+
+???+ example "Output"
+
+    ```
+    (10, 4.0, 'a', ...)
+    ```
 
 ### `itercols()`
 
@@ -220,8 +296,14 @@ means = list(t.select(['x', 'y']).col_map(np.mean))
 
 ```python
 named_means = dict(t.select(['x', 'y']).key_map(np.mean))
-# {'x': 20.0, 'y': 5.0}
+print(named_means)
 ```
+
+???+ example "Output"
+
+    ```
+    {'x': 20.0, 'y': 5.0}
+    ```
 
 ## Properties
 

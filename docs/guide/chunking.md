@@ -17,11 +17,20 @@ t = Tafra({
 })
 
 pieces = t.chunks(3)
-print(len(pieces))       # 3
-print(pieces[0].rows)    # 4
-print(pieces[1].rows)    # 3
-print(pieces[2].rows)    # 3
+print(len(pieces))
+print(pieces[0].rows)
+print(pieces[1].rows)
+print(pieces[2].rows)
 ```
+
+???+ example "Output"
+
+    ```
+    3
+    4
+    3
+    3
+    ```
 
 If the row count does not divide evenly, earlier chunks get one extra row.
 
@@ -31,11 +40,20 @@ Split into chunks of at most `size` rows each:
 
 ```python
 pieces = t.chunk_rows(4)
-print(len(pieces))       # 3
-print(pieces[0].rows)    # 4
-print(pieces[1].rows)    # 3
-print(pieces[2].rows)    # 3
+print(len(pieces))
+print(pieces[0].rows)
+print(pieces[1].rows)
+print(pieces[2].rows)
 ```
+
+???+ example "Output"
+
+    ```
+    3
+    4
+    3
+    3
+    ```
 
 ## sort_by Parameter
 
@@ -53,9 +71,14 @@ pieces = t.chunks(2)
 
 # With sort_by: sorted by 'group' first, then split
 pieces = t.chunks(2, sort_by=['group'])
-# pieces[0]: group=['A','A','A'], value=[2,4,6]
-# pieces[1]: group=['B','B','B'], value=[1,3,5]
 ```
+
+???+ example "Output"
+
+    ```
+    pieces[0]: group=['A','A','A'], value=[2,4,6]
+    pieces[1]: group=['B','B','B'], value=[1,3,5]
+    ```
 
 ## Tafra.concat()
 
@@ -64,8 +87,14 @@ Tafra:
 
 ```python
 combined = Tafra.concat(pieces)
-print(combined.rows)  # 6
+print(combined.rows)
 ```
+
+???+ example "Output"
+
+    ```
+    6
+    ```
 
 All Tafras must have the same column names. Dtypes are taken from the first
 Tafra in the list.
@@ -94,8 +123,14 @@ with Pool(4) as pool:
     results = pool.map(process_chunk, chunks)
 
 combined = Tafra.concat(results)
-print(combined.rows)  # 1000
+print(combined.rows)
 ```
+
+???+ example "Output"
+
+    ```
+    1000
+    ```
 
 ### partition vs chunks
 

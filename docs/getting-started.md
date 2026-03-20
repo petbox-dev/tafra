@@ -42,30 +42,51 @@ t = Tafra({
 Column access returns the underlying numpy array directly -- no wrapper objects:
 
 ```python
-t['x']          # np.array([1, 2, 3, 4])
-t['y']          # np.array(['one', 'two', 'one', 'two'])
+print(t['x'])
+print(t['y'])
 ```
+
+???+ example "Output"
+
+    ```
+    [1 2 3 4]
+    ['one' 'two' 'one' 'two']
+    ```
 
 ### Inspect the contents
 
 ```python
-t.pformat()
-# Tafra(data = {
-#  'x': array([1, 2, 3, 4]),
-#  'y': array(['one', 'two', 'one', 'two'])},
-# dtypes = {
-#  'x': 'int', 'y': 'str'},
-# rows = 4)
+print(t.pformat())
 ```
+
+???+ example "Output"
+
+    ```
+    Tafra(data = {
+     'x': array([1, 2, 3, 4]),
+     'y': array(['one', 'two', 'one', 'two'])},
+    dtypes = {
+     'x': 'int', 'y': 'str'},
+    rows = 4)
+    ```
 
 ### Properties
 
 ```python
-t.rows       # 4
-t.columns    # ['x', 'y']
-t.dtypes     # {'x': 'int', 'y': 'str'}
-t.shape      # (4, 2)
+print(t.rows)
+print(t.columns)
+print(t.dtypes)
+print(t.shape)
 ```
+
+???+ example "Output"
+
+    ```
+    4
+    ['x', 'y']
+    {'x': 'int', 'y': 'str'}
+    (4, 2)
+    ```
 
 ### Iterate rows
 
@@ -127,10 +148,18 @@ result = t.group_by(
     ['region'],
     {'sales': np.sum, 'units': np.sum},
 )
-# result['region'] -> array(['east', 'west'])
-# result['sales']  -> array([300, 400])
-# result['units']  -> array([30, 40])
+print(result['region'])
+print(result['sales'])
+print(result['units'])
 ```
+
+???+ example "Output"
+
+    ```
+    ['east' 'west']
+    [300 400]
+    [30 40]
+    ```
 
 You can also rename columns during aggregation:
 
@@ -160,9 +189,16 @@ result = t.transform(
     ['region'],
     {'sales': np.sum},
 )
-# result['sales'] -> array([300, 300, 400, 400])
-# result has 4 rows, same as the input
+print(result['sales'])
 ```
+
+???+ example "Output"
+
+    ```
+    [300 300 400 400]
+    ```
+
+    `result` has 4 rows, same as the input.
 
 ### Inner Join
 
@@ -183,10 +219,18 @@ joined = left.inner_join(
     right,
     on=[('id', 'id', '==')],
 )
-# joined['id']    -> array([2, 3])
-# joined['name']  -> array(['Bob', 'Carol'])
-# joined['score'] -> array([85, 92])
+print(joined['id'])
+print(joined['name'])
+print(joined['score'])
 ```
+
+???+ example "Output"
+
+    ```
+    [2 3]
+    ['Bob' 'Carol']
+    [85 92]
+    ```
 
 `left_join` and `cross_join` follow the same pattern.
 

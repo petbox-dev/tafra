@@ -40,11 +40,15 @@ result = t.group_by(
         'cost': np.mean,
     },
 )
-# result:
-#   region   sales   cost
-#   'east'   300     85.0
-#   'west'   575     100.0
 ```
+
+???+ example "Output"
+
+    ```
+    region   sales   cost
+    'east'   300     85.0
+    'west'   575     100.0
+    ```
 
 ### Renaming output columns
 
@@ -70,8 +74,9 @@ result = t.group_by(
         'total_sales': (np.sum, 'sales'),
     },
 )
-# One row per unique (region, product) combination
 ```
+
+One row per unique (region, product) combination.
 
 ## Built-in Aggregation Functions
 
@@ -178,12 +183,18 @@ result = t.transform(
         'region_avg': (np.mean, 'sales'),
     },
 )
-# result has 5 rows (same as input)
-# 'region_total' is 300 for east rows, 575 for west rows
-# 'region_avg' is 150.0 for east rows, 191.67 for west rows
-
-print(result.rows)  # 5
+print(result.rows)
 ```
+
+???+ example "Output"
+
+    ```
+    5
+    ```
+
+    `result` has 5 rows (same as input).
+    `region_total` is 300 for east rows, 575 for west rows.
+    `region_avg` is 150.0 for east rows, 191.67 for west rows.
 
 Transform also supports the vectorized fast path.
 
@@ -203,14 +214,18 @@ for keys, indices, sub in t.iterate_by(['region']):
     print(f'Region: {keys[0]}, rows: {sub.rows}')
     print(f'  indices: {indices}')
     print(f'  sales: {sub["sales"]}')
-
-# Region: east, rows: 2
-#   indices: [0 1]
-#   sales: [100 200]
-# Region: west, rows: 3
-#   indices: [2 3 4]
-#   sales: [150 175 250]
 ```
+
+???+ example "Output"
+
+    ```
+    Region: east, rows: 2
+      indices: [0 1]
+      sales: [100 200]
+    Region: west, rows: 3
+      indices: [2 3 4]
+      sales: [150 175 250]
+    ```
 
 ### Processing each group
 
@@ -240,12 +255,16 @@ parts = t.partition(['region'])
 for key, sub in parts:
     print(f'Group {key}: {sub.rows} rows')
     print(f'  sales: {sub["sales"]}')
-
-# Group ('east',): 2 rows
-#   sales: [100 200]
-# Group ('west',): 3 rows
-#   sales: [150 175 250]
 ```
+
+???+ example "Output"
+
+    ```
+    Group ('east',): 2 rows
+      sales: [100 200]
+    Group ('west',): 3 rows
+      sales: [150 175 250]
+    ```
 
 ### Optional sorting within partitions
 
@@ -281,8 +300,14 @@ with Pool(4) as pool:
     results = pool.map(process_group, parts)
 
 combined = Tafra.concat(results)
-print(combined.rows)  # 5
+print(combined.rows)
 ```
+
+???+ example "Output"
+
+    ```
+    5
+    ```
 
 ## group_by vs partition -- Summary
 

@@ -18,10 +18,18 @@ t = Tafra({
     'score': np.array([91.5, 87.0, 94.2]),
 })
 
-print(t.columns)   # ('id', 'name', 'score')
-print(t.rows)      # 3
-print(t.dtypes)    # {'id': 'int64', 'name': 'str', 'score': 'float64'}
+print(t.columns)
+print(t.rows)
+print(t.dtypes)
 ```
+
+???+ example "Output"
+
+    ```
+    ('id', 'name', 'score')
+    3
+    {'id': 'int64', 'name': 'str', 'score': 'float64'}
+    ```
 
 Plain Python lists work too -- they are converted to arrays automatically:
 
@@ -41,8 +49,14 @@ t = Tafra(
     {'value': [1, 2, 3]},
     {'value': 'float64'},
 )
-print(t['value'].dtype)  # float64
+print(t['value'].dtype)
 ```
+
+???+ example "Output"
+
+    ```
+    float64
+    ```
 
 ### Scalar broadcast
 
@@ -53,8 +67,14 @@ t = Tafra({
     'x': np.array([1, 2, 3]),
     'label': 'constant',       # broadcast to 3 rows
 })
-print(len(t['label']))  # 3
+print(len(t['label']))
 ```
+
+???+ example "Output"
+
+    ```
+    3
+    ```
 
 ### Other init forms
 
@@ -70,8 +90,16 @@ t = Tafra(iter([('a', [1, 2]), ('b', [3, 4])]))
 
 # From enumerate
 t = Tafra(enumerate([[10, 20], [30, 40]]))
-print(t.columns)  # ('0', '1') -- integer keys are cast to strings
+print(t.columns)
 ```
+
+???+ example "Output"
+
+    ```
+    ('0', '1')
+    ```
+
+Integer keys are cast to strings.
 
 ### Validation options
 

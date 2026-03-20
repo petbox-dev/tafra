@@ -50,15 +50,18 @@ result = orders.inner_join(
     customers,
     on=[('customer_id', 'customer_id', '==')],
 )
-
-# result:
-#   order_id  customer_id  amount  name
-#   1         10           100.0   'Alice'
-#   2         20           200.0   'Bob'
-#
-# customer_id 30 and 40 have no match -- excluded
-# customer_id 50 has no match in orders -- excluded
 ```
+
+???+ example "Output"
+
+    ```
+    order_id  customer_id  amount  name
+    1         10           100.0   'Alice'
+    2         20           200.0   'Bob'
+    ```
+
+    `customer_id` 30 and 40 have no match -- excluded.
+    `customer_id` 50 has no match in orders -- excluded.
 
 ### SQL equivalent
 
@@ -77,8 +80,14 @@ result = orders.inner_join(
     on=[('customer_id', 'customer_id', '==')],
     select=['order_id', 'name', 'amount'],
 )
-print(result.columns)  # ('order_id', 'name', 'amount')
+print(result.columns)
 ```
+
+???+ example "Output"
+
+    ```
+    ('order_id', 'name', 'amount')
+    ```
 
 ## Left Join
 
@@ -90,14 +99,17 @@ result = orders.left_join(
     customers,
     on=[('customer_id', 'customer_id', '==')],
 )
-
-# result:
-#   order_id  customer_id  amount  name
-#   1         10           100.0   'Alice'
-#   2         20           200.0   'Bob'
-#   3         30           150.0   None
-#   4         40           300.0   None
 ```
+
+???+ example "Output"
+
+    ```
+    order_id  customer_id  amount  name
+    1         10           100.0   'Alice'
+    2         20           200.0   'Bob'
+    3         30           150.0   None
+    4         40           300.0   None
+    ```
 
 ### SQL equivalent
 
@@ -123,16 +135,21 @@ colors = Tafra({
 })
 
 result = sizes.cross_join(colors)
-
-# result has 3 * 2 = 6 rows:
-#   size  color
-#   'S'   'red'
-#   'S'   'blue'
-#   'M'   'red'
-#   'M'   'blue'
-#   'L'   'red'
-#   'L'   'blue'
 ```
+
+???+ example "Output"
+
+    ```
+    size  color
+    'S'   'red'
+    'S'   'blue'
+    'M'   'red'
+    'M'   'blue'
+    'L'   'red'
+    'L'   'blue'
+    ```
+
+    Result has 3 * 2 = 6 rows.
 
 ### SQL equivalent
 
@@ -172,12 +189,15 @@ result = left.inner_join(
         ('region', 'region', '=='),
     ],
 )
-
-# result:
-#   year  region  value  budget
-#   2023  'east'  10     100
-#   2024  'east'  30     200
 ```
+
+???+ example "Output"
+
+    ```
+    year  region  value  budget
+    2023  'east'  10     100
+    2024  'east'  30     200
+    ```
 
 ## Non-equality Joins
 
@@ -199,13 +219,16 @@ result = events.inner_join(
     windows,
     on=[('start', 'threshold', '>=')],
 )
-
-# result:
-#   event_id  start  window_id  threshold
-#   1         5      1          3
-#   2         15     1          3
-#   2         15     2          10
 ```
+
+???+ example "Output"
+
+    ```
+    event_id  start  window_id  threshold
+    1         5      1          3
+    2         15     1          3
+    2         15     2          10
+    ```
 
 !!! note
     Non-equality joins use a row-by-row loop and do not benefit from the
