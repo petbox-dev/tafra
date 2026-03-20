@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tafra"
-version = "2.1.0"
-description = "Tafra: innards of a dataframe"
-readme = {file = "README.rst", content-type = "text/x-rst"}
+version = "2.2.0"
+description = "Tafra: essence of a dataframe"
+readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
@@ -39,6 +39,8 @@ keywords = [
 
 [project.urls]
 Homepage = "https://github.com/petbox-dev/tafra"
+Documentation = "https://petbox-dev.github.io/tafra/"
+Repository = "https://github.com/petbox-dev/tafra"
 
 [tool.setuptools.packages.find]
 include = ["tafra*"]
@@ -51,8 +53,7 @@ line-length = 100
 exclude = [
     ".git",
     "__pycache__",
-    "docs/conf.py",
-    "docs/source/conf.py",
+    "docs/",
     "old",
     "build",
     "dist",
@@ -98,8 +99,12 @@ warn_unused_ignores = true
 module = "IPython.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "test.*"
+ignore_errors = true
+
 [tool.pytest.ini_options]
-addopts = "--cov=tafra --cov-report=term-missing --hypothesis-show-statistics -v test"
+addopts = "--cov=tafra --cov-report=term-missing --cov-report=lcov:coverage.lcov --hypothesis-show-statistics -v test"
 
 [tool.coverage.run]
 # branch = true

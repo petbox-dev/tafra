@@ -1,0 +1,76 @@
+site_name: tafra
+site_url: https://petbox-dev.github.io/tafra/
+repo_url: https://github.com/petbox-dev/tafra
+repo_name: petbox-dev/tafra
+theme:
+  name: material
+  custom_dir: docs/overrides
+  palette:
+    scheme: default
+    primary: teal
+    accent: teal
+  font:
+    text: Inter
+    code: JetBrains Mono
+  logo: assets/logo.svg
+  favicon: assets/favicon.svg
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/api-highlight.js
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            separate_signature: true
+            docstring_style: numpy
+            separate_signature: true
+            docstring_style: numpy
+            docstring_section_style: table
+
+markdown_extensions:
+  - toc:
+      toc_depth: 3
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.inlinehilite
+  - admonition
+  - pymdownx.details
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - User Guide:
+    - Construction: guide/construction.md
+    - Column Operations: guide/column-ops.md
+    - GroupBy & Partition: guide/groupby-partition.md
+    - Joins: guide/joins.md
+    - Chunking: guide/chunking.md
+  - Tutorials:
+    - Overview: tutorials/index.md
+    - Iris Dataset: tutorials/iris.md
+    - Titanic Analysis: tutorials/titanic.md
+    - Time Series: tutorials/timeseries.md
+  - API Reference: api.md
+  - Benchmarks: benchmarks.md
+  - Changelog: changelog.md

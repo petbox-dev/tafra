@@ -1,5 +1,6 @@
 {% set name = "tafra" %}
-{% set version = "2.1.0" %}
+{% set version = "2.2.0" %}
+
 
 package:
   name: {{ name|lower }}
@@ -12,10 +13,12 @@ source:
 build:
   number: 0
   skip: true  # [py<39]
+  script: {{ PYTHON }} -m pip install . -vv
 
 requirements:
   build:
     - {{ compiler('c') }}
+    - {{ stdlib("c") }}
     - python                                 # [build_platform != target_platform]
     - cross-python_{{ target_platform }}      # [build_platform != target_platform]
     - numpy                                  # [build_platform != target_platform]
@@ -25,24 +28,33 @@ requirements:
     - setuptools >=64
     - numpy >=2.1
   run:
-    - python >=3.9
+    - python
     - numpy >=2.1
     - typing_extensions
 
 test:
+  source_files:
+    - test
   imports:
     - tafra
     - tafra._accel
   commands:
-    - python -c "from tafra import Tafra; print('OK')"
+    - pip check
     - python -c "from tafra._accel import groupby_sum; print('C extension OK')"
+    - pytest --cov=tafra --cov-report=term-missing --hypothesis-show-statistics -v test
+  requires:
+    - pip
+    - pytest
+    - hypothesis
+    - pytest-cov
+    - pandas
 
 about:
   home: https://github.com/petbox-dev/tafra
   license: MIT
   license_family: MIT
   license_file: LICENSE
-  summary: "Tafra: innards of a dataframe"
+  summary: "Tafra: essence of a dataframe"
   description: |
     A minimalist Python dataframe library — a lightweight alternative to
     pandas backed by numpy arrays. Provides SQL-style group-by, transform,
