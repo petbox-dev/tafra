@@ -37,6 +37,8 @@ try:
         groupby_count as _c_count,
         inner_join as _c_inner_join,
         left_join as _c_left_join,
+        composite_key as _c_composite_key,
+        group_indices as _c_group_indices,
     )
     _HAS_ACCEL = True
 except ImportError:
@@ -477,7 +479,12 @@ class GroupSet:
                 break
 
         if not overflow:
-            # flat integer key via positional encoding
+            if _HAS_ACCEL:
+                return _c_composite_key(
+                    tuple(c.astype(np.int64) for c in encoded),
+                    tuple(cards),
+                )
+            # Python fallback: flat integer key via positional encoding
             key = np.zeros(len(encoded[0]), dtype=np.int64)
             multiplier = 1
             for c, card in zip(reversed(encoded), reversed(cards)):
@@ -579,14 +586,17 @@ class GroupSet:
         """
         data, col_arrays = GroupSet._prepare_keys(tafra, columns)
 
-        labels, first_seen_idx, n_groups = GroupSet._direct_labels_firstseen(
-            data, tafra._rows)
-
-        sorted_row_indices = np.argsort(labels, kind='stable')
-        counts = np.bincount(labels, minlength=n_groups)
-        splits = np.cumsum(counts[:-1])
-        group_indices: list[np.ndarray[Any, Any]] = list(
-            np.split(sorted_row_indices, splits))
+        if _HAS_ACCEL and data.dtype == np.int64:
+            first_seen_idx, group_indices_list, n_groups = _c_group_indices(
+                np.ascontiguousarray(data))
+            group_indices = list(group_indices_list)
+        else:
+            labels, first_seen_idx, n_groups = GroupSet._direct_labels_firstseen(
+                data, tafra._rows)
+            sorted_row_indices = np.argsort(labels, kind='stable')
+            counts = np.bincount(labels, minlength=n_groups)
+            splits = np.cumsum(counts[:-1])
+            group_indices = list(np.split(sorted_row_indices, splits))
 
         unique: list[tuple[Any, ...]] = GroupSet._decode_unique(
             first_seen_idx, col_arrays)
