@@ -39,6 +39,7 @@ try:
         left_join as _c_left_join,
         composite_key as _c_composite_key,
         group_indices as _c_group_indices,
+        encode_strings as _c_encode_strings,
     )
     _HAS_ACCEL = True
 except ImportError:
@@ -424,9 +425,15 @@ class GroupSet:
         codebooks: list[np.ndarray[Any, Any] | None] = []
         for c in col_arrays:
             if c.dtype.kind in ('T', 'U', 'S', 'O'):
-                uniq, codes = np.unique(c, return_inverse=True)
-                encoded.append(codes)
-                codebooks.append(uniq)
+                if _HAS_ACCEL:
+                    obj_arr = c.astype(object)
+                    codes, _ = _c_encode_strings(obj_arr)
+                    encoded.append(codes)
+                    codebooks.append(None)
+                else:
+                    uniq, codes = np.unique(c, return_inverse=True)
+                    encoded.append(codes)
+                    codebooks.append(uniq)
             else:
                 encoded.append(c)
                 codebooks.append(None)
@@ -446,7 +453,10 @@ class GroupSet:
         for lc, rc in zip(left_cols, right_cols):
             if lc.dtype.kind in ('T', 'U', 'S', 'O'):
                 combined = np.concatenate([lc, rc])
-                _, codes = np.unique(combined, return_inverse=True)
+                if _HAS_ACCEL:
+                    codes, _ = _c_encode_strings(combined.astype(object))
+                else:
+                    _, codes = np.unique(combined, return_inverse=True)
                 left_enc.append(codes[:len(lc)])
                 right_enc.append(codes[len(lc):])
             else:

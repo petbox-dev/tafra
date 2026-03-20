@@ -406,6 +406,94 @@ accel_composite_key(PyObject *self, PyObject *args)
 
 
 /* ================================================================
+ * encode_strings: O(n) hash-based string -> integer encoding
+ *
+ * encode_strings(array) -> (codes, n_unique)
+ *   array: numpy array of hashable objects (strings, etc.)
+ *
+ * Returns:
+ *   codes:    int64 array of integer codes (0..n_unique-1), first-seen order
+ *   n_unique: int
+ *
+ * Replaces np.unique(return_inverse=True) which is O(n log n).
+ * ================================================================ */
+
+typedef struct {
+    Py_hash_t hash;
+    PyObject *obj;      /* borrowed reference to the original object */
+    npy_intp code;
+    int occupied;
+} StrHashEntry;
+
+static PyObject *
+accel_encode_strings(PyObject *self, PyObject *args)
+{
+    PyObject *arr_obj;
+    if (!PyArg_ParseTuple(args, "O", &arr_obj))
+        return NULL;
+
+    PyArrayObject *arr = (PyArrayObject *)PyArray_FROM_OTF(
+        arr_obj, NPY_OBJECT, NPY_ARRAY_C_CONTIGUOUS);
+    if (!arr) return NULL;
+
+    npy_intp n = PyArray_SIZE(arr);
+    PyObject **data = (PyObject **)PyArray_DATA(arr);
+
+    /* Hash table */
+    npy_intp table_size = n * 2;
+    if (table_size < 16) table_size = 16;
+    StrHashEntry *table = (StrHashEntry *)calloc(table_size, sizeof(StrHashEntry));
+    if (!table) { Py_DECREF(arr); return PyErr_NoMemory(); }
+
+    /* Output codes */
+    npy_intp dims[1] = {n};
+    PyArrayObject *codes_out = (PyArrayObject *)PyArray_EMPTY(1, dims, NPY_INT64, 0);
+    if (!codes_out) { free(table); Py_DECREF(arr); return NULL; }
+    npy_int64 *codes = (npy_int64 *)PyArray_DATA(codes_out);
+
+    npy_intp n_unique = 0;
+
+    for (npy_intp i = 0; i < n; i++) {
+        PyObject *obj = data[i];
+        Py_hash_t h = PyObject_Hash(obj);
+        if (h == -1 && PyErr_Occurred()) {
+            free(table); Py_DECREF(arr); Py_DECREF(codes_out);
+            return NULL;
+        }
+
+        npy_intp slot = (npy_intp)(((npy_uint64)h * 0x9E3779B97F4A7C15ULL) >> 1) % table_size;
+
+        while (table[slot].occupied) {
+            /* Check if same object or equal value */
+            if (table[slot].hash == h) {
+                int eq = PyObject_RichCompareBool(table[slot].obj, obj, Py_EQ);
+                if (eq < 0) {
+                    free(table); Py_DECREF(arr); Py_DECREF(codes_out);
+                    return NULL;
+                }
+                if (eq) break;  /* found existing entry */
+            }
+            slot = (slot + 1) % table_size;
+        }
+
+        if (!table[slot].occupied) {
+            table[slot].hash = h;
+            table[slot].obj = obj;  /* borrowed ref, arr keeps it alive */
+            table[slot].code = n_unique;
+            table[slot].occupied = 1;
+            n_unique++;
+        }
+        codes[i] = table[slot].code;
+    }
+
+    free(table);
+    Py_DECREF(arr);
+
+    return Py_BuildValue("(On)", codes_out, (Py_ssize_t)n_unique);
+}
+
+
+/* ================================================================
  * group_indices: O(n) hash-based group index construction
  *
  * group_indices(key_array) -> (first_seen_indices, group_row_lists, n_groups)
@@ -782,6 +870,8 @@ static PyMethodDef AccelMethods[] = {
      "Single-pass grouped max: groupby_max(labels, data, n_groups)"},
     {"composite_key", accel_composite_key, METH_VARARGS,
      "Positional encoding: composite_key(arrays, cardinalities) -> int64 key"},
+    {"encode_strings", accel_encode_strings, METH_VARARGS,
+     "O(n) hash-based string encoding: encode_strings(array) -> (codes, n_unique)"},
     {"group_indices", accel_group_indices, METH_VARARGS,
      "O(n) hash-based group labeling: group_indices(key) -> (labels, first_seen, n_groups)"},
     {"inner_join", accel_inner_join, METH_VARARGS,
