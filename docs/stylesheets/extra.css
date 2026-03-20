@@ -19,18 +19,43 @@
   --md-primary-fg-color--light: #ccfbf1;
   --md-primary-fg-color--dark: #0f766e;
   --md-accent-fg-color: #0d9488;
+  --md-typeset-font-size: 0.75rem;
+}
+
+/* ── Tighter headings ── */
+.md-typeset h1 { font-size: 1.6rem; }
+.md-typeset h2 { font-size: 1.25rem; }
+.md-typeset h3 { font-size: 1.05rem; }
+.md-typeset h4 { font-size: 0.95rem; }
+
+/* ── Tighter code blocks ── */
+.md-typeset code,
+.md-typeset pre code {
+  font-size: 0.72rem;
+}
+.md-typeset pre {
+  line-height: 1.5;
+}
+
+/* ── API Reference: function/method name highlighting ── */
+.doc-heading code.highlight .n {
+  color: #2563eb;
+  font-weight: 600;
+}
+.doc-heading code.highlight .p {
+  color: #64748b;
 }
 
 /* ── Hero ── */
 .hero {
   padding: 3.5rem 2rem 3rem;
   text-align: center;
-  max-width: 960px;
+  max-width: 1100px;
   margin: 0 auto;
 }
 
 .hero h1 {
-  font-size: 2.2rem;
+  font-size: 2rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   margin-bottom: 0.75rem;
@@ -42,9 +67,9 @@
 }
 
 .hero p {
-  font-size: 1.05rem;
+  font-size: 0.95rem;
   color: var(--text-secondary);
-  max-width: 600px;
+  max-width: 700px;
   margin: 0 auto 1.5rem;
 }
 
@@ -59,10 +84,10 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
+  padding: 0.6rem 1.25rem;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   text-decoration: none;
   transition: all 0.2s;
   cursor: pointer;
@@ -95,16 +120,16 @@
 
 /* ── Code block in hero ── */
 .hero-code {
-  max-width: 760px;
-  margin: 2.5rem auto 0;
+  max-width: 860px;
+  margin: 2rem auto 0;
   background: var(--bg-code);
   border: 1px solid var(--border);
   border-radius: 10px;
   text-align: left;
-  padding: 1.5rem;
+  padding: 1.25rem 1.5rem;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.85rem;
-  line-height: 1.7;
+  font-size: 0.78rem;
+  line-height: 1.6;
   overflow-x: auto;
 }
 
@@ -122,18 +147,18 @@
 }
 
 .features-grid {
-  max-width: 960px;
+  max-width: 1100px;
   margin: 0 auto;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 2rem;
+  gap: 1.5rem;
 }
 
 .feature-card {
   background: var(--bg-white);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 2rem;
+  padding: 1.5rem;
   transition: border-color 0.2s;
 }
 
@@ -155,13 +180,13 @@
 }
 
 .feature-card h3 {
-  font-size: 1.05rem;
+  font-size: 0.95rem;
   font-weight: 600;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
 }
 
 .feature-card p {
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   color: var(--text-secondary);
   line-height: 1.5;
 }
@@ -169,12 +194,28 @@
 /* ── Benchmarks ── */
 .benchmarks {
   padding: 3rem 2rem;
-  max-width: 800px;
+  max-width: 1100px;
   margin: 0 auto;
 }
 
+.hero-benchmarks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.hero-benchmarks .chart {
+  margin: 0;
+  padding: 1rem 1.25rem;
+}
+
+.hero-benchmarks .chart-title {
+  font-size: 0.78rem;
+  margin-bottom: 0.75rem;
+}
+
 .section-title {
-  font-size: 1.4rem;
+  font-size: 1.25rem;
   font-weight: 700;
   text-align: center;
   margin-bottom: 0.5rem;
@@ -185,13 +226,13 @@
   text-align: center;
   color: var(--text-secondary);
   margin-bottom: 2rem;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
 }
 
 .bench-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
 }
 
 .bench-table th {
@@ -231,11 +272,11 @@
 }
 
 .comparison-grid {
-  max-width: 960px;
+  max-width: 1100px;
   margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 2rem;
+  gap: 1.5rem;
 }
 
 .comparison-block {
@@ -264,10 +305,10 @@
 }
 
 .comparison-block pre {
-  padding: 1.25rem;
+  padding: 1rem 1.25rem;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.82rem;
-  line-height: 1.7;
+  font-size: 0.75rem;
+  line-height: 1.5;
   overflow-x: auto;
   margin: 0;
 }
@@ -275,10 +316,10 @@
 /* ── Landing Footer ── */
 .landing-footer {
   border-top: 1px solid var(--border);
-  padding: 2rem;
+  padding: 1.5rem;
   text-align: center;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: 0.78rem;
 }
 
 .landing-footer a,
@@ -294,12 +335,13 @@
 
 /* ── Wider content area ── */
 .md-grid {
-  max-width: 1440px;
+  max-width: 1800px;
 }
 
 .md-content__inner {
   max-width: none;
 }
+
 
 /* ── API Reference spacing ── */
 .doc-object:not(.doc-object .doc-object) {
