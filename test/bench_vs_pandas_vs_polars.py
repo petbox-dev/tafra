@@ -173,7 +173,13 @@ def bench_row_mapping():
     t_tafra = median_of(lambda: Tafra(tf.tuple_map(tuple_mapper)))
     t_pandas = median_of(
         lambda: pd.DataFrame(dict(tuple_mapper(row) for row in df.itertuples())))
-    print_row("tuple_map", t_tafra, t_tafra, t_pandas, None)
+    t_polars = None
+    if HAS_POLARS:
+        plf = pl.DataFrame(tf.data)
+        def polars_mapper(row):
+            return pl.Series([hyp(row[1], row[2], row[3], t)])
+        t_polars = median_of(lambda: plf.map_rows(polars_mapper))
+    print_row("tuple_map", t_tafra, t_tafra, t_pandas, t_polars)
 
 
 def bench_groupby():

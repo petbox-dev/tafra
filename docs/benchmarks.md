@@ -98,9 +98,9 @@ result = Tafra(tf.row_map(mapper))
 result = Tafra(tf.tuple_map(tuple_mapper))
 ```
 
-| Method | tafra | pandas 3.0 |
-|---|---|---|
-| tuple_map / itertuples | **0.77 ms** | 1.14 ms (1.5x) |
+| Method | tafra | pandas 3.0 | polars |
+|---|---|---|---|
+| tuple_map / itertuples / map_rows | **0.71 ms** | 1.14 ms (1.6x) | 1.61 ms (2.3x) |
 
 
 ## GroupBy & Transform
@@ -529,8 +529,7 @@ result = ndarray_map(tf['qi'], tf['Di'], tf['bi'], t)
 * **Construction and teardown** -- 308x faster than pandas, 3x faster
   than polars
 * **Column access** -- 128x faster than pandas, 6x faster than polars
-* **Row-wise mapping** -- 1.5x faster than pandas (polars has no
-  row-wise UDF)
+* **Row-wise mapping** -- 1.6x faster than pandas, 2.3x faster than polars
 * **GroupBy at <=10k rows** -- with C extension, 3--5x faster
   than both pandas and polars
 * **Transform at all scales** -- Tafra+C wins every benchmark, from 8x
@@ -569,7 +568,7 @@ Tafra+C = with optional C extension. Tafra = pure Python + numpy only.
 |---|---|---|---|---|
 | Construction (100k rows) | **0.01** | 0.01 | 3.08 | 0.03 |
 | Column access (per call, us) | **0.09** | 0.09 | 11.5 | 0.56 |
-| Row map (100 rows, tuple_map) | **0.77** | 0.77 | 1.14 | n/a |
+| Row map (100 rows, tuple_map) | **0.71** | 0.71 | 1.14 | 1.61 |
 | GroupBy (10k, 50 grp, sum+mean) | **0.15** | 0.16 | 0.71 | 0.54 |
 | GroupBy (10k, 500 grp) | **0.18** | 0.20 | 0.71 | 0.58 |
 | GroupBy (100k, 100 grp) | 1.53 | 1.78 | 2.54 | **0.98** |
