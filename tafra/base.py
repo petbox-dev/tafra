@@ -1255,7 +1255,8 @@ class Tafra:
         """
         return (fn(tf, *args, **kwargs) for tf in self.__iter__())
 
-    def tuple_map(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Iterator[Any]:
+    def tuple_map(self, fn: Callable[..., Any], *args: Any,
+                  name: str | None = 'Tafra', **kwargs: Any) -> Iterator[Any]:
         """
         Map a function over rows. This is faster than `row_map()`. To apply to
         specific columns, use `select()` first.
@@ -1265,9 +1266,6 @@ class Tafra:
         When `name` is `None`, rows are passed as plain `tuple`
         for faster iteration — avoids NamedTuple construction overhead.
 
-        Pass ``name=None`` as a keyword argument for ~2--4x faster iteration
-        using plain tuples instead of NamedTuples.
-
         Parameters
         ----------
         fn: Callable[..., Any]
@@ -1276,16 +1274,18 @@ class Tafra:
         *args: Any
             Additional positional arguments to `fn`.
 
+        name: str | None = 'Tafra'
+            The name for the `NamedTuple`. If `None`, use plain
+            tuples for ~2--4x faster iteration.
+
         **kwargs: Any
-            Additional keyword arguments to `fn`. Accepts ``name``
-            (str | None, default ``'Tafra'``) to control row type.
+            Additional keyword arguments to `fn`.
 
         Returns
         -------
         iter_tf: Iterator[Any]
             An iterator to map the function.
         """
-        name = kwargs.pop('name', 'Tafra')
         if name is None:
             return (fn(row, *args, **kwargs)
                     for row in zip(*self._data.values()))

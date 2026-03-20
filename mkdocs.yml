@@ -39,7 +39,6 @@ plugins:
             show_root_heading: true
             separate_signature: true
             docstring_style: numpy
-            warn_unknown_params: false
             separate_signature: true
             docstring_style: numpy
             docstring_section_style: table
