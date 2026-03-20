@@ -38,12 +38,55 @@
 }
 
 /* ── API Reference: function/method name highlighting ── */
-.doc-heading code.highlight .n {
-  color: #2563eb;
+/* Function name: first span.n in the heading — blue + bold */
+.md-typeset .doc.doc-heading code.highlight span.n:first-child {
+  color: #2563eb !important;
   font-weight: 600;
 }
-.doc-heading code.highlight .p {
-  color: #64748b;
+/* Parameter names: all other span.n — teal */
+.md-typeset .doc.doc-heading code.highlight span.n:not(:first-child) {
+  color: var(--accent) !important;
+  font-weight: 400;
+}
+/* Punctuation (parens, commas) */
+.md-typeset .doc.doc-heading code.highlight span.p {
+  color: #64748b !important;
+}
+/* Operators (=) and keywords (None) */
+.md-typeset .doc.doc-heading code.highlight span.o {
+  color: #64748b !important;
+}
+.md-typeset .doc.doc-heading code.highlight span.kc {
+  color: #7c3aed !important;
+}
+
+/* ── API Reference: TOC styling ── */
+/* Class-level TOC entries (h2) — bold, larger */
+.md-sidebar--secondary .md-nav__list > .md-nav__item > .md-nav__link {
+  font-weight: 600;
+  font-size: 0.72rem;
+  color: var(--text-primary);
+}
+/* Method-level TOC entries (h3) — normal weight, blue, indented */
+.md-sidebar--secondary .md-nav__list > .md-nav__item > .md-nav > .md-nav__list > .md-nav__item > .md-nav__link {
+  font-weight: 400;
+  font-size: 0.65rem;
+  color: #2563eb;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--border);
+}
+.md-sidebar--secondary .md-nav__list > .md-nav__item > .md-nav > .md-nav__list > .md-nav__item > .md-nav__link:hover {
+  color: var(--accent-hover);
+  border-left-color: var(--accent);
+}
+
+/* ── API Reference: parameter/return pre blocks ── */
+.doc-contents .highlight pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+  padding: 0.75rem 1rem;
+  font-size: 0.72rem;
 }
 
 /* ── Hero ── */

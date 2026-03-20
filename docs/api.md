@@ -20,14 +20,10 @@ All methods grouped by category. Click any method to jump to its full documentat
 | **Other Helpers** | [select](#tafra.base.Tafra.select), [copy](#tafra.base.Tafra.copy), [rename](#tafra.base.Tafra.rename), [rename_inplace](#tafra.base.Tafra.rename_inplace), [coalesce](#tafra.base.Tafra.coalesce), [coalesce_inplace](#tafra.base.Tafra.coalesce_inplace), [delete](#tafra.base.Tafra.delete), [delete_inplace](#tafra.base.Tafra.delete_inplace) |
 | **Printer Methods** | [pprint](#tafra.base.Tafra.pprint), [pformat](#tafra.base.Tafra.pformat), [to_html](#tafra.base.Tafra.to_html) |
 
-## Tafra
-
 ::: tafra.base.Tafra
     options:
       show_source: true
       members_order: source
-
-## Aggregations
 
 ::: tafra.group.Union
 
@@ -43,14 +39,10 @@ All methods grouped by category. Click any method to jump to its full documentat
 
 ::: tafra.group.CrossJoin
 
-## Custom Aggregations
-
 ::: tafra.group.percentile
 
 ::: tafra.group.geomean
 
 ::: tafra.group.harmean
-
-## ObjectFormatter
 
 ::: tafra.formatter.ObjectFormatter

@@ -19,7 +19,9 @@ theme:
     repo: fontawesome/brands/github
   features:
     - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
+    - navigation.top
     - content.code.copy
 
 extra_css:
@@ -33,8 +35,11 @@ plugins:
           options:
             show_source: true
             show_root_heading: true
+            separate_signature: true
 
 markdown_extensions:
+  - toc:
+      toc_depth: 3
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.superfences:
