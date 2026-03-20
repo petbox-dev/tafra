@@ -31,7 +31,7 @@ from .protocol import Series, DataFrame, Cursor  # just for mypy...
 
 from typing import (Any, Callable, Mapping, Sequence,
                     Sized, Iterable, Iterator, KeysView, ValuesView, ItemsView,
-                    IO)
+                    IO, TYPE_CHECKING)
 from typing_extensions import Concatenate, Literal, ParamSpec
 from typing import cast
 from io import TextIOWrapper
@@ -131,6 +131,15 @@ class Tafra:
 
     _data: dict[str, np.ndarray[Any, Any]] = dc.field(init=False)
     _dtypes: dict[str, str] = dc.field(init=False)
+
+    if TYPE_CHECKING:
+        def __init__(
+            self,
+            data: InitVar,
+            dtypes: InitVar | None = None,
+            validate: bool = True,
+            check_rows: bool = True,
+        ) -> None: ...
 
     def __post_init__(self, data: InitVar, dtypes: InitVar | None, validate: bool) -> None:
         # TODO: enable this?
