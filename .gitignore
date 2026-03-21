@@ -1,5 +1,6 @@
 # Claude
 .claude/
+docs/logs/
 
 # Other things
 *.ipynb
