@@ -2,7 +2,8 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/tafra.svg)](https://pypi.org/project/tafra/)
 [![Python versions](https://img.shields.io/pypi/pyversions/tafra.svg)](https://pypi.org/project/tafra/)
-[![Coverage Status](https://coveralls.io/repos/github/petbox-dev/tafra/badge.svg?branch=feature/mkdocs-website)](https://coveralls.io/github/petbox-dev/tafra?branch=feature/mkdocs-website)
+[![Coverage Status](https://coveralls.io/repos/github/petbox-dev/tafra/badge.svg?branch=main)](https://coveralls.io/github/petbox-dev/tafra?branch=main)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-0d9488)](https://petbox-dev.github.io/tafra/)
 
 The `tafra` began life as a thought experiment: how could we reduce the idea
 of a da*tafra*me (as expressed in libraries like `pandas` or languages
@@ -45,22 +46,18 @@ and SQL-style "group by" and join operations.
 
 ## Getting Started
 
-Install from conda-forge (includes pre-built C extension -- no compiler needed):
+```shell
+pip install tafra
+```
+
+Or from conda-forge:
 
 ```shell
 conda install tafra -c conda-forge
 ```
 
-Or install from PyPI with pip:
-
-```shell
-pip install tafra
-```
-
-> **Note:** `conda install` provides a pre-built binary with the C extension already
-> compiled for your platform. `pip install` from PyPI will attempt to
-> compile the C extension from source; if no C compiler is available, the
-> package installs without it and falls back to pure Python + numpy.
+Both provide pre-built wheels with the C extension compiled for your platform.
+No compiler needed.
 
 ### Building from source
 
@@ -74,7 +71,7 @@ pip install -e .
 
 **Requirements:**
 
-- Python >=3.9
+- Python >=3.10
 - numpy >=2.1
 - A C compiler (optional, for the `_accel` extension):
   - **Windows**: Visual Studio Build Tools (with Windows SDK) or MinGW-w64
@@ -238,35 +235,35 @@ underlying `numpy` arrays, `tafra` provides dramatic speedups over
 
 ```python
 # Construction: 100k rows, 5 columns
-Tafra():         0.02 ms
-pd.DataFrame():  2.80 ms   # 140x slower
-pl.DataFrame():  0.04 ms   # 2x slower
+Tafra():         0.01 ms
+pd.DataFrame():  4.22 ms   # 422x slower
+pl.DataFrame():  0.03 ms   # 3x slower
 
-# Column access: 100k rows, per access
-tf['x']:         0.13 µs
-df['x']:         1.81 µs   # 14x slower (pandas 2.3)
-plf['x']:        0.70 µs   # 5x slower
+# Column access: 100k rows, per call
+tf['x']:         0.09 µs
+df['x']:        11.47 µs   # 127x slower
+plf['x']:        0.57 µs   # 6x slower
 ```
 
 `tafra` uses vectorized numpy operations (`np.bincount`,
 `ufunc.reduceat`) and an optional C extension (single-pass aggregation,
-hash joins) for GroupBy and joins. With the C extension:
+hash-based composite key encoding, hash joins) for GroupBy and joins:
 
 ```python
 # GroupBy: 10k rows, 50 groups, sum + mean
 Tafra+C: 0.15 ms
-pandas:  0.73 ms   # 5x slower
-polars:  0.60 ms   # 4x slower
+pandas:  0.71 ms   # 5x slower
+polars:  0.54 ms   # 4x slower
 
-# Transform: 10k rows, 50 groups
-Tafra+C: 0.06 ms
-pandas:  0.60 ms   # 10x slower
-polars:  1.67 ms   # 28x slower
+# Transform: 1M rows, 1k groups
+Tafra+C: 8.44 ms
+pandas:  20.90 ms  # 2.5x slower
+polars:  9.62 ms   # 1.1x slower
 
-# Equi inner join: 1k x 1k
-Tafra+C: 0.08 ms
-pandas:  0.93 ms   # 12x slower
-polars:  1.53 ms   # 19x slower
+# Numba JIT: 1M rows
+Tafra:   7.74 ms
+pandas:  7.81 ms   # same (numpy underneath)
+polars:  7.87 ms   # +2% (arrow→numpy conversion)
 ```
 
 - **Import note** If you assign directly to the `Tafra.data` or
