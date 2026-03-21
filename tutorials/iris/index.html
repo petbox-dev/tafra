@@ -1137,8 +1137,8 @@ compute basic statistics, and use <code>group_by</code> to aggregate by species.
 <h2 id="load-the-data">Load the data</h2>
 <p>We use a 15-row subset of the Iris dataset (5 per species) to keep output
 readable.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tafra</span><span class="w"> </span><span class="kn">import</span> <span class="n">Tafra</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span> <span class="nn">tafra</span> <span class="kn">import</span> <span class="n">Tafra</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">iris</span> <span class="o">=</span> <span class="n">Tafra</span><span class="p">({</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="s1">&#39;sepal_length&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">5.1</span><span class="p">,</span> <span class="mf">4.9</span><span class="p">,</span> <span class="mf">4.7</span><span class="p">,</span> <span class="mf">5.0</span><span class="p">,</span> <span class="mf">5.4</span><span class="p">,</span>
