@@ -1182,6 +1182,60 @@ def test_mixed_string_dtypes() -> None:
     assert t['name'].dtype == np.dtypes.StringDType()  # upcasts to StringDType
 
 
+def test_update_dtypes_string_conversion() -> None:
+    """update_dtypes_inplace should not no-op between <U and StringDType."""
+    # <U -> StringDType: currently skipped (both reduce to 'str'),
+    # but should at least not crash and should update _dtypes label
+    t = Tafra({'x': np.array(['hello', 'world'], dtype='<U10')})
+    assert t['x'].dtype == np.dtype('<U10')
+    t.update_dtypes_inplace({'x': np.dtypes.StringDType()})
+    assert t._dtypes['x'] == 'str'
+
+    # int -> float conversion should work
+    t2 = Tafra({'x': np.array([1, 2, 3])})
+    t2.update_dtypes_inplace({'x': 'float64'})
+    assert t2['x'].dtype == np.float64
+
+    # float -> int conversion should work
+    t3 = Tafra({'x': np.array([1.0, 2.0, 3.0])})
+    t3.update_dtypes_inplace({'x': 'int64'})
+    assert t3['x'].dtype == np.int64
+
+
+def test_left_join_object_fallback_warning() -> None:
+    """Left join should warn when int/bool columns fall back to object."""
+    import warnings
+
+    left = Tafra({'k': np.array([1, 2, 3]), 'v': np.array([10, 20, 30])})
+    right = Tafra({'k': np.array([2, 3]), 'count': np.array([100, 200])})
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter('always')
+        t = left.left_join(right, on=[('k', 'k', '==')])
+
+    # Should have warned about 'count' column
+    object_warnings = [x for x in w if 'cast to object' in str(x.message)]
+    assert len(object_warnings) == 1
+    assert "'count'" in str(object_warnings[0].message)
+    assert t['count'].dtype == object
+
+    # String and float columns should NOT warn
+    right2 = Tafra({
+        'k': np.array([2, 3]),
+        'name': np.array(['b', 'c'], dtype=np.dtypes.StringDType()),
+        'score': np.array([1.5, 2.5]),
+    })
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter('always')
+        t2 = left.left_join(right2, on=[('k', 'k', '==')])
+
+    object_warnings = [x for x in w if 'cast to object' in str(x.message)]
+    assert len(object_warnings) == 0
+    assert t2['name'].dtype == np.dtypes.StringDType(na_object=None)
+    assert t2['score'].dtype == np.float64
+
+
 def test_csv() -> None:
     write_path = 'test/test_to_csv.csv'
 
