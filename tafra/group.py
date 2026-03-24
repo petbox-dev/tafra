@@ -18,6 +18,7 @@ __all__ = ['GroupBy', 'Transform', 'IterateBy', 'InnerJoin', 'LeftJoin',
            'percentile', 'geomean', 'harmean']
 
 import operator
+import warnings
 from itertools import chain
 import dataclasses as dc
 
@@ -1267,6 +1268,13 @@ class LeftJoin(Join):
                             out[matched] = right_t._data[c][ri[matched]]
                         else:
                             # int, bool, etc.: fall back to object
+                            warnings.warn(
+                                f"Left join: column '{c}' (dtype {right_t._data[c].dtype}) "
+                                f"has unmatched rows and no native null representation. "
+                                f"Dtype has been cast to object. "
+                                f"Use .astype(float) if NaN semantics are needed.",
+                                stacklevel=4,
+                            )
                             out = np.empty(len(li), dtype=object)
                             out[matched] = right_t._data[c][ri[matched]]
                             out[~matched] = None
@@ -1301,6 +1309,15 @@ class LeftJoin(Join):
                             join[column].append(None)
                             col_kind = right_t._data[column].dtype.kind
                             if col_kind not in ('T', 'U', 'S', 'f') and dtypes[column] != 'object':
+                                warnings.warn(
+                                    f"Left join: column '{column}' "
+                                    f"(dtype {right_t._data[column].dtype}) "
+                                    f"has unmatched rows and no native null "
+                                    f"representation. Dtype has been cast to "
+                                    f"object. Use .astype(float) if NaN "
+                                    f"semantics are needed.",
+                                    stacklevel=2,
+                                )
                                 dtypes[column] = 'object'
                         else:
                             join[column].extend(
