@@ -1117,13 +1117,40 @@ def test_mixed_string_dtypes() -> None:
     assert len(t) == 2
     assert set(t['key']) == {'b', 'c'}
 
-    # Left join: StringDType vs <U (with nulls)
+    # Left join: StringDType vs <U (with nulls) — int column falls back to object
     t = left.left_join(right, on=[('key', 'key', '==')], select=['key', 'val', 'info'])
     assert len(t) == 3
+    a_idx = np.where(t['key'] == 'a')[0][0]
+    assert t['info'][a_idx] is None  # int col → object with None
+    assert t['info'].dtype == object
 
-    # Left join: <U vs StringDType (reversed)
+    # Left join: <U vs StringDType (reversed) — int col also object
     t = right.left_join(left, on=[('key', 'key', '==')], select=['key', 'info', 'val'])
     assert len(t) == 3
+    d_idx = np.where(t['key'] == 'd')[0][0]
+    assert t['val'][d_idx] is None
+
+    # Left join with string right column: should preserve StringDType with None
+    right_str = Tafra({
+        'key': np.array(['b', 'c'], dtype='<U1'),
+        'name': np.array(['Bob', 'Carol'], dtype=np.dtypes.StringDType()),
+    })
+    t = left.left_join(right_str, on=[('key', 'key', '==')], select=['key', 'val', 'name'])
+    assert len(t) == 3
+    a_idx = np.where(t['key'] == 'a')[0][0]
+    assert t['name'][a_idx] is None
+    assert t['name'].dtype == np.dtypes.StringDType(na_object=None)
+
+    # Left join with float right column: should use NaN
+    right_flt = Tafra({
+        'key': np.array(['b', 'c'], dtype='<U1'),
+        'score': np.array([1.5, 2.5]),
+    })
+    t = left.left_join(right_flt, on=[('key', 'key', '==')], select=['key', 'val', 'score'])
+    assert len(t) == 3
+    a_idx = np.where(t['key'] == 'a')[0][0]
+    assert np.isnan(t['score'][a_idx])
+    assert t['score'].dtype == np.float64
 
     # Different <U widths
     wide = Tafra({
@@ -1506,9 +1533,10 @@ def test_left_join_string_keys() -> None:
     })
     t = l.left_join(r, [('name', 'name', '==')])
     assert len(t) == 2
-    # alice has no match -> rv is None
+    # alice has no match -> rv is NaN (float columns use NaN, not None)
     alice_idx = np.where(t['name'] == 'alice')[0][0]
-    assert t['rv'][alice_idx] is None
+    assert np.isnan(t['rv'][alice_idx])
+    assert t['rv'].dtype == np.float64  # preserved, not object
 
 
 def test_left_join_no_match_preserves_left() -> None:
@@ -1517,7 +1545,7 @@ def test_left_join_no_match_preserves_left() -> None:
     r = Tafra({'key': np.array([4, 5, 6]), 'rv': np.array([40., 50., 60.])})
     t = l.left_join(r, [('key', 'key', '==')])
     assert len(t) == 3
-    assert all(t['rv'][i] is None for i in range(3))
+    assert all(np.isnan(t['rv'][i]) for i in range(3))
 
 
 def test_string_column_uses_stringdtype() -> None:

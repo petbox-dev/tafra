@@ -1241,7 +1241,10 @@ class LeftJoin(Join):
             if has_null:
                 for c in join_cols:
                     if c not in left_t._data and dtypes.get(c) != 'object':
-                        dtypes[c] = 'object'
+                        col_kind = right_t._data[c].dtype.kind
+                        if col_kind not in ('T', 'U', 'S', 'f'):
+                            # int, bool, etc. can't hold None — fall back to object
+                            dtypes[c] = 'object'
 
             result: dict[str, np.ndarray[Any, Any]] = {}
             matched = ri >= 0
@@ -1251,9 +1254,22 @@ class LeftJoin(Join):
                 else:
                     # right column: fill matched rows, None for unmatched
                     if has_null:
-                        out = np.empty(len(li), dtype=object)
-                        out[matched] = right_t._data[c][ri[matched]]
-                        out[~matched] = None
+                        col_kind = right_t._data[c].dtype.kind
+                        if col_kind in ('T', 'U', 'S'):
+                            # String types: use StringDType(na_object=None)
+                            out = np.empty(len(li), dtype=np.dtypes.StringDType(na_object=None))
+                            out[matched] = right_t._data[c][ri[matched]]
+                            out[~matched] = None
+                            dtypes[c] = 'str'
+                        elif col_kind == 'f':
+                            # Float types: use NaN for missing
+                            out = np.full(len(li), np.nan, dtype=right_t._data[c].dtype)
+                            out[matched] = right_t._data[c][ri[matched]]
+                        else:
+                            # int, bool, etc.: fall back to object
+                            out = np.empty(len(li), dtype=object)
+                            out[matched] = right_t._data[c][ri[matched]]
+                            out[~matched] = None
                         result[c] = out
                     else:
                         result[c] = right_t._data[c][ri]
@@ -1283,16 +1299,27 @@ class LeftJoin(Join):
                     elif column in right_t._data:
                         if right_count <= 0:
                             join[column].append(None)
-                            if dtypes[column] != 'object':
+                            col_kind = right_t._data[column].dtype.kind
+                            if col_kind not in ('T', 'U', 'S', 'f') and dtypes[column] != 'object':
                                 dtypes[column] = 'object'
                         else:
                             join[column].extend(
                                 right_t._data[column][right_rows])
 
-            return Tafra(
-                {c: np.array(v) for c, v in join.items()},
-                dtypes
-            )
+            result_data: dict[str, np.ndarray[Any, Any]] = {}
+            for c, v in join.items():
+                col_kind = right_t._data[c].dtype.kind if c in right_t._data else ''
+                if c not in left_t._data and col_kind in ('T', 'U', 'S') and None in v:
+                    result_data[c] = np.array(v, dtype=np.dtypes.StringDType(na_object=None))
+                    dtypes[c] = 'str'
+                elif c not in left_t._data and col_kind == 'f' and None in v:
+                    result_data[c] = np.array(
+                        [np.nan if x is None else x for x in v],
+                        dtype=right_t._data[c].dtype)
+                else:
+                    result_data[c] = np.array(v)
+
+            return Tafra(result_data, dtypes)
 
 
 @dc.dataclass
