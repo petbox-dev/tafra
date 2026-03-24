@@ -303,9 +303,12 @@ but paying additional wrapper overhead.
 ## GroupBy & Transform
 
 For aggregation operations, `pandas` uses optimized C/Cython internals that
-are difficult to match in pure Python + numpy. `Tafra` 2.1.0 uses
+are difficult to match in pure Python + numpy. `Tafra` uses
 index-based grouping (`np.unique` + `return_inverse`) rather than
-per-group boolean masks, which is considerably faster than earlier versions.
+per-group boolean masks. As of v2.2.0, the C extension provides
+`composite_key` for O(n) multi-column key encoding and `encode_strings`
+for hash-based string column encoding, replacing the O(n log n) `np.unique`
+path for multi-column and string-keyed GroupBy operations.
 
 ### GroupBy
 
@@ -532,7 +535,7 @@ hidden dispatch or "silent" dtype changes.
 
 ## Joins
 
-`Tafra` 2.1.0 uses two join algorithms for equality joins:
+`Tafra` uses two join algorithms for equality joins:
 
 - **With C extension**: O(n) hash join implemented in C (`_accel.c`) --
   builds a hash table on the right key, probes with the left key, and

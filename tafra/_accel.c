@@ -20,6 +20,11 @@
 #include <numpy/ndarraytypes.h>
 #include <numpy/npy_math.h>
 
+/* Golden ratio constant for multiplicative hashing (Knuth).
+ * phi = (sqrt(5)-1)/2 * 2^64 ≈ 0x9E3779B97F4A7C15 */
+#define GOLDEN_HASH 0x9E3779B97F4A7C15ULL
+#define HASH_KEY(k, sz) ((npy_intp)(((npy_uint64)(k) * GOLDEN_HASH) >> 1) % (sz))
+
 
 /* Helper: coerce to contiguous array of given type. Caller must Py_DECREF. */
 static PyArrayObject *
@@ -461,7 +466,7 @@ accel_encode_strings(PyObject *self, PyObject *args)
             return NULL;
         }
 
-        npy_intp slot = (npy_intp)(((npy_uint64)h * 0x9E3779B97F4A7C15ULL) >> 1) % table_size;
+        npy_intp slot = HASH_KEY(h, table_size);
 
         while (table[slot].occupied) {
             /* Check if same object or equal value */
@@ -548,7 +553,7 @@ accel_group_indices(PyObject *self, PyObject *args)
 
     for (npy_intp i = 0; i < n; i++) {
         npy_int64 k = keys[i];
-        npy_intp h = (npy_intp)(((npy_uint64)k * 0x9E3779B97F4A7C15ULL) >> 1) % table_size;
+        npy_intp h = HASH_KEY(k, table_size);
         while (table[h].occupied && table[h].key != k)
             h = (h + 1) % table_size;
 
@@ -655,8 +660,6 @@ typedef struct {
     npy_intp row;
     npy_intp next;  /* -1 = end */
 } ChainNode;
-
-#define HASH_KEY(k, sz) ((npy_intp)(((npy_uint64)(k) * 0x9E3779B97F4A7C15ULL) >> 1) % (sz))
 
 
 /* Build hash table on right-side keys. Returns 0 on success, -1 on error. */
