@@ -1617,9 +1617,12 @@ than tafra). Pandas sits in between, benefiting from numpy under the hood
 but paying additional wrapper overhead.</p>
 <h2 id="groupby-transform">GroupBy &amp; Transform</h2>
 <p>For aggregation operations, <code>pandas</code> uses optimized C/Cython internals that
-are difficult to match in pure Python + numpy. <code>Tafra</code> 2.1.0 uses
+are difficult to match in pure Python + numpy. <code>Tafra</code> uses
 index-based grouping (<code>np.unique</code> + <code>return_inverse</code>) rather than
-per-group boolean masks, which is considerably faster than earlier versions.</p>
+per-group boolean masks. As of v2.2.0, the C extension provides
+<code>composite_key</code> for O(n) multi-column key encoding and <code>encode_strings</code>
+for hash-based string column encoding, replacing the O(n log n) <code>np.unique</code>
+path for multi-column and string-keyed GroupBy operations.</p>
 <h3 id="groupby">GroupBy</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># GroupBy with two aggregations</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span>
@@ -1917,7 +1920,7 @@ hit the fast path.</p>
 function directly on numpy arrays for each group -- fully transparent, no
 hidden dispatch or "silent" dtype changes.</p>
 <h2 id="joins">Joins</h2>
-<p><code>Tafra</code> 2.1.0 uses two join algorithms for equality joins:</p>
+<p><code>Tafra</code> uses two join algorithms for equality joins:</p>
 <ul>
 <li><strong>With C extension</strong>: O(n) hash join implemented in C (<code>_accel.c</code>) --
   builds a hash table on the right key, probes with the left key, and
