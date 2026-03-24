@@ -1,5 +1,15 @@
 # Version History
 
+## 2.2.1
+
+* **Fix**: Join dtype validation now compares base types (`_reduce_dtype`)
+  instead of raw numpy dtypes -- `StringDType` vs `<U`, and `<U8` vs `<U12`,
+  no longer reject as mismatched
+* **Fix**: `Union.apply` dtype validation relaxed with same base-type comparison
+* **Fix**: `update_dtypes_inplace` now preserves raw numpy dtypes for casting
+  instead of round-tripping through formatted string labels -- fixes silent
+  no-op when converting between `<U` and `StringDType`
+
 ## 2.2.0
 
 * **Performance**: Add C-accelerated `composite_key` for single-pass

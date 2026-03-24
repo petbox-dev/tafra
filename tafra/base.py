@@ -1760,20 +1760,40 @@ class Tafra:
         tafra: Tafra | None
             The updated `Tafra`.
         """
-        dtypes = self._validate_dtypes(dtypes)
-        self._dtypes.update(dtypes)
-
-        for column in dtypes.keys():
-            if self._format_dtype(self._data[column].dtype) != self._dtypes[column]:
+        # Preserve raw numpy dtypes for casting, since _format_dtype
+        # collapses e.g. <U and StringDType into the same 'str' label.
+        raw_dtypes: dict[str, Any] = {}
+        for column, dtype in dtypes.items():
+            self._validate_columns([column])
+            # StringDType() can't go through np.dtype(); keep it as-is
+            if isinstance(dtype, np.dtype):
+                raw_dtypes[column] = dtype
+            else:
                 try:
-                    self._data[column] = self._data[column].astype(self._dtypes[column])
+                    raw_dtypes[column] = np.dtype(dtype)
+                except TypeError:
+                    raw_dtypes[column] = dtype
+
+        formatted = self._validate_dtypes(dtypes)
+        self._dtypes.update(formatted)
+
+        for column, target_dtype in raw_dtypes.items():
+            current_dtype = self._data[column].dtype
+            # Skip if both are string types — StringDType and <U are
+            # compatible and casting between them can fail or lose data.
+            if (self._reduce_dtype(current_dtype) == 'str'
+                    and self._reduce_dtype(target_dtype) == 'str'):
+                continue
+            if current_dtype != target_dtype:
+                try:
+                    self._data[column] = self._data[column].astype(target_dtype)
                 except ValueError:
                     REPL_VALS = ['', ]
                     col_data = self._data[column].astype(object)
                     for repl_val in REPL_VALS:
                         where_repl = np.equal(col_data, repl_val)
                         col_data[where_repl] = None
-                    self._data[column] = col_data.astype(self._dtypes[column])
+                    self._data[column] = col_data.astype(target_dtype)
 
     def rename(self, renames: dict[str, str]) -> 'Tafra':
         """

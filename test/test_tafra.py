@@ -1087,6 +1087,8 @@ def test_left_join_invalid() -> None:
     with pytest.raises(TypeError) as e:
         t = l.left_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
 
+    # Manually corrupted _dtypes should not affect join validation —
+    # we compare actual array dtypes, not the _dtypes metadata.
     r = Tafra({
         'a': np.array([1, 2, 3, 4, 5, 6]),
         'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
@@ -1094,8 +1096,64 @@ def test_left_join_invalid() -> None:
     })
 
     l._dtypes['x'] = 'float'
-    with pytest.raises(TypeError) as e:
-        t = l.left_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
+    # Should succeed: actual arrays are both int64, despite _dtypes mismatch
+    t = l.left_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
+    assert t is not None
+
+
+def test_mixed_string_dtypes() -> None:
+    """StringDType vs <U should interop in joins, unions, and concat."""
+    left = Tafra({
+        'key': np.array(['a', 'b', 'c'], dtype=np.dtypes.StringDType()),
+        'val': np.array([1, 2, 3]),
+    })
+    right = Tafra({
+        'key': np.array(['b', 'c', 'd'], dtype='<U1'),
+        'info': np.array([10, 20, 30]),
+    })
+
+    # Inner join: StringDType vs <U
+    t = left.inner_join(right, on=[('key', 'key', '==')], select=['key', 'val', 'info'])
+    assert len(t) == 2
+    assert set(t['key']) == {'b', 'c'}
+
+    # Left join: StringDType vs <U (with nulls)
+    t = left.left_join(right, on=[('key', 'key', '==')], select=['key', 'val', 'info'])
+    assert len(t) == 3
+
+    # Left join: <U vs StringDType (reversed)
+    t = right.left_join(left, on=[('key', 'key', '==')], select=['key', 'info', 'val'])
+    assert len(t) == 3
+
+    # Different <U widths
+    wide = Tafra({
+        'key': np.array(['abc', 'def'], dtype='<U10'),
+        'val': np.array([1, 2]),
+    })
+    narrow = Tafra({
+        'key': np.array(['abc', 'xyz'], dtype='<U3'),
+        'info': np.array([10, 20]),
+    })
+    t = wide.left_join(narrow, on=[('key', 'key', '==')], select=['key', 'val', 'info'])
+    assert len(t) == 2
+
+    # Union: mixed string dtypes
+    left2 = Tafra({
+        'x': np.array([1, 2]),
+        'name': np.array(['a', 'b'], dtype=np.dtypes.StringDType()),
+    })
+    right2 = Tafra({
+        'x': np.array([3, 4]),
+        'name': np.array(['c', 'd'], dtype='<U1'),
+    })
+    t = left2.union(right2)
+    assert len(t) == 4
+
+    # Concat: mixed string dtypes
+    t = Tafra.concat([left2, right2])
+    assert len(t) == 4
+    assert t['name'].dtype == np.dtypes.StringDType()  # upcasts to StringDType
+
 
 def test_csv() -> None:
     write_path = 'test/test_to_csv.csv'

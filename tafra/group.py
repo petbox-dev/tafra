@@ -343,13 +343,14 @@ class Union:
                 raise TypeError(
                     f'This `Tafra` column `{data_column}` does not exist in right `Tafra`.')
 
-            elif value.dtype != right._data[data_column].dtype:
+            # Compare base types so <U8 vs <U12, or StringDType vs <U, don't reject
+            elif Tafra._reduce_dtype(value.dtype) != Tafra._reduce_dtype(right._data[data_column].dtype):
                 raise TypeError(
                     f'This `Tafra` column `{data_column}` dtype `{value.dtype}` '
                     f'does not match right `Tafra` dtype `{right._data[data_column].dtype}`.')
 
             # should not happen unless dtypes manually changed, but let's check it
-            elif dtype != right._dtypes[dtype_column]:
+            elif Tafra._reduce_dtype(dtype) != Tafra._reduce_dtype(right._dtypes[dtype_column]):
                 raise TypeError(
                     f'This `Tafra` column `{data_column}` dtype `{dtype}` '
                     f'does not match right `Tafra` dtype `{right._dtypes[dtype_column]}`.')
@@ -921,19 +922,16 @@ class Join(GroupSet):
         for l_column, r_column, _ in self.on:
             l_value = l_table._data[l_column]
             r_value = r_table._data[r_column]
-            l_dtype = l_table._dtypes[l_column]
-            r_dtype = r_table._dtypes[r_column]
 
-            if l_value.dtype != r_value.dtype:
+            # Compare base types (e.g. 'str', 'int', 'float') rather than
+            # raw dtypes, so <U8 vs <U12 or int32 vs int64 don't reject.
+            l_base = Tafra._reduce_dtype(l_value.dtype)
+            r_base = Tafra._reduce_dtype(r_value.dtype)
+
+            if l_base != r_base:
                 raise TypeError(
                     f'This `Tafra` column `{l_column}` dtype `{l_value.dtype}` '
                     f'does not match other `Tafra` dtype `{r_value.dtype}`.')
-
-            # should not happen unless dtypes manually changed, but let's check it
-            elif l_dtype != r_dtype:
-                raise TypeError(
-                    f'This `Tafra` column `{l_column}` dtype `{l_dtype}` '
-                    f'does not match other `Tafra` dtype `{r_dtype}`.')
 
     @staticmethod
     def _validate_ops(ops: Iterable[str]) -> None:
