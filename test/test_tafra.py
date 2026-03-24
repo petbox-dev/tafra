@@ -68,7 +68,7 @@ class Cursor:
     def fetchone(self) -> tuple[Any, ...] | None:
         try:
             return next(self)
-        except:
+        except StopIteration:
             return None
 
     def fetchmany(self, size: int) -> list[tuple[Any, ...]]:
@@ -81,7 +81,10 @@ class Cursor:
 def build_tafra() -> Tafra:
     return Tafra({
         'x': np.array([1, 2, 3, 4, 5, 6]),
-        'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'y': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'z': np.array([0, 0, 0, 1, 1, 1])
     })
 
@@ -135,14 +138,20 @@ def test_constructions() -> None:
 
     t = Tafra({
         'x': np.array([1, 2, 3, 4, 5, 6]),
-        'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'y': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'z': np.array([0, 0, 0, 1, 1, 1])
     }, validate=False)
     check_tafra(t)
 
     t = Tafra({
         'x': np.array([1, 2, 3, 4, 5, 6]),
-        'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'y': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'z': np.array([0, 0, 0, 1, 1, 1, 2, 2, 2])
     }, validate=False, check_rows=False)
     check_tafra(t, check_rows=False)
@@ -207,7 +216,10 @@ def test_constructions() -> None:
 
     def iterator() -> Iterator[dict[str, np.ndarray]]:
         yield {'x': np.array([1, 2, 3, 4, 5, 6])}
-        yield {'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType())}
+        yield {'y': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        )}
         yield {'z': np.array([0, 0, 0, 1, 1, 1])}
 
     t = Tafra(iterator())
@@ -216,7 +228,10 @@ def test_constructions() -> None:
     class DictIterable:
         def __iter__(self) -> Iterator[dict[str, np.ndarray]]:
             yield {'x': np.array([1, 2, 3, 4, 5, 6])}
-            yield {'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType())}
+            yield {'y': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        )}
             yield {'z': np.array([0, 0, 0, 1, 1, 1])}
 
     t = Tafra(DictIterable())
@@ -228,7 +243,10 @@ def test_constructions() -> None:
     class SequenceIterable:
         def __iter__(self) -> Iterator[Any]:
             yield ('x', np.array([1, 2, 3, 4, 5, 6]))
-            yield ['y', np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType())]
+            yield ['y', np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        )]
             yield ('z', np.array([0, 0, 0, 1, 1, 1]))
 
     t = Tafra(SequenceIterable())
@@ -938,13 +956,19 @@ def test_coalesce() -> None:
 def test_left_join_equi() -> None:
     l = Tafra({
         'x': np.array([1, 2, 3, 4, 5, 6]),
-        'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'y': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'z': np.array([0, 0, 0, 1, 1, 1])
     })
 
     r = Tafra({
         'a': np.array([1, 2, 3, 4, 5, 6]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'b': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'c': np.array([0, 0, 0, 1, 1, 1])
     })
     t = l.left_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
@@ -952,7 +976,10 @@ def test_left_join_equi() -> None:
 
     r = Tafra({
         'a': np.array([1, 1, 1, 2, 2, 2]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'b': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'c': np.array([2, 2, 2, 3, 3, 3])
     })
     t = l.left_join(r, [('x', 'a', '=='), ('z', 'c', '==')], ['x', 'y', 'a', 'b'])
@@ -961,7 +988,10 @@ def test_left_join_equi() -> None:
     r = Tafra({
         'a': np.array([1, 1, 1, 2, 2, 2]),
         '_a': np.array([1, 1, 2, 2, 3, 3]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'b': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'c': np.array([0, 0, 0, 1, 1, 1])
     })
     t = l.left_join(r, [('x', 'a', '=='), ('x', '_a', '==')], ['x', 'y', 'a', 'b'])
@@ -969,7 +999,10 @@ def test_left_join_equi() -> None:
 
     r = Tafra({
         'a': np.array([1, 1, 2, 2, 3, 3]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'b': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'c': np.array([0, 0, 0, 1, 1, 1])
     })
     t = l.left_join(r, [('x', 'a', '<')], ['x', 'y', 'a', 'b'])
@@ -978,13 +1011,19 @@ def test_left_join_equi() -> None:
 def test_inner_join() -> None:
     l = Tafra({
         'x': np.array([1, 2, 3, 4, 5, 6]),
-        'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'y': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'z': np.array([0, 0, 0, 1, 1, 1])
     })
 
     r = Tafra({
         'a': np.array([1, 2, 3, 4, 5, 6]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'b': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'c': np.array([0, 0, 0, 1, 1, 1])
     })
     t = l.inner_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
@@ -992,7 +1031,10 @@ def test_inner_join() -> None:
 
     r = Tafra({
         'a': np.array([1, 1, 2, 2, 3, 3]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'b': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'c': np.array([0, 0, 0, 1, 1, 1])
     })
     t = l.inner_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
@@ -1000,7 +1042,10 @@ def test_inner_join() -> None:
 
     r = Tafra({
         'a': np.array([1, 1, 1, 2, 2, 2]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'b': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'c': np.array([0, 0, 0, 1, 1, 1])
     })
     t = l.inner_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
@@ -1008,7 +1053,10 @@ def test_inner_join() -> None:
 
     r = Tafra({
         'a': np.array([1, 1, 1, 2, 2, 2]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'b': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'c': np.array([0, 0, 0, 1, 1, 1])
     })
 
@@ -1019,13 +1067,19 @@ def test_inner_join() -> None:
 def test_cross_join() -> None:
     l = Tafra({
         'x': np.array([1, 2, 3, 4, 5, 6]),
-        'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'y': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'z': np.array([0, 0, 0, 1, 1, 1])
     })
 
     r = Tafra({
         'a': np.array([1, 2, 3, 4, 5, 6]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'b': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'c': np.array([0, 0, 0, 1, 1, 1])
     })
     t = l.cross_join(r)
@@ -1033,7 +1087,10 @@ def test_cross_join() -> None:
 
     r = Tafra({
         'a': np.array([1, 1, 2, 2, 3, 3]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'b': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'c': np.array([0, 0, 0, 1, 1, 1])
     })
     t = l.cross_join(r)
@@ -1041,7 +1098,10 @@ def test_cross_join() -> None:
 
     r = Tafra({
         'a': np.array([1, 1, 1, 2, 2, 2]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'b': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'c': np.array([0, 0, 0, 1, 1, 1])
     })
     t = l.cross_join(r)
@@ -1049,7 +1109,10 @@ def test_cross_join() -> None:
 
     r = Tafra({
         'a': np.array([1, 1, 1, 2, 2, 2]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'b': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'c': np.array([0, 0, 0, 1, 1, 1])
     })
 
@@ -1065,13 +1128,19 @@ def test_cross_join() -> None:
 def test_left_join_invalid() -> None:
     l = Tafra({
         'x': np.array([1, 2, 3, 4, 5, 6]),
-        'y': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'y': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'z': np.array([0, 0, 0, 1, 1, 1])
     })
 
     r = Tafra({
         'a': np.array([1, 2, 3, 4, 5, 6]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'b': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'c': np.array([0, 0, 0, 1, 1, 1])
     })
 
@@ -1080,7 +1149,10 @@ def test_left_join_invalid() -> None:
 
     r = Tafra({
         'a': np.array([1, 2, 3, 4, 5, 6], dtype='float'),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'b': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'c': np.array([0, 0, 0, 1, 1, 1])
     })
 
@@ -1091,7 +1163,10 @@ def test_left_join_invalid() -> None:
     # we compare actual array dtypes, not the _dtypes metadata.
     r = Tafra({
         'a': np.array([1, 2, 3, 4, 5, 6]),
-        'b': np.array(['one', 'two', 'one', 'two', 'one', 'two'], dtype=np.dtypes.StringDType()),
+        'b': np.array(
+            ['one', 'two', 'one', 'two', 'one', 'two'],
+            dtype=np.dtypes.StringDType(),
+        ),
         'c': np.array([0, 0, 0, 1, 1, 1])
     })
 
@@ -1339,7 +1414,10 @@ def test_csv() -> None:
     check_tafra(t)
 
     # force dtypes on missing columns
-    t = Tafra.read_csv('test/ex6.csv', missing=None, dtypes={'dp_prime': np.float64, 'dp_prime_te': np.float32})
+    t = Tafra.read_csv(
+        'test/ex6.csv', missing=None,
+        dtypes={'dp_prime': np.float64, 'dp_prime_te': np.float32},
+    )
     assert t.dtypes['dp'] == 'float64'
     assert t.dtypes['dp_prime'] == 'float64'
     assert t.dtypes['dp_prime_te'] == 'float32'
@@ -1412,7 +1490,8 @@ def test_iterate_by_single_column_yields_tuple() -> None:
 
 def test_csv_reader_empty_file() -> None:
     """CSVReader should raise ValueError on an empty file."""
-    import tempfile, os
+    import tempfile
+    import os
     fd, path = tempfile.mkstemp(suffix='.csv')
     os.close(fd)
     try:
@@ -1623,7 +1702,8 @@ def test_object_string_array_converted_to_stringdtype() -> None:
 
 def test_csv_reader_string_columns_use_stringdtype() -> None:
     """CSVReader should produce StringDType for string columns."""
-    import tempfile, os
+    import tempfile
+    import os
     fd, path = tempfile.mkstemp(suffix='.csv')
     os.write(fd, b'name,value\nalice,1\nbob,2\n')
     os.close(fd)
@@ -1856,10 +1936,10 @@ def test_vectorized_any_all() -> None:
         'v': np.array([True, False, True, True]),
     })
     gb = t.group_by(['g'], {'a': (np.any, 'v'), 'b': (np.all, 'v')})
-    assert gb['a'][0] == True
-    assert gb['b'][0] == False
-    assert gb['a'][1] == True
-    assert gb['b'][1] == True
+    assert gb['a'][0]
+    assert not gb['b'][0]
+    assert gb['a'][1]
+    assert gb['b'][1]
 
 
 def test_vectorized_median() -> None:
