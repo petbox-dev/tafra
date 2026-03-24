@@ -345,7 +345,8 @@ class Union:
                     f'This `Tafra` column `{data_column}` does not exist in right `Tafra`.')
 
             # Compare base types so <U8 vs <U12, or StringDType vs <U, don't reject
-            elif Tafra._reduce_dtype(value.dtype) != Tafra._reduce_dtype(right._data[data_column].dtype):
+            elif (Tafra._reduce_dtype(value.dtype)
+                  != Tafra._reduce_dtype(right._data[data_column].dtype)):
                 raise TypeError(
                     f'This `Tafra` column `{data_column}` dtype `{value.dtype}` '
                     f'does not match right `Tafra` dtype `{right._data[data_column].dtype}`.')
