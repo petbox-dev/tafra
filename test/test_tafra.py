@@ -229,9 +229,9 @@ def test_constructions() -> None:
         def __iter__(self) -> Iterator[dict[str, np.ndarray]]:
             yield {'x': np.array([1, 2, 3, 4, 5, 6])}
             yield {'y': np.array(
-            ['one', 'two', 'one', 'two', 'one', 'two'],
-            dtype=np.dtypes.StringDType(),
-        )}
+                ['one', 'two', 'one', 'two', 'one', 'two'],
+                dtype=np.dtypes.StringDType(),
+            )}
             yield {'z': np.array([0, 0, 0, 1, 1, 1])}
 
     t = Tafra(DictIterable())
@@ -244,9 +244,9 @@ def test_constructions() -> None:
         def __iter__(self) -> Iterator[Any]:
             yield ('x', np.array([1, 2, 3, 4, 5, 6]))
             yield ['y', np.array(
-            ['one', 'two', 'one', 'two', 'one', 'two'],
-            dtype=np.dtypes.StringDType(),
-        )]
+                ['one', 'two', 'one', 'two', 'one', 'two'],
+                dtype=np.dtypes.StringDType(),
+            )]
             yield ('z', np.array([0, 0, 0, 1, 1, 1]))
 
     t = Tafra(SequenceIterable())
@@ -1159,8 +1159,8 @@ def test_left_join_invalid() -> None:
     with pytest.raises(TypeError) as e:
         t = l.left_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
 
-    # Manually corrupted _dtypes should not affect join validation —
-    # we compare actual array dtypes, not the _dtypes metadata.
+    # Corrupted _dtypes should cause join validation to fail —
+    # we compare metadata (user intent), not raw array dtypes.
     r = Tafra({
         'a': np.array([1, 2, 3, 4, 5, 6]),
         'b': np.array(
@@ -1171,9 +1171,9 @@ def test_left_join_invalid() -> None:
     })
 
     l._dtypes['x'] = 'float'
-    # Should succeed: actual arrays are both int64, despite _dtypes mismatch
-    t = l.left_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
-    assert t is not None
+    # Should fail: metadata says 'float' but right is 'int64'
+    with pytest.raises(TypeError):
+        t = l.left_join(r, [('x', 'a', '==')], ['x', 'y', 'a', 'b'])
 
 
 def test_mixed_string_dtypes() -> None:
@@ -1255,6 +1255,39 @@ def test_mixed_string_dtypes() -> None:
     t = Tafra.concat([left2, right2])
     assert len(t) == 4
     assert t['name'].dtype == np.dtypes.StringDType()  # upcasts to StringDType
+
+    # Left join with datetime column: should use NaT for unmatched
+    left_dt = Tafra({
+        'key': np.array([1, 2, 3]),
+        'val': np.array([10, 20, 30]),
+    })
+    right_dt = Tafra({
+        'key': np.array([2, 3]),
+        'ts': np.array(['2024-01-01', '2024-06-15'],
+                        dtype='datetime64[D]'),
+    })
+    t = left_dt.left_join(
+        right_dt, on=[('key', 'key', '==')],
+        select=['key', 'val', 'ts'],
+    )
+    assert len(t) == 3
+    assert t['ts'].dtype.kind == 'M'  # preserved datetime64
+    idx_1 = np.where(t['key'] == 1)[0][0]
+    assert np.isnat(t['ts'][idx_1])  # unmatched → NaT
+
+    # Left join with timedelta column: should use NaT for unmatched
+    right_td = Tafra({
+        'key': np.array([2, 3]),
+        'dur': np.array([10, 20], dtype='timedelta64[D]'),
+    })
+    t = left_dt.left_join(
+        right_td, on=[('key', 'key', '==')],
+        select=['key', 'val', 'dur'],
+    )
+    assert len(t) == 3
+    assert t['dur'].dtype.kind == 'm'  # preserved timedelta64
+    idx_1 = np.where(t['key'] == 1)[0][0]
+    assert np.isnat(t['dur'][idx_1])  # unmatched → NaT
 
 
 def test_update_dtypes_string_conversion() -> None:

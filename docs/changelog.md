@@ -2,13 +2,20 @@
 
 ## 2.2.1
 
-* **Fix**: Join dtype validation now compares base types (`_reduce_dtype`)
-  instead of raw numpy dtypes -- `StringDType` vs `<U`, and `<U8` vs `<U12`,
-  no longer reject as mismatched
-* **Fix**: `Union.apply` dtype validation relaxed with same base-type comparison
-* **Fix**: `update_dtypes_inplace` now preserves raw numpy dtypes for casting
-  instead of round-tripping through formatted string labels -- fixes silent
-  no-op when converting between `<U` and `StringDType`
+* **Fix**: Join and Union dtype validation now compares `_dtypes` metadata
+  (user intent) instead of raw numpy dtypes. Since `_format_dtype` collapses
+  `StringDType`, `<U8`, `<U12` etc. all to `'str'`, string columns with
+  different underlying representations no longer reject as mismatched.
+* **Fix**: `update_dtypes_inplace` preserves raw numpy dtypes for casting and
+  maps `'str'` label to `StringDType()` -- explicit `update_dtypes_inplace({'x': 'str'})`
+  now converts `<U` columns to `StringDType`. Construction preserves the
+  original dtype unchanged.
+* **Fix**: Left join null-fill preserves column dtypes -- string columns use
+  `StringDType(na_object=None)`, float columns use `NaN`, datetime/timedelta
+  columns use `NaT`. Only int/bool/bytes fall back to `object` (with a
+  warning). Note: left join results with null-filled string columns carry
+  `StringDType(na_object=None)`, which differs from plain `StringDType()`.
+* Warn when left join casts a column to `object` dtype due to unmatched rows
 
 ## 2.2.0
 

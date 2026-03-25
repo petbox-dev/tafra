@@ -176,7 +176,7 @@ class Tafra:
             if rows is None:
                 raise ValueError('No data provided in constructor statement.')
 
-            self.update_dtypes_inplace(self._dtypes)
+            self.update_dtypes_inplace(self._dtypes, _from_init=True)
             # must coalesce all dtypes immediately, other functions assume a
             # proper structure of the Tafra
             self._coalesce_dtypes()
@@ -1744,7 +1744,8 @@ class Tafra:
         tafra.update_dtypes_inplace(dtypes)
         return tafra
 
-    def update_dtypes_inplace(self, dtypes: dict[str, Any]) -> None:
+    def update_dtypes_inplace(self, dtypes: dict[str, Any],
+                              _from_init: bool = False) -> None:
         """
         Inplace version.
 
@@ -1765,13 +1766,18 @@ class Tafra:
         raw_dtypes: dict[str, Any] = {}
         for column, dtype in dtypes.items():
             self._validate_columns([column])
-            # StringDType() can't go through np.dtype(); keep it as-is
             if isinstance(dtype, np.dtype):
                 raw_dtypes[column] = dtype
+            elif isinstance(dtype, str) and dtype == 'str' and not _from_init:
+                # 'str' label → StringDType with na_object=None so the
+                # column can hold None values. Skip during __post_init__
+                # to preserve the original dtype.
+                raw_dtypes[column] = np.dtypes.StringDType(na_object=None)  # type: ignore[call-arg]
             else:
                 try:
                     raw_dtypes[column] = np.dtype(dtype)
                 except TypeError:
+                    # StringDType() can't go through np.dtype(); keep as-is
                     raw_dtypes[column] = dtype
 
         formatted = self._validate_dtypes(dtypes)
@@ -1779,10 +1785,13 @@ class Tafra:
 
         for column, target_dtype in raw_dtypes.items():
             current_dtype = self._data[column].dtype
-            # Skip if both are string types — StringDType and <U are
-            # compatible and casting between them can fail or lose data.
-            if (self._reduce_dtype(current_dtype) == 'str'
-                    and self._reduce_dtype(target_dtype) == 'str'):
+            # Skip when the target is the ambiguous np.dtype('str') (= <U0)
+            # and the source is already a string type. This happens when
+            # __post_init__ round-trips through formatted labels ('str').
+            # Explicit StringDType() or specific <U widths are NOT skipped.
+            if (isinstance(target_dtype, np.dtype)
+                    and target_dtype == np.dtype('str')
+                    and self._reduce_dtype(current_dtype) == 'str'):
                 continue
             if current_dtype != target_dtype:
                 try:
