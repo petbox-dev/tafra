@@ -7,8 +7,9 @@
   `StringDType`, `<U8`, `<U12` etc. all to `'str'`, string columns with
   different underlying representations no longer reject as mismatched.
 * **Fix**: `update_dtypes_inplace` preserves raw numpy dtypes for casting and
-  maps `'str'` label to `StringDType()` -- explicit `update_dtypes_inplace({'x': 'str'})`
-  now converts `<U` columns to `StringDType`. Construction preserves the
+  maps `'str'` label to `StringDType(na_object=None)` -- explicit
+  `update_dtypes_inplace({'x': 'str'})` now converts `<U` columns to
+  nullable `StringDType`. Construction preserves the
   original dtype unchanged.
 * **Fix**: Left join null-fill preserves column dtypes -- string columns use
   `StringDType(na_object=None)`, float columns use `NaN`, datetime/timedelta
