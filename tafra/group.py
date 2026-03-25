@@ -1261,7 +1261,7 @@ class LeftJoin(Join):
                             # String types: use StringDType(na_object=None)
                             out = np.empty(len(li), dtype=np.dtypes.StringDType(na_object=None))  # type: ignore[call-arg]
                             out[matched] = right_t._data[c][ri[matched]]
-                            out[~matched] = None
+                            out[~matched] = None  # type: ignore[assignment]
                             dtypes[c] = 'str'
                         elif col_kind == 'f':
                             # Float types: use NaN for missing
@@ -1278,7 +1278,7 @@ class LeftJoin(Join):
                             )
                             out = cast(np.ndarray[Any, Any], np.empty(len(li), dtype=object))
                             out[matched] = right_t._data[c][ri[matched]]
-                            out[~matched] = None
+                            out[~matched] = None  # type: ignore[assignment]
                         result[c] = out
                     else:
                         result[c] = right_t._data[c][ri]
