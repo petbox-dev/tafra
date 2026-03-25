@@ -108,6 +108,6 @@ class ObjectFormatter(dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any,
 
         # convert object arrays of strings to StringDType
         if type_name == 'str':
-            return value.astype(np.dtypes.StringDType())
+            return value.astype(np.dtypes.StringDType(na_object=None))  # type: ignore[call-arg]
 
         return None

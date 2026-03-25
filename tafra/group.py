@@ -1262,9 +1262,10 @@ class LeftJoin(Join):
                             out[matched] = right_t._data[c][ri[matched]]
                         elif col_kind in ('M', 'm'):
                             # datetime64/timedelta64: use NaT for missing
+                            nat = np.array('NaT', dtype=right_t._data[c].dtype).item()
                             out = np.empty(len(li), dtype=right_t._data[c].dtype)
                             out[matched] = right_t._data[c][ri[matched]]
-                            out[~matched] = np.datetime64('NaT')
+                            out[~matched] = nat
                         else:
                             # int, bool, etc.: fall back to object
                             warnings.warn(
@@ -1346,7 +1347,7 @@ class LeftJoin(Join):
                         dtype=right_t._data[c].dtype)
                 elif (c not in left_t._data
                       and col_kind in ('M', 'm') and has_null):
-                    nat = np.datetime64('NaT')
+                    nat = np.array('NaT', dtype=right_t._data[c].dtype).item()
                     result_data[c] = np.array(
                         [nat if x is None else x for x in v],
                         dtype=right_t._data[c].dtype)

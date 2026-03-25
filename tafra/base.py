@@ -746,7 +746,8 @@ class Tafra:
                 value = np.full(rows, value)
 
         elif isinstance(value, str):
-            value = np.full(rows, value, dtype=np.dtypes.StringDType())
+            _sd = np.dtypes.StringDType(na_object=None)  # type: ignore[call-arg]
+            value = np.full(rows, value, dtype=_sd)
 
         elif isinstance(value, Iterator):
             value = np.asarray(tuple(value))
@@ -1546,7 +1547,7 @@ class Tafra:
         """
         stats = ['count', 'mean', 'std', 'min', '25%', '50%', '75%', 'max']
         result: dict[str, np.ndarray[Any, Any]] = {
-            'stat': np.array(stats, dtype=np.dtypes.StringDType())
+            'stat': np.array(stats, dtype=np.dtypes.StringDType(na_object=None))  # type: ignore[call-arg]
         }
         for col, val in self._data.items():
             if val.dtype.kind in ('i', 'u', 'f'):
@@ -1758,8 +1759,8 @@ class Tafra:
 
         Returns
         -------
-        tafra: Tafra | None
-            The updated `Tafra`.
+        None
+            This method mutates the `Tafra` in place.
         """
         # Preserve raw numpy dtypes for casting, since _format_dtype
         # collapses e.g. <U and StringDType into the same 'str' label.
