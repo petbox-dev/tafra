@@ -193,6 +193,21 @@ Use `update_dtypes_inplace()` for the in-place version:
 t.update_dtypes_inplace({'x': 'float64'})
 ```
 
+The `'str'` label converts to `StringDType(na_object=None)`, which supports
+`None` values:
+
+```python
+t.update_dtypes_inplace({'x': 'str'})
+t['x'][0] = None  # works — nullable string column
+```
+
+!!! note "Dtype metadata"
+    `_dtypes` tracks the user's declared intent for each column's type. It is
+    the source of truth for dtype validation in joins and unions. Use
+    `update_dtypes_inplace()` to change a column's type — it updates both
+    the metadata and the underlying array. If you assign directly to `_data`,
+    you **must** call `_coalesce_dtypes()` to resync.
+
 ## Renaming Columns
 
 `rename()` takes a dict mapping old names to new names. Returns a new `Tafra`.

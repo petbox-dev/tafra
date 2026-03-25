@@ -190,7 +190,7 @@ t = Tafra.read_csv('data.csv')
 ### Type inference
 
 The CSV reader tries types in order of precedence: `int32`, `int64`,
-`float64`, `bool`. If none match, the column becomes `StringDType`.
+`float64`, `bool`. If none match, the column becomes `StringDType(na_object=None)`.
 If a later row fails to parse as the inferred type, the column is
 automatically promoted to the next type.
 
@@ -226,7 +226,8 @@ t3 = Tafra.as_tafra({'x': [1, 2, 3]})   # dict constructor
 
 The `ObjectFormatter` handles automatic conversion of `object`-dtype arrays.
 By default, `Decimal` values are converted to `float`, and object arrays of
-Python strings are converted to numpy `StringDType`.
+Python strings are converted to numpy `StringDType(na_object=None)`, which
+supports `None` values natively.
 
 ### Registering custom formatters
 
@@ -255,4 +256,5 @@ object_formatter['Money'] = lambda x: x.astype(float)
 ### String handling
 
 When an object array's first element is a Python `str`, it is automatically
-converted to numpy `StringDType` -- no manual registration needed.
+converted to numpy `StringDType(na_object=None)` -- no manual registration
+needed. The `na_object=None` enables `None` values in string columns.

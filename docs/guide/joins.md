@@ -92,7 +92,19 @@ print(result.columns)
 ## Left Join
 
 Returns all rows from the left table, with matching rows from the right.
-Unmatched right-side values are `None`. Analogous to SQL `LEFT JOIN`.
+Unmatched right-side columns are filled with native null values where possible.
+Analogous to SQL `LEFT JOIN`.
+
+!!! note "Null handling in left joins"
+    Unmatched right-side columns preserve their dtype when a native null exists:
+
+    | Column dtype | Null value | Result dtype |
+    |---|---|---|
+    | String (`StringDType`, `<U`) | `None` | `StringDType(na_object=None)` |
+    | Float (`float32`, `float64`) | `NaN` | original dtype preserved |
+    | Datetime (`datetime64`) | `NaT` | original dtype preserved |
+    | Timedelta (`timedelta64`) | `NaT` | original dtype preserved |
+    | Int, bool, bytes | `None` | `object` (with warning) |
 
 ```python
 result = orders.left_join(
