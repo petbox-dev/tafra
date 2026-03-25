@@ -703,64 +703,82 @@ accel_group_indices(PyObject *self, PyObject *args)
 /* ================================================================
  * Hash join: build (left_indices, right_indices) for equi-join
  *
- * Uses a simple open-addressing hash table on the right key,
- * then probes with each left key.
+ * CSR layout: two-pass build produces contiguous per-key storage.
+ * Pass 1 counts right-side rows per key, prefix sum computes offsets,
+ * Pass 2 scatters row indices into a flat rows[] array.
+ * Emit phase does sequential reads — no pointer chasing.
  *
  * Input arrays are coerced to contiguous int64.
  * ================================================================ */
 
 typedef struct {
     npy_int64 key;
-    npy_intp first;  /* index into chain array */
-    npy_intp count;
-} HashEntry;
-
-typedef struct {
-    npy_intp row;
-    npy_intp next;  /* -1 = end */
-} ChainNode;
+    npy_intp count;     /* number of right-side rows for this key */
+    npy_intp offset;    /* index into flat rows[] array */
+} JoinHashEntry;
 
 static int join_occupied(const void *entry)
-    { return ((const HashEntry *)entry)->count > 0; }
+    { return ((const JoinHashEntry *)entry)->count > 0; }
 static int join_equal(const void *entry, npy_int64 hash_key, void *ctx)
-    { (void)ctx; return ((const HashEntry *)entry)->key == hash_key; }
+    { (void)ctx; return ((const JoinHashEntry *)entry)->key == hash_key; }
 
 
-/* Build hash table on right-side keys. Returns 0 on success, -1 on error. */
+/* Build CSR hash table on right-side keys. Returns 0 on success, -1 on error.
+ * Caller must free(*out_table) and free(*out_rows). */
 static int
-build_hash_table(const npy_int64 *right, npy_intp right_n,
-                 HashEntry **out_table, npy_intp *out_table_size,
-                 ChainNode **out_chain)
+build_join_table(const npy_int64 *right, npy_intp right_n,
+                 JoinHashEntry **out_table, npy_intp *out_table_size,
+                 npy_intp **out_rows)
 {
     npy_intp table_size;
-    HashEntry *table = (HashEntry *)ht_alloc(right_n, sizeof(HashEntry),
-                                             &table_size);
-    ChainNode *chain = (ChainNode *)malloc(right_n * sizeof(ChainNode));
-    if (!table || !chain) {
-        free(table); free(chain);
-        PyErr_NoMemory();
-        return -1;
-    }
+    JoinHashEntry *table = (JoinHashEntry *)ht_alloc(
+        right_n, sizeof(JoinHashEntry), &table_size);
+    if (!table) { PyErr_NoMemory(); return -1; }
 
-    for (npy_intp i = 0; i < table_size; i++)
-        table[i].first = -1;
-
-    int found, err;  /* err always 0 — join callbacks are infallible */
+    /* Pass 1: probe + count */
+    int found, err;
     for (npy_intp i = 0; i < right_n; i++) {
-        npy_int64 k = right[i];
-        npy_intp h = ht_probe(table, sizeof(HashEntry), table_size,
-                               k, NULL, &found, &err,
+        npy_intp h = ht_probe(table, sizeof(JoinHashEntry), table_size,
+                               right[i], NULL, &found, &err,
                                join_occupied, join_equal);
-        chain[i].row = i;
-        chain[i].next = table[h].first;
-        table[h].key = k;
-        table[h].first = i;
+        if (!found)
+            table[h].key = right[i];
         table[h].count++;
     }
 
+    /* Exclusive prefix sum over occupied slots to fill offset */
+    npy_intp running = 0;
+    for (npy_intp i = 0; i < table_size; i++) {
+        if (table[i].count > 0) {
+            table[i].offset = running;
+            running += table[i].count;
+        }
+    }
+
+    /* Allocate flat rows array */
+    npy_intp *rows = (npy_intp *)malloc(right_n * sizeof(npy_intp));
+    /* Temporary write positions (copy of offsets, bumped during scatter) */
+    npy_intp *wpos = (npy_intp *)malloc(table_size * sizeof(npy_intp));
+    if (!rows || !wpos) {
+        free(table); free(rows); free(wpos);
+        PyErr_NoMemory();
+        return -1;
+    }
+    for (npy_intp i = 0; i < table_size; i++)
+        wpos[i] = table[i].offset;
+
+    /* Pass 2: probe + scatter row indices */
+    for (npy_intp i = 0; i < right_n; i++) {
+        npy_intp h = ht_probe(table, sizeof(JoinHashEntry), table_size,
+                               right[i], NULL, &found, &err,
+                               join_occupied, join_equal);
+        rows[wpos[h]++] = i;
+    }
+    free(wpos);
+
     *out_table = table;
     *out_table_size = table_size;
-    *out_chain = chain;
+    *out_rows = rows;
     return 0;
 }
 
@@ -782,23 +800,34 @@ accel_inner_join(PyObject *self, PyObject *args)
     npy_intp left_n = PyArray_SIZE(left_arr);
     npy_intp right_n = PyArray_SIZE(right_arr);
     const npy_int64 *left = (const npy_int64 *)PyArray_DATA(left_arr);
-    const npy_int64 *right = (const npy_int64 *)PyArray_DATA(right_arr);
+    const npy_int64 *right_data = (const npy_int64 *)PyArray_DATA(right_arr);
 
-    HashEntry *table; npy_intp table_size; ChainNode *chain;
-    if (build_hash_table(right, right_n, &table, &table_size, &chain) < 0) {
+    JoinHashEntry *table; npy_intp table_size; npy_intp *rows;
+    if (build_join_table(right_data, right_n, &table, &table_size, &rows) < 0) {
         Py_DECREF(left_arr); Py_DECREF(right_arr);
         return NULL;
     }
 
-    /* Count total output rows */
-    int found, err;  /* err always 0 — join callbacks are infallible */
+    /* Count pass: probe each left key, cache slot, sum counts */
+    npy_intp *slots = (npy_intp *)malloc(left_n * sizeof(npy_intp));
+    if (!slots) {
+        free(table); free(rows);
+        Py_DECREF(left_arr); Py_DECREF(right_arr);
+        return PyErr_NoMemory();
+    }
+
+    int found, err;
     npy_intp total = 0;
     for (npy_intp i = 0; i < left_n; i++) {
-        npy_intp h = ht_probe(table, sizeof(HashEntry), table_size,
+        npy_intp h = ht_probe(table, sizeof(JoinHashEntry), table_size,
                                left[i], NULL, &found, &err,
                                join_occupied, join_equal);
-        if (found)
+        if (found) {
+            slots[i] = h;
             total += table[h].count;
+        } else {
+            slots[i] = -1;
+        }
     }
 
     npy_intp dims[1] = {total};
@@ -806,31 +835,30 @@ accel_inner_join(PyObject *self, PyObject *args)
     PyArrayObject *ri_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
     if (!li_arr || !ri_arr) {
         Py_XDECREF(li_arr); Py_XDECREF(ri_arr);
-        free(table); free(chain);
+        free(slots); free(table); free(rows);
         Py_DECREF(left_arr); Py_DECREF(right_arr);
         return NULL;
     }
 
+    /* Emit pass: sequential scan of rows[offset..offset+count] */
     npy_intp *li = (npy_intp *)PyArray_DATA(li_arr);
     npy_intp *ri = (npy_intp *)PyArray_DATA(ri_arr);
     npy_intp pos = 0;
 
     for (npy_intp i = 0; i < left_n; i++) {
-        npy_intp h = ht_probe(table, sizeof(HashEntry), table_size,
-                               left[i], NULL, &found, &err,
-                               join_occupied, join_equal);
-        if (found) {
-            npy_intp ci = table[h].first;
-            while (ci >= 0) {
+        npy_intp h = slots[i];
+        if (h >= 0) {
+            npy_intp off = table[h].offset;
+            npy_intp cnt = table[h].count;
+            for (npy_intp j = 0; j < cnt; j++) {
                 li[pos] = i;
-                ri[pos] = chain[ci].row;
+                ri[pos] = rows[off + j];
                 pos++;
-                ci = chain[ci].next;
             }
         }
     }
 
-    free(table); free(chain);
+    free(slots); free(table); free(rows);
     Py_DECREF(left_arr); Py_DECREF(right_arr);
 
     PyObject *result = PyTuple_Pack(2, (PyObject *)li_arr, (PyObject *)ri_arr);
@@ -856,24 +884,34 @@ accel_left_join(PyObject *self, PyObject *args)
     npy_intp left_n = PyArray_SIZE(left_arr);
     npy_intp right_n = PyArray_SIZE(right_arr);
     const npy_int64 *left = (const npy_int64 *)PyArray_DATA(left_arr);
-    const npy_int64 *right = (const npy_int64 *)PyArray_DATA(right_arr);
+    const npy_int64 *right_data = (const npy_int64 *)PyArray_DATA(right_arr);
 
-    HashEntry *table; npy_intp table_size; ChainNode *chain;
-    if (build_hash_table(right, right_n, &table, &table_size, &chain) < 0) {
+    JoinHashEntry *table; npy_intp table_size; npy_intp *rows;
+    if (build_join_table(right_data, right_n, &table, &table_size, &rows) < 0) {
         Py_DECREF(left_arr); Py_DECREF(right_arr);
         return NULL;
     }
 
-    int found, err;  /* err always 0 — join callbacks are infallible */
+    /* Count pass: probe each left key, cache slot, sum counts */
+    npy_intp *slots = (npy_intp *)malloc(left_n * sizeof(npy_intp));
+    if (!slots) {
+        free(table); free(rows);
+        Py_DECREF(left_arr); Py_DECREF(right_arr);
+        return PyErr_NoMemory();
+    }
+
+    int found, err;
     npy_intp total = 0;
     int has_null = 0;
     for (npy_intp i = 0; i < left_n; i++) {
-        npy_intp h = ht_probe(table, sizeof(HashEntry), table_size,
+        npy_intp h = ht_probe(table, sizeof(JoinHashEntry), table_size,
                                left[i], NULL, &found, &err,
                                join_occupied, join_equal);
-        if (found)
+        if (found) {
+            slots[i] = h;
             total += table[h].count;
-        else {
+        } else {
+            slots[i] = -1;
             total++;
             has_null = 1;
         }
@@ -884,26 +922,25 @@ accel_left_join(PyObject *self, PyObject *args)
     PyArrayObject *ri_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
     if (!li_arr || !ri_arr) {
         Py_XDECREF(li_arr); Py_XDECREF(ri_arr);
-        free(table); free(chain);
+        free(slots); free(table); free(rows);
         Py_DECREF(left_arr); Py_DECREF(right_arr);
         return NULL;
     }
 
+    /* Emit pass: sequential scan of rows[offset..offset+count] */
     npy_intp *li = (npy_intp *)PyArray_DATA(li_arr);
     npy_intp *ri = (npy_intp *)PyArray_DATA(ri_arr);
     npy_intp pos = 0;
 
     for (npy_intp i = 0; i < left_n; i++) {
-        npy_intp h = ht_probe(table, sizeof(HashEntry), table_size,
-                               left[i], NULL, &found, &err,
-                               join_occupied, join_equal);
-        if (found) {
-            npy_intp ci = table[h].first;
-            while (ci >= 0) {
+        npy_intp h = slots[i];
+        if (h >= 0) {
+            npy_intp off = table[h].offset;
+            npy_intp cnt = table[h].count;
+            for (npy_intp j = 0; j < cnt; j++) {
                 li[pos] = i;
-                ri[pos] = chain[ci].row;
+                ri[pos] = rows[off + j];
                 pos++;
-                ci = chain[ci].next;
             }
         } else {
             li[pos] = i;
@@ -912,7 +949,7 @@ accel_left_join(PyObject *self, PyObject *args)
         }
     }
 
-    free(table); free(chain);
+    free(slots); free(table); free(rows);
     Py_DECREF(left_arr); Py_DECREF(right_arr);
 
     PyObject *result = PyTuple_Pack(3,
@@ -950,7 +987,7 @@ static PyMethodDef AccelMethods[] = {
      "Hash inner join: inner_join(left_key, right_key) -> (li, ri)"},
     {"left_join", accel_left_join, METH_VARARGS,
      "Hash left join: left_join(left_key, right_key) -> (li, ri, has_null)"},
-    {NULL, NULL, 0, NULL}
+{NULL, NULL, 0, NULL}
 };
 
 static struct PyModuleDef accelmodule = {
