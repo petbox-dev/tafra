@@ -1292,8 +1292,8 @@ def test_mixed_string_dtypes() -> None:
 
 def test_update_dtypes_string_conversion() -> None:
     """update_dtypes_inplace should not no-op between <U and StringDType."""
-    # <U -> StringDType: currently skipped (both reduce to 'str'),
-    # but should at least not crash and should update _dtypes label
+    # <U -> StringDType: previously skipped when both reduced to 'str',
+    # but now should convert without crashing and must update _dtypes label
     t = Tafra({'x': np.array(['hello', 'world'], dtype='<U10')})
     assert t['x'].dtype == np.dtype('<U10')
     t.update_dtypes_inplace({'x': np.dtypes.StringDType()})
