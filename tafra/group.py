@@ -1259,7 +1259,7 @@ class LeftJoin(Join):
                         col_kind = right_t._data[c].dtype.kind
                         if col_kind in ('T', 'U', 'S'):
                             # String types: use StringDType(na_object=None)
-                            out = np.empty(len(li), dtype=np.dtypes.StringDType(na_object=None))
+                            out = np.empty(len(li), dtype=np.dtypes.StringDType(na_object=None))  # type: ignore[call-arg]
                             out[matched] = right_t._data[c][ri[matched]]
                             out[~matched] = None
                             dtypes[c] = 'str'
@@ -1276,7 +1276,7 @@ class LeftJoin(Join):
                                 f"Use .astype(float) if NaN semantics are needed.",
                                 stacklevel=4,
                             )
-                            out = np.empty(len(li), dtype=object)
+                            out = cast(np.ndarray[Any, Any], np.empty(len(li), dtype=object))
                             out[matched] = right_t._data[c][ri[matched]]
                             out[~matched] = None
                         result[c] = out
@@ -1328,7 +1328,7 @@ class LeftJoin(Join):
             for c, v in join.items():
                 col_kind = right_t._data[c].dtype.kind if c in right_t._data else ''
                 if c not in left_t._data and col_kind in ('T', 'U', 'S') and None in v:
-                    result_data[c] = np.array(v, dtype=np.dtypes.StringDType(na_object=None))
+                    result_data[c] = np.array(v, dtype=np.dtypes.StringDType(na_object=None))  # type: ignore[call-arg]
                     dtypes[c] = 'str'
                 elif c not in left_t._data and col_kind == 'f' and None in v:
                     result_data[c] = np.array(
