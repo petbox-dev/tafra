@@ -1344,6 +1344,384 @@ def test_left_join_object_fallback_warning() -> None:
     assert t2['score'].dtype == np.float64
 
 
+class TestStringDtypeInterop:
+    """Comprehensive tests for StringDType / <U interop (v2.2.1 bugfixes)."""
+
+    # -- Bug 1: Join rejects StringDType vs <U --
+
+    def test_inner_join_stringdtype_vs_fixed_u(self) -> None:
+        left = Tafra({
+            'k': np.array(['a', 'b'], dtype=np.dtypes.StringDType()),
+            'v': np.array([1, 2]),
+        })
+        right = Tafra({
+            'k': np.array(['b', 'c'], dtype='<U1'),
+            'w': np.array([10, 20]),
+        })
+        t = left.inner_join(right, on=[('k', 'k', '==')])
+        assert len(t) == 1
+        assert t['k'][0] == 'b'
+
+    def test_left_join_stringdtype_vs_fixed_u(self) -> None:
+        left = Tafra({
+            'k': np.array(['a', 'b'], dtype=np.dtypes.StringDType()),
+            'v': np.array([1, 2]),
+        })
+        right = Tafra({
+            'k': np.array(['b'], dtype='<U1'),
+            'w': np.array([10]),
+        })
+        t = left.left_join(right, on=[('k', 'k', '==')])
+        assert len(t) == 2
+
+    def test_inner_join_fixed_u_vs_stringdtype(self) -> None:
+        """Reversed direction."""
+        left = Tafra({
+            'k': np.array(['a', 'b'], dtype='<U1'),
+            'v': np.array([1, 2]),
+        })
+        right = Tafra({
+            'k': np.array(['b', 'c'], dtype=np.dtypes.StringDType()),
+            'w': np.array([10, 20]),
+        })
+        t = left.inner_join(right, on=[('k', 'k', '==')])
+        assert len(t) == 1
+
+    # -- Bug 2: Join rejects <U8 vs <U12 --
+
+    def test_join_different_u_widths(self) -> None:
+        left = Tafra({
+            'k': np.array(['DELAWARE', 'MIDLAND'], dtype='<U8'),
+            'v': np.array([1, 2]),
+        })
+        right = Tafra({
+            'k': np.array(['DELAWARE BASIN', 'MIDLAND'], dtype='<U14'),
+            'w': np.array([10, 20]),
+        })
+        t = left.left_join(right, on=[('k', 'k', '==')])
+        assert len(t) == 2
+        # 'DELAWARE' != 'DELAWARE BASIN', so only MIDLAND matches
+        mid_idx = np.where(t['k'] == 'MIDLAND')[0][0]
+        assert t['w'][mid_idx] == 20
+
+    # -- Bug 3: Union rejects mixed string dtypes --
+
+    def test_union_stringdtype_vs_fixed_u(self) -> None:
+        left = Tafra({
+            'x': np.array([1, 2]),
+            'name': np.array(['a', 'b'], dtype=np.dtypes.StringDType()),
+        })
+        right = Tafra({
+            'x': np.array([3, 4]),
+            'name': np.array(['c', 'd'], dtype='<U1'),
+        })
+        t = left.union(right)
+        assert len(t) == 4
+
+    # -- Bug 4: update_dtypes_inplace silent no-op --
+
+    def test_update_dtypes_str_label_converts_to_stringdtype(self) -> None:
+        t = Tafra({'x': np.array(['hello', 'world'], dtype='<U10')})
+        assert t['x'].dtype == np.dtype('<U10')
+        t.update_dtypes_inplace({'x': 'str'})
+        assert isinstance(t['x'].dtype, np.dtypes.StringDType)
+
+    def test_update_dtypes_str_label_supports_none(self) -> None:
+        t = Tafra({'x': np.array(['hello', 'world'], dtype='<U10')})
+        t.update_dtypes_inplace({'x': 'str'})
+        t['x'][0] = None  # type: ignore[assignment]
+        assert t['x'][0] is None
+
+    def test_update_dtypes_explicit_stringdtype(self) -> None:
+        t = Tafra({'x': np.array(['hello', 'world'], dtype='<U10')})
+        t.update_dtypes_inplace({'x': np.dtypes.StringDType()})
+        assert t._dtypes['x'] == 'str'
+
+    def test_construction_preserves_original_dtype(self) -> None:
+        """__post_init__ should NOT convert <U to StringDType."""
+        t = Tafra({'x': np.array(['hello', 'world'], dtype='<U10')})
+        assert t['x'].dtype == np.dtype('<U10')
+
+        t2 = Tafra({
+            'x': np.array(['hello'], dtype=np.dtypes.StringDType()),
+        })
+        assert isinstance(t2['x'].dtype, np.dtypes.StringDType)
+
+    # -- Bug 5: Left join null-fill dtype preservation --
+
+    def test_left_join_null_string_preserves_dtype(self) -> None:
+        left = Tafra({'k': np.array([1, 2, 3]), 'v': np.array([10, 20, 30])})
+        right = Tafra({
+            'k': np.array([2, 3]),
+            'name': np.array(['Bob', 'Carol'],
+                             dtype=np.dtypes.StringDType()),
+        })
+        t = left.left_join(right, on=[('k', 'k', '==')])
+        assert isinstance(t['name'].dtype, np.dtypes.StringDType)
+        idx = np.where(t['k'] == 1)[0][0]
+        assert t['name'][idx] is None
+
+    def test_left_join_null_fixed_u_becomes_stringdtype(self) -> None:
+        """<U columns also get StringDType(na_object=None) for null fill."""
+        left = Tafra({'k': np.array([1, 2, 3]), 'v': np.array([10, 20, 30])})
+        right = Tafra({
+            'k': np.array([2, 3]),
+            'name': np.array(['Bob', 'Carol'], dtype='<U5'),
+        })
+        t = left.left_join(right, on=[('k', 'k', '==')])
+        assert isinstance(t['name'].dtype, np.dtypes.StringDType)
+        idx = np.where(t['k'] == 1)[0][0]
+        assert t['name'][idx] is None
+
+    def test_left_join_null_float_uses_nan(self) -> None:
+        left = Tafra({'k': np.array([1, 2, 3]), 'v': np.array([10, 20, 30])})
+        right = Tafra({
+            'k': np.array([2, 3]),
+            'score': np.array([1.5, 2.5]),
+        })
+        t = left.left_join(right, on=[('k', 'k', '==')])
+        assert t['score'].dtype == np.float64
+        idx = np.where(t['k'] == 1)[0][0]
+        assert np.isnan(t['score'][idx])
+
+    def test_left_join_null_float32_preserves_width(self) -> None:
+        left = Tafra({'k': np.array([1, 2]), 'v': np.array([10, 20])})
+        right = Tafra({
+            'k': np.array([2]),
+            'score': np.array([1.5], dtype=np.float32),
+        })
+        t = left.left_join(right, on=[('k', 'k', '==')])
+        assert t['score'].dtype == np.float32
+        assert np.isnan(t['score'][0])
+
+    def test_left_join_null_datetime_uses_nat(self) -> None:
+        left = Tafra({'k': np.array([1, 2, 3]), 'v': np.array([10, 20, 30])})
+        right = Tafra({
+            'k': np.array([2, 3]),
+            'ts': np.array(['2024-01-01', '2024-06-15'],
+                           dtype='datetime64[D]'),
+        })
+        t = left.left_join(right, on=[('k', 'k', '==')])
+        assert t['ts'].dtype.kind == 'M'
+        idx = np.where(t['k'] == 1)[0][0]
+        assert np.isnat(t['ts'][idx])
+
+    def test_left_join_null_timedelta_uses_nat(self) -> None:
+        left = Tafra({'k': np.array([1, 2, 3]), 'v': np.array([10, 20, 30])})
+        right = Tafra({
+            'k': np.array([2, 3]),
+            'dur': np.array([10, 20], dtype='timedelta64[D]'),
+        })
+        t = left.left_join(right, on=[('k', 'k', '==')])
+        assert t['dur'].dtype.kind == 'm'
+        idx = np.where(t['k'] == 1)[0][0]
+        assert np.isnat(t['dur'][idx])
+
+    def test_left_join_null_int_falls_back_to_object(self) -> None:
+        left = Tafra({'k': np.array([1, 2, 3]), 'v': np.array([10, 20, 30])})
+        right = Tafra({
+            'k': np.array([2, 3]),
+            'count': np.array([100, 200]),
+        })
+        t = left.left_join(right, on=[('k', 'k', '==')])
+        assert t['count'].dtype == object
+        idx = np.where(t['k'] == 1)[0][0]
+        assert t['count'][idx] is None
+
+    def test_left_join_null_bool_falls_back_to_object(self) -> None:
+        left = Tafra({'k': np.array([1, 2, 3]), 'v': np.array([10, 20, 30])})
+        right = Tafra({
+            'k': np.array([2, 3]),
+            'flag': np.array([True, False]),
+        })
+        t = left.left_join(right, on=[('k', 'k', '==')])
+        assert t['flag'].dtype == object
+        idx = np.where(t['k'] == 1)[0][0]
+        assert t['flag'][idx] is None
+
+    def test_left_join_null_bytes_falls_back_to_object(self) -> None:
+        """Byte strings (kind='S') should NOT go through string path."""
+        left = Tafra({'k': np.array([1, 2, 3]), 'v': np.array([10, 20, 30])})
+        right = Tafra({
+            'k': np.array([2, 3]),
+            'raw': np.array([b'abc', b'def'], dtype='S3'),
+        })
+        t = left.left_join(right, on=[('k', 'k', '==')])
+        assert t['raw'].dtype == object
+        idx = np.where(t['k'] == 1)[0][0]
+        assert t['raw'][idx] is None
+
+    # -- Bug 6: Object fallback warning --
+
+    def test_left_join_warns_on_object_fallback(self) -> None:
+        import warnings
+        left = Tafra({'k': np.array([1, 2, 3]), 'v': np.array([10, 20, 30])})
+        right = Tafra({
+            'k': np.array([2, 3]),
+            'count': np.array([100, 200]),
+        })
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            left.left_join(right, on=[('k', 'k', '==')])
+        msgs = [x for x in w if 'cast to object' in str(x.message)]
+        assert len(msgs) == 1
+        assert "'count'" in str(msgs[0].message)
+
+    def test_left_join_no_warning_for_native_nulls(self) -> None:
+        import warnings
+        left = Tafra({'k': np.array([1, 2, 3]), 'v': np.array([10, 20, 30])})
+        right = Tafra({
+            'k': np.array([2, 3]),
+            'name': np.array(['b', 'c'],
+                             dtype=np.dtypes.StringDType()),
+            'score': np.array([1.5, 2.5]),
+            'ts': np.array(['2024-01-01', '2024-06-15'],
+                           dtype='datetime64[D]'),
+        })
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            left.left_join(right, on=[('k', 'k', '==')])
+        msgs = [x for x in w if 'cast to object' in str(x.message)]
+        assert len(msgs) == 0
+
+    # -- Bug 7: Metadata validation in joins --
+
+    def test_join_rejects_corrupted_metadata(self) -> None:
+        """Corrupted _dtypes should cause join to fail."""
+        left = Tafra({
+            'k': np.array([1, 2, 3]),
+            'v': np.array([10, 20, 30]),
+        })
+        right = Tafra({
+            'k': np.array([2, 3]),
+            'w': np.array([100, 200]),
+        })
+        left._dtypes['k'] = 'float64'
+        with pytest.raises(TypeError):
+            left.left_join(right, on=[('k', 'k', '==')])
+
+    def test_join_accepts_matching_metadata(self) -> None:
+        """Same _dtypes label = same user intent, even if array widths differ."""
+        left = Tafra({
+            'k': np.array(['abc', 'def'], dtype='<U3'),
+            'v': np.array([1, 2]),
+        })
+        right = Tafra({
+            'k': np.array(['abc', 'xyz'],
+                          dtype=np.dtypes.StringDType()),
+            'w': np.array([10, 20]),
+        })
+        # Both have _dtypes['k'] == 'str'
+        assert left._dtypes['k'] == right._dtypes['k'] == 'str'
+        t = left.inner_join(right, on=[('k', 'k', '==')])
+        assert len(t) == 1
+
+    # -- Join key dtype combinations --
+
+    def test_join_on_int64_keys(self) -> None:
+        left = Tafra({
+            'k': np.array([1, 2, 3], dtype=np.int64),
+            'v': np.array([10, 20, 30]),
+        })
+        right = Tafra({
+            'k': np.array([2, 3, 4], dtype=np.int64),
+            'w': np.array([100, 200, 300]),
+        })
+        t = left.inner_join(right, on=[('k', 'k', '==')])
+        assert len(t) == 2
+        assert set(t['k']) == {2, 3}
+
+    def test_join_on_float64_keys(self) -> None:
+        left = Tafra({
+            'k': np.array([1.0, 2.0, 3.0]),
+            'v': np.array([10, 20, 30]),
+        })
+        right = Tafra({
+            'k': np.array([2.0, 3.0, 4.0]),
+            'w': np.array([100, 200, 300]),
+        })
+        t = left.inner_join(right, on=[('k', 'k', '==')])
+        assert len(t) == 2
+
+    def test_join_on_stringdtype_keys(self) -> None:
+        sd = np.dtypes.StringDType()
+        left = Tafra({
+            'k': np.array(['a', 'b', 'c'], dtype=sd),
+            'v': np.array([1, 2, 3]),
+        })
+        right = Tafra({
+            'k': np.array(['b', 'c', 'd'], dtype=sd),
+            'w': np.array([10, 20, 30]),
+        })
+        t = left.inner_join(right, on=[('k', 'k', '==')])
+        assert len(t) == 2
+        assert set(t['k']) == {'b', 'c'}
+
+    def test_join_on_fixed_u_keys(self) -> None:
+        left = Tafra({
+            'k': np.array(['a', 'b', 'c'], dtype='<U1'),
+            'v': np.array([1, 2, 3]),
+        })
+        right = Tafra({
+            'k': np.array(['b', 'c', 'd'], dtype='<U1'),
+            'w': np.array([10, 20, 30]),
+        })
+        t = left.inner_join(right, on=[('k', 'k', '==')])
+        assert len(t) == 2
+
+    def test_join_rejects_int_vs_float_keys(self) -> None:
+        left = Tafra({
+            'k': np.array([1, 2, 3], dtype=np.int64),
+            'v': np.array([10, 20, 30]),
+        })
+        right = Tafra({
+            'k': np.array([2.0, 3.0, 4.0]),
+            'w': np.array([100, 200, 300]),
+        })
+        with pytest.raises(TypeError):
+            left.inner_join(right, on=[('k', 'k', '==')])
+
+    def test_join_rejects_int_vs_string_keys(self) -> None:
+        left = Tafra({
+            'k': np.array([1, 2, 3]),
+            'v': np.array([10, 20, 30]),
+        })
+        right = Tafra({
+            'k': np.array(['a', 'b', 'c'],
+                          dtype=np.dtypes.StringDType()),
+            'w': np.array([10, 20, 30]),
+        })
+        with pytest.raises(TypeError):
+            left.inner_join(right, on=[('k', 'k', '==')])
+
+    # -- Concat mixed string dtypes --
+
+    def test_concat_stringdtype_and_fixed_u(self) -> None:
+        t1 = Tafra({'x': np.array(['a', 'b'], dtype=np.dtypes.StringDType())})
+        t2 = Tafra({'x': np.array(['c', 'd'], dtype='<U1')})
+        t = Tafra.concat([t1, t2])
+        assert len(t) == 4
+        # numpy upcasts to StringDType
+        assert isinstance(t['x'].dtype, np.dtypes.StringDType)
+
+    # -- Left join full match (no nulls) preserves dtypes --
+
+    def test_left_join_full_match_preserves_dtypes(self) -> None:
+        left = Tafra({'k': np.array([1, 2]), 'v': np.array([10, 20])})
+        right = Tafra({
+            'k': np.array([1, 2]),
+            'name': np.array(['A', 'B'],
+                             dtype=np.dtypes.StringDType()),
+            'score': np.array([1.5, 2.5]),
+            'count': np.array([100, 200]),
+        })
+        t = left.left_join(right, on=[('k', 'k', '==')])
+        # No nulls → original dtypes preserved, no StringDType(na_object)
+        assert isinstance(t['name'].dtype, np.dtypes.StringDType)
+        assert t['score'].dtype == np.float64
+        assert t['count'].dtype == np.int64
+
+
 def test_csv() -> None:
     write_path = 'test/test_to_csv.csv'
 
