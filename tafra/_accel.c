@@ -36,6 +36,55 @@ as_contig(PyObject *obj, int typenum)
 
 
 /* ================================================================
+ * Generic hash table probing
+ *
+ * Callbacks return: 1 = yes, 0 = no, -1 = error (for fallible comparisons).
+ * The probe function uses void* so a single implementation covers all
+ * entry types; per-type static callbacks cast back to the concrete struct.
+ * ================================================================ */
+
+typedef int (*ht_occupied_fn)(const void *entry);
+typedef int (*ht_equal_fn)(const void *entry, npy_int64 hash_key, void *ctx);
+
+/*
+ * Linear-probe to find either the slot matching hash_key or the first
+ * empty slot.  On return:
+ *   *found = 1 if an occupied matching slot was found, 0 if empty slot
+ *   *err   = 1 if keys_equal returned -1 (comparison error), else 0
+ */
+static inline npy_intp
+ht_probe(const void *table, npy_intp entry_size, npy_intp table_size,
+         npy_int64 hash_key, void *ctx, int *found, int *err,
+         ht_occupied_fn is_occupied, ht_equal_fn keys_equal)
+{
+    npy_intp slot = HASH_KEY(hash_key, table_size);
+    const char *base = (const char *)table;
+    *err = 0;
+    for (;;) {
+        const void *entry = base + slot * entry_size;
+        if (!is_occupied(entry)) {
+            *found = 0;
+            return slot;
+        }
+        int eq = keys_equal(entry, hash_key, ctx);
+        if (eq < 0) { *found = 0; *err = 1; return slot; }
+        if (eq) { *found = 1; return slot; }
+        slot = (slot + 1) % table_size;
+    }
+}
+
+/* Convenience: alloc a zero-initialized hash table with 2x headroom. */
+static inline void *
+ht_alloc(npy_intp n_items, npy_intp entry_size, npy_intp *out_table_size)
+{
+    npy_intp sz = n_items * 2;
+    if (sz < 16) sz = 16;
+    *out_table_size = sz;
+    return calloc(sz, entry_size);
+}
+
+
+/* ================================================================
  * GroupBy aggregations: single pass over (labels, data)
  *
  * All groupby functions expect:
@@ -425,10 +474,21 @@ accel_composite_key(PyObject *self, PyObject *args)
 
 typedef struct {
     Py_hash_t hash;
-    PyObject *obj;      /* borrowed reference to the original object */
+    PyObject *obj;      /* borrowed ref; NULL = unoccupied */
     npy_intp code;
-    int occupied;
 } StrHashEntry;
+
+static int str_occupied(const void *entry)
+    { return ((const StrHashEntry *)entry)->obj != NULL; }
+
+/* ctx carries the PyObject* being looked up.  Returns -1/0/1
+ * matching PyObject_RichCompareBool's convention. */
+static int str_equal(const void *entry, npy_int64 hash_key, void *ctx)
+{
+    const StrHashEntry *e = (const StrHashEntry *)entry;
+    if (e->hash != (Py_hash_t)hash_key) return 0;
+    return PyObject_RichCompareBool(e->obj, (PyObject *)ctx, Py_EQ);
+}
 
 static PyObject *
 accel_encode_strings(PyObject *self, PyObject *args)
@@ -445,9 +505,9 @@ accel_encode_strings(PyObject *self, PyObject *args)
     PyObject **data = (PyObject **)PyArray_DATA(arr);
 
     /* Hash table */
-    npy_intp table_size = n * 2;
-    if (table_size < 16) table_size = 16;
-    StrHashEntry *table = (StrHashEntry *)calloc(table_size, sizeof(StrHashEntry));
+    npy_intp table_size;
+    StrHashEntry *table = (StrHashEntry *)ht_alloc(n, sizeof(StrHashEntry),
+                                                   &table_size);
     if (!table) { Py_DECREF(arr); return PyErr_NoMemory(); }
 
     /* Output codes */
@@ -466,26 +526,19 @@ accel_encode_strings(PyObject *self, PyObject *args)
             return NULL;
         }
 
-        npy_intp slot = HASH_KEY(h, table_size);
-
-        while (table[slot].occupied) {
-            /* Check if same object or equal value */
-            if (table[slot].hash == h) {
-                int eq = PyObject_RichCompareBool(table[slot].obj, obj, Py_EQ);
-                if (eq < 0) {
-                    free(table); Py_DECREF(arr); Py_DECREF(codes_out);
-                    return NULL;
-                }
-                if (eq) break;  /* found existing entry */
-            }
-            slot = (slot + 1) % table_size;
+        int found, err;
+        npy_intp slot = ht_probe(table, sizeof(StrHashEntry), table_size,
+                                 (npy_int64)h, obj, &found, &err,
+                                 str_occupied, str_equal);
+        if (err) {
+            free(table); Py_DECREF(arr); Py_DECREF(codes_out);
+            return NULL;
         }
 
-        if (!table[slot].occupied) {
+        if (!found) {
             table[slot].hash = h;
             table[slot].obj = obj;  /* borrowed ref, arr keeps it alive */
             table[slot].code = n_unique;
-            table[slot].occupied = 1;
             n_unique++;
         }
         codes[i] = table[slot].code;
@@ -520,6 +573,11 @@ typedef struct {
     int occupied;
 } GroupHashEntry;
 
+static int group_occupied(const void *entry)
+    { return ((const GroupHashEntry *)entry)->occupied; }
+static int group_equal(const void *entry, npy_int64 hash_key, void *ctx)
+    { (void)ctx; return ((const GroupHashEntry *)entry)->key == hash_key; }
+
 static PyObject *
 accel_group_indices(PyObject *self, PyObject *args)
 {
@@ -534,9 +592,9 @@ accel_group_indices(PyObject *self, PyObject *args)
     const npy_int64 *keys = (const npy_int64 *)PyArray_DATA(key_arr);
 
     /* Allocate hash table */
-    npy_intp table_size = n * 2;
-    if (table_size < 16) table_size = 16;
-    GroupHashEntry *table = (GroupHashEntry *)calloc(table_size, sizeof(GroupHashEntry));
+    npy_intp table_size;
+    GroupHashEntry *table = (GroupHashEntry *)ht_alloc(
+        n, sizeof(GroupHashEntry), &table_size);
     if (!table) { Py_DECREF(key_arr); return PyErr_NoMemory(); }
 
     /* Pass 1: assign labels, count per group */
@@ -551,13 +609,14 @@ accel_group_indices(PyObject *self, PyObject *args)
     }
     npy_intp n_groups = 0;
 
+    int found, err;  /* err always 0 — group callbacks are infallible */
     for (npy_intp i = 0; i < n; i++) {
         npy_int64 k = keys[i];
-        npy_intp h = HASH_KEY(k, table_size);
-        while (table[h].occupied && table[h].key != k)
-            h = (h + 1) % table_size;
+        npy_intp h = ht_probe(table, sizeof(GroupHashEntry), table_size,
+                               k, NULL, &found, &err,
+                               group_occupied, group_equal);
 
-        if (!table[h].occupied) {
+        if (!found) {
             table[h].key = k;
             table[h].occupied = 1;
             table[h].label = n_groups;
@@ -661,6 +720,11 @@ typedef struct {
     npy_intp next;  /* -1 = end */
 } ChainNode;
 
+static int join_occupied(const void *entry)
+    { return ((const HashEntry *)entry)->count > 0; }
+static int join_equal(const void *entry, npy_int64 hash_key, void *ctx)
+    { (void)ctx; return ((const HashEntry *)entry)->key == hash_key; }
+
 
 /* Build hash table on right-side keys. Returns 0 on success, -1 on error. */
 static int
@@ -668,10 +732,9 @@ build_hash_table(const npy_int64 *right, npy_intp right_n,
                  HashEntry **out_table, npy_intp *out_table_size,
                  ChainNode **out_chain)
 {
-    npy_intp table_size = right_n * 2;
-    if (table_size < 16) table_size = 16;
-
-    HashEntry *table = (HashEntry *)calloc(table_size, sizeof(HashEntry));
+    npy_intp table_size;
+    HashEntry *table = (HashEntry *)ht_alloc(right_n, sizeof(HashEntry),
+                                             &table_size);
     ChainNode *chain = (ChainNode *)malloc(right_n * sizeof(ChainNode));
     if (!table || !chain) {
         free(table); free(chain);
@@ -679,16 +742,15 @@ build_hash_table(const npy_int64 *right, npy_intp right_n,
         return -1;
     }
 
-    for (npy_intp i = 0; i < table_size; i++) {
-        table[i].count = 0;
+    for (npy_intp i = 0; i < table_size; i++)
         table[i].first = -1;
-    }
 
+    int found, err;  /* err always 0 — join callbacks are infallible */
     for (npy_intp i = 0; i < right_n; i++) {
         npy_int64 k = right[i];
-        npy_intp h = HASH_KEY(k, table_size);
-        while (table[h].count > 0 && table[h].key != k)
-            h = (h + 1) % table_size;
+        npy_intp h = ht_probe(table, sizeof(HashEntry), table_size,
+                               k, NULL, &found, &err,
+                               join_occupied, join_equal);
         chain[i].row = i;
         chain[i].next = table[h].first;
         table[h].key = k;
@@ -729,12 +791,13 @@ accel_inner_join(PyObject *self, PyObject *args)
     }
 
     /* Count total output rows */
+    int found, err;  /* err always 0 — join callbacks are infallible */
     npy_intp total = 0;
     for (npy_intp i = 0; i < left_n; i++) {
-        npy_intp h = HASH_KEY(left[i], table_size);
-        while (table[h].count > 0 && table[h].key != left[i])
-            h = (h + 1) % table_size;
-        if (table[h].count > 0 && table[h].key == left[i])
+        npy_intp h = ht_probe(table, sizeof(HashEntry), table_size,
+                               left[i], NULL, &found, &err,
+                               join_occupied, join_equal);
+        if (found)
             total += table[h].count;
     }
 
@@ -753,10 +816,10 @@ accel_inner_join(PyObject *self, PyObject *args)
     npy_intp pos = 0;
 
     for (npy_intp i = 0; i < left_n; i++) {
-        npy_intp h = HASH_KEY(left[i], table_size);
-        while (table[h].count > 0 && table[h].key != left[i])
-            h = (h + 1) % table_size;
-        if (table[h].count > 0 && table[h].key == left[i]) {
+        npy_intp h = ht_probe(table, sizeof(HashEntry), table_size,
+                               left[i], NULL, &found, &err,
+                               join_occupied, join_equal);
+        if (found) {
             npy_intp ci = table[h].first;
             while (ci >= 0) {
                 li[pos] = i;
@@ -801,13 +864,14 @@ accel_left_join(PyObject *self, PyObject *args)
         return NULL;
     }
 
+    int found, err;  /* err always 0 — join callbacks are infallible */
     npy_intp total = 0;
     int has_null = 0;
     for (npy_intp i = 0; i < left_n; i++) {
-        npy_intp h = HASH_KEY(left[i], table_size);
-        while (table[h].count > 0 && table[h].key != left[i])
-            h = (h + 1) % table_size;
-        if (table[h].count > 0 && table[h].key == left[i])
+        npy_intp h = ht_probe(table, sizeof(HashEntry), table_size,
+                               left[i], NULL, &found, &err,
+                               join_occupied, join_equal);
+        if (found)
             total += table[h].count;
         else {
             total++;
@@ -830,10 +894,10 @@ accel_left_join(PyObject *self, PyObject *args)
     npy_intp pos = 0;
 
     for (npy_intp i = 0; i < left_n; i++) {
-        npy_intp h = HASH_KEY(left[i], table_size);
-        while (table[h].count > 0 && table[h].key != left[i])
-            h = (h + 1) % table_size;
-        if (table[h].count > 0 && table[h].key == left[i]) {
+        npy_intp h = ht_probe(table, sizeof(HashEntry), table_size,
+                               left[i], NULL, &found, &err,
+                               join_occupied, join_equal);
+        if (found) {
             npy_intp ci = table[h].first;
             while (ci >= 0) {
                 li[pos] = i;
