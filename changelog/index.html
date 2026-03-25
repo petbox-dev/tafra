@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.5">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -916,6 +916,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#221" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2.1
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#220" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1115,6 +1126,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#221" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2.1
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#220" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1300,6 +1322,24 @@
 
 
 <h1 id="version-history">Version History</h1>
+<h2 id="221">2.2.1</h2>
+<ul>
+<li><strong>Fix</strong>: Join and Union dtype validation now compares <code>_dtypes</code> metadata
+  (user intent) instead of raw numpy dtypes. Since <code>_format_dtype</code> collapses
+  <code>StringDType</code>, <code>&lt;U8</code>, <code>&lt;U12</code> etc. all to <code>'str'</code>, string columns with
+  different underlying representations no longer reject as mismatched.</li>
+<li><strong>Fix</strong>: <code>update_dtypes_inplace</code> preserves raw numpy dtypes for casting and
+  maps <code>'str'</code> label to <code>StringDType(na_object=None)</code> -- explicit
+  <code>update_dtypes_inplace({'x': 'str'})</code> now converts <code>&lt;U</code> columns to
+  nullable <code>StringDType</code>. Construction preserves the
+  original dtype unchanged.</li>
+<li><strong>Fix</strong>: Left join null-fill preserves column dtypes -- string columns use
+  <code>StringDType(na_object=None)</code>, float columns use <code>NaN</code>, datetime/timedelta
+  columns use <code>NaT</code>. Only int/bool/bytes fall back to <code>object</code> (with a
+  warning). Note: left join results with null-filled string columns carry
+  <code>StringDType(na_object=None)</code>, which differs from plain <code>StringDType()</code>.</li>
+<li>Warn when left join casts a column to <code>object</code> dtype due to unmatched rows</li>
+</ul>
 <h2 id="220">2.2.0</h2>
 <ul>
 <li><strong>Performance</strong>: Add C-accelerated <code>composite_key</code> for single-pass
