@@ -473,6 +473,10 @@ class GroupSet:
         if len(encoded) == 1:
             return encoded[0]
 
+        # empty arrays: return empty int64
+        if len(encoded[0]) == 0:
+            return np.array([], dtype=np.int64)
+
         # compute cardinality of each column
         cards = [int(c.max()) + 1 for c in encoded]
 
@@ -499,13 +503,10 @@ class GroupSet:
                 multiplier *= card
             return key
         else:
-            # fallback: structured array (slow but handles any cardinality)
-            n_rows = len(encoded[0])
-            dt = np.dtype([(f'f{i}', c.dtype) for i, c in enumerate(encoded)])
-            data = np.empty(n_rows, dtype=dt)
-            for i, c in enumerate(encoded):
-                data[f'f{i}'] = c
-            return data
+            raise ValueError(
+                'Composite key space overflow: too many unique key '
+                'combinations for multi-column join'
+            )
 
     @staticmethod
     def _decode_unique(
@@ -919,14 +920,51 @@ class Join(GroupSet):
             l_dtype = l_table._dtypes[l_column]
             r_dtype = r_table._dtypes[r_column]
 
-            # Compare user-declared dtypes (metadata). This is the user's
-            # intent for column type. _format_dtype collapses string variants
-            # (StringDType, <U8, <U12 → 'str') but preserves numeric width
-            # (int32 != int64, float32 != float64).
-            if l_dtype != r_dtype:
+            if l_dtype == r_dtype:
+                continue
+
+            # Check base type via _reduce_dtype (collapses str variants)
+            l_base = Tafra._reduce_dtype(l_dtype)
+            r_base = Tafra._reduce_dtype(r_dtype)
+            if l_base == r_base:
+                # Same base type (e.g. both 'str') — allow
+                continue
+
+            # Check numpy kind compatibility for numeric promotion
+            l_np = np.dtype(l_dtype)
+            r_np = np.dtype(r_dtype)
+            if l_np.kind == r_np.kind:
+                # Same family (e.g. int32 vs int64) — promote via result_type
+                promoted = np.result_type(l_np, r_np)
+                promoted_label = Tafra._format_dtype(promoted)
+                l_table._data[l_column] = l_table._data[l_column].astype(promoted)
+                l_table._dtypes[l_column] = promoted_label
+                r_table._data[r_column] = r_table._data[r_column].astype(promoted)
+                r_table._dtypes[r_column] = promoted_label
+            else:
                 raise TypeError(
                     f'This `Tafra` column `{l_column}` dtype `{l_dtype}` '
                     f'does not match other `Tafra` dtype `{r_dtype}`.')
+
+    @staticmethod
+    def _non_null_mask(
+        cols: list[np.ndarray[Any, Any]]
+    ) -> np.ndarray[Any, Any]:
+        """Build a boolean mask that is True for rows with no null in any key column."""
+        n = len(cols[0])
+        valid = np.ones(n, dtype=bool)
+        for c in cols:
+            kind = c.dtype.kind
+            if kind == 'f':
+                valid &= ~np.isnan(c)
+            elif kind in ('M', 'm'):
+                valid &= ~np.isnat(c)
+            elif kind in ('T', 'U'):
+                # StringDType: None is the null sentinel
+                valid &= np.array([x is not None for x in c], dtype=bool)
+            elif kind == 'O':
+                valid &= np.array([x is not None for x in c], dtype=bool)
+        return valid
 
     @staticmethod
     def _validate_ops(ops: Iterable[str]) -> None:
@@ -980,54 +1018,6 @@ class Join(GroupSet):
         ri = right_order[offsets + within]
 
         return li, ri
-
-    @staticmethod
-    def _left_join_indices(
-        left_key: np.ndarray[Any, Any],
-        right_key: np.ndarray[Any, Any],
-    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], bool]:
-        """
-        Compute left-join index pairs using sort-merge.
-        Unmatched left rows get right index = -1.
-        Returns (left_indices, right_indices, has_null).
-        """
-        right_order = np.argsort(right_key, kind='stable')
-        right_sorted = right_key[right_order]
-
-        left_lo = np.searchsorted(right_sorted, left_key, side='left')
-        left_hi = np.searchsorted(right_sorted, left_key, side='right')
-        counts = left_hi - left_lo
-
-        # unmatched left rows get count=0 → force to 1 (with sentinel)
-        unmatched = counts == 0
-        has_null = bool(np.any(unmatched))
-        out_counts = np.where(unmatched, 1, counts)
-
-        total = int(out_counts.sum())
-        li = np.repeat(np.arange(len(left_key), dtype=np.intp), out_counts)
-
-        # right indices
-        ri = np.empty(total, dtype=np.intp)
-        pos = 0
-        if has_null:
-            # mixed matched/unmatched — fill per group
-            for i in range(len(left_key)):
-                c = int(counts[i])
-                if c > 0:
-                    ri[pos:pos + c] = right_order[left_lo[i]:left_hi[i]]
-                    pos += c
-                else:
-                    ri[pos] = -1
-                    pos += 1
-        else:
-            # all matched — fully vectorized
-            offsets = np.repeat(left_lo, counts)
-            group_starts = np.cumsum(counts) - counts
-            within = np.arange(total, dtype=np.intp) - np.repeat(
-                group_starts, counts)
-            ri = right_order[offsets + within]
-
-        return li, ri, has_null
 
     def _resolve_join_cols(
         self, left_t: 'Tafra', right_t: 'Tafra'
@@ -1091,6 +1081,21 @@ class InnerJoin(Join):
         tafra: Tafra
             The joined `Tafra`.
         """
+        # Empty table shortcut — inner join with either side empty → empty result
+        if left_t._rows < 1 or right_t._rows < 1:
+            warnings.warn(
+                'Join: one or both tables have zero rows. '
+                'Returning shortcut result.', stacklevel=2)
+            join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
+            return Tafra(
+                {c: np.array(
+                    [], dtype=left_t._data[c].dtype
+                    if c in left_t._data
+                    else right_t._data[c].dtype)
+                 for c in join_cols},
+                dtypes
+            )
+
         left_cols, right_cols, ops = list(zip(*self.on))
         self._validate(left_t, left_cols)
         self._validate(right_t, right_cols)
@@ -1104,8 +1109,17 @@ class InnerJoin(Join):
             # Encode left+right together for consistent codebooks
             left_cols_data = [left_t._data[lc] for lc, _, _ in self.on]
             right_cols_data = [right_t._data[rc] for _, rc, _ in self.on]
+
+            # NULL != NULL: filter out rows with nulls in key columns
+            left_valid = self._non_null_mask(left_cols_data)
+            right_valid = self._non_null_mask(right_cols_data)
+            left_cols_filt = [c[left_valid] for c in left_cols_data]
+            right_cols_filt = [c[right_valid] for c in right_cols_data]
+            left_orig_idx = np.where(left_valid)[0]
+            right_orig_idx = np.where(right_valid)[0]
+
             l_enc, r_enc = GroupSet._encode_columns_paired(
-                left_cols_data, right_cols_data)
+                left_cols_filt, right_cols_filt)
             left_key = GroupSet._build_composite_key(l_enc)
             right_key = GroupSet._build_composite_key(r_enc)
 
@@ -1115,6 +1129,11 @@ class InnerJoin(Join):
                     np.ascontiguousarray(right_key, dtype=np.int64))
             else:
                 li, ri = self._sort_merge_indices(left_key, right_key)
+
+            # Map back to original row positions
+            if len(li) > 0:
+                li = left_orig_idx[li]
+                ri = right_orig_idx[ri]
 
             if len(li) == 0:
                 return Tafra(
@@ -1192,6 +1211,54 @@ class LeftJoin(Join):
         prefers the left over the right.
     """
 
+    @staticmethod
+    def _left_join_indices(
+        left_key: np.ndarray[Any, Any],
+        right_key: np.ndarray[Any, Any],
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], bool]:
+        """
+        Compute left-join index pairs using sort-merge.
+        Unmatched left rows get right index = -1.
+        Returns (left_indices, right_indices, has_null).
+        """
+        right_order = np.argsort(right_key, kind='stable')
+        right_sorted = right_key[right_order]
+
+        left_lo = np.searchsorted(right_sorted, left_key, side='left')
+        left_hi = np.searchsorted(right_sorted, left_key, side='right')
+        counts = left_hi - left_lo
+
+        # unmatched left rows get count=0 → force to 1 (with sentinel)
+        unmatched = counts == 0
+        has_null = bool(np.any(unmatched))
+        out_counts = np.where(unmatched, 1, counts)
+
+        total = int(out_counts.sum())
+        li = np.repeat(np.arange(len(left_key), dtype=np.intp), out_counts)
+
+        # right indices
+        ri = np.empty(total, dtype=np.intp)
+        pos = 0
+        if has_null:
+            # mixed matched/unmatched — fill per group
+            for i in range(len(left_key)):
+                c = int(counts[i])
+                if c > 0:
+                    ri[pos:pos + c] = right_order[left_lo[i]:left_hi[i]]
+                    pos += c
+                else:
+                    ri[pos] = -1
+                    pos += 1
+        else:
+            # all matched — fully vectorized
+            offsets = np.repeat(left_lo, counts)
+            group_starts = np.cumsum(counts) - counts
+            within = np.arange(total, dtype=np.intp) - np.repeat(
+                group_starts, counts)
+            ri = right_order[offsets + within]
+
+        return li, ri, has_null
+
     def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
         """
         Apply the `LeftJoin` to the `Tafra`.
@@ -1209,6 +1276,58 @@ class LeftJoin(Join):
         tafra: Tafra
             The joined `Tafra`.
         """
+        # Empty table shortcut
+        if left_t._rows < 1:
+            warnings.warn(
+                'Join: one or both tables have zero rows. '
+                'Returning shortcut result.', stacklevel=2)
+            join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
+            return Tafra(
+                {c: np.array(
+                    [], dtype=left_t._data[c].dtype
+                    if c in left_t._data
+                    else right_t._data[c].dtype)
+                 for c in join_cols},
+                dtypes
+            )
+        if right_t._rows < 1:
+            warnings.warn(
+                'Join: one or both tables have zero rows. '
+                'Returning shortcut result.', stacklevel=2)
+            join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
+            n_left = left_t._rows
+            shortcut: dict[str, np.ndarray[Any, Any]] = {}
+            for c in join_cols:
+                if c in left_t._data:
+                    shortcut[c] = left_t._data[c].copy()
+                else:
+                    # Null-fill right columns
+                    col_kind = right_t._data[c].dtype.kind
+                    if col_kind in ('T', 'U'):
+                        out = np.empty(
+                            n_left,
+                            dtype=np.dtypes.StringDType(na_object=None),  # type: ignore[call-arg]
+                        )
+                        out[:] = None  # type: ignore[assignment]
+                        dtypes[c] = 'str'
+                    elif col_kind == 'f':
+                        out = np.full(
+                            n_left, np.nan, dtype=right_t._data[c].dtype)
+                    elif col_kind in ('M', 'm'):
+                        nat = np.array(
+                            'NaT', dtype=right_t._data[c].dtype).item()
+                        out = np.full(
+                            n_left, nat, dtype=right_t._data[c].dtype)
+                    else:
+                        out = cast(
+                            np.ndarray[Any, Any],
+                            np.empty(n_left, dtype=object),
+                        )
+                        out[:] = None  # type: ignore[assignment]
+                        dtypes[c] = 'object'
+                    shortcut[c] = out
+            return Tafra(shortcut, dtypes)
+
         left_cols, right_cols, ops = list(zip(*self.on))
         self._validate(left_t, left_cols)
         self._validate(right_t, right_cols)
@@ -1221,8 +1340,18 @@ class LeftJoin(Join):
         if all_equi:
             left_cols_data = [left_t._data[lc] for lc, _, _ in self.on]
             right_cols_data = [right_t._data[rc] for _, rc, _ in self.on]
+
+            # NULL != NULL: filter out rows with nulls in key columns
+            left_valid = self._non_null_mask(left_cols_data)
+            right_valid = self._non_null_mask(right_cols_data)
+            left_cols_filt = [c[left_valid] for c in left_cols_data]
+            right_cols_filt = [c[right_valid] for c in right_cols_data]
+            left_orig_idx = np.where(left_valid)[0]
+            right_orig_idx = np.where(right_valid)[0]
+            left_null_idx = np.where(~left_valid)[0]
+
             l_enc, r_enc = GroupSet._encode_columns_paired(
-                left_cols_data, right_cols_data)
+                left_cols_filt, right_cols_filt)
             left_key = GroupSet._build_composite_key(l_enc)
             right_key = GroupSet._build_composite_key(r_enc)
 
@@ -1232,6 +1361,23 @@ class LeftJoin(Join):
                     np.ascontiguousarray(right_key, dtype=np.int64))
             else:
                 li, ri, has_null = self._left_join_indices(left_key, right_key)
+
+            # Map back to original row positions
+            if len(li) > 0:
+                li = left_orig_idx[li]
+                ri_mapped = np.where(ri >= 0, right_orig_idx[ri], -1)
+            else:
+                ri_mapped = ri
+
+            # Append null-key left rows (they always get unmatched)
+            if len(left_null_idx) > 0:
+                has_null = True
+                li = np.concatenate([li, left_null_idx])
+                ri_mapped = np.concatenate([
+                    ri_mapped,
+                    np.full(len(left_null_idx), -1, dtype=np.intp)])
+
+            ri = ri_mapped
 
             if has_null:
                 for c in join_cols:
@@ -1390,31 +1536,45 @@ class CrossJoin(Join):
         tafra: Tafra
             The joined `Tafra`.
         """
+        # Empty table shortcut — cross join with either side empty → empty result
+        if left_t._rows < 1 or right_t._rows < 1:
+            warnings.warn(
+                'Join: one or both tables have zero rows. '
+                'Returning shortcut result.', stacklevel=2)
+            join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
+            return Tafra(
+                {c: np.array(
+                    [], dtype=left_t._data[c].dtype
+                    if c in left_t._data
+                    else right_t._data[c].dtype)
+                 for c in join_cols},
+                dtypes
+            )
+
         self._validate_dtypes(left_t, right_t)
 
         left_rows = left_t._rows
         right_rows = right_t._rows
 
-        select = set(self.select)
+        select = list(self.select)
         if len(select) > 0:
-            left_cols = list(select.intersection(list(left_t._data.keys())))
-            right_cols = list(select.intersection(list(right_t._data.keys())))
-
-            if len(left_cols) == 0:
-                raise IndexError('No columns given to select from left `Tafra`.')
-            if len(right_cols) == 0:
-                raise IndexError('No columns given to select from right `Tafra`.')
-
+            left_cols = [c for c in select if c in left_t._data]
+            right_cols = [c for c in select if c in right_t._data]
         else:
             left_cols = list(left_t._data.keys())
             right_cols = list(right_t._data.keys())
 
-        left_new = Tafra(left_t[left_cols].key_map(np.tile, reps=right_rows))
-        right_new = Tafra(right_t[right_cols].key_map(np.tile, reps=left_rows))
+        left_data = dict(left_t[left_cols].key_map(np.repeat, repeats=right_rows))
+        right_data = dict(right_t[right_cols].key_map(np.tile, reps=left_rows))
 
-        left_new.update_inplace(right_new)
+        # Left takes precedence on shared column names (matching inner/left join)
+        result: dict[str, np.ndarray[Any, Any]] = {}
+        for c, v in right_data.items():
+            if c not in left_data:
+                result[c] = v
+        result.update(left_data)
 
-        return left_new
+        return Tafra(result)
 
 
 # Import here to resolve circular dependency
