@@ -52,7 +52,10 @@ _TYPE_PRECEDENCE: list[ReadableType] = [
     # TODO: datetime,
 ]
 
-_TYPE_OBJECT: ReadableType = ReadableType(np.dtypes.StringDType(), lambda x: x)
+_TYPE_OBJECT: ReadableType = ReadableType(
+    np.dtypes.StringDType(na_object=None),  # type: ignore[call-arg]
+    lambda x: x,
+)
 
 
 class ReaderState(Enum):

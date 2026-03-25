@@ -255,18 +255,18 @@ def bench_partition_vs_groupby(n_rows: int, n_groups: int,
 
     print(f"  [{n_groups} groups, {n_rows} rows, {n_workers} workers]")
 
-    with timer(f"  group_by (light agg)"):
+    with timer("  group_by (light agg)"):
         t.group_by(['group_a'], {
             'mean_v1': (np.mean, 'value1'),
             'std_v1': (np.std, 'value1'),
         })
 
-    with timer(f"  partition+serial (light)"):
+    with timer("  partition+serial (light)"):
         parts = t.partition(['group_a'])
         results = [_light_worker(sub) for _, sub in parts]
         Tafra.concat(results)
 
-    with timer(f"  partition+serial (heavy)"):
+    with timer("  partition+serial (heavy)"):
         parts = t.partition(['group_a'])
         results = [_heavy_worker(sub) for _, sub in parts]
         Tafra.concat(results)

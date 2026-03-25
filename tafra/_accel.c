@@ -405,7 +405,7 @@ accel_composite_key(PyObject *self, PyObject *args)
     }
 
     for (Py_ssize_t c = 0; c < n_cols; c++) Py_DECREF(col_arrs[c]);
-    free(col_arrs); free(cards); free(mult); free(col_data);
+    free(col_arrs); free(cards); free(mult); free((void *)col_data);
     return (PyObject *)out;
 }
 

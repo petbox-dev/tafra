@@ -266,6 +266,27 @@ pandas:  7.81 ms   # same (numpy underneath)
 polars:  7.87 ms   # +2% (arrow→numpy conversion)
 ```
 
-- **Import note** If you assign directly to the `Tafra.data` or
-  `Tafra._data` attributes, you *must* call `Tafra._coalesce_dtypes`
-  afterwards in order to ensure the typing is consistent.
+### Dtype metadata
+
+Each `Tafra` tracks column dtypes in `_dtypes` — a dict of user-declared
+type labels (e.g. `'str'`, `'int64'`, `'float64'`). This metadata is the
+source of truth for dtype validation in joins, unions, and dtype updates.
+Use `update_dtypes_inplace` to change a column's type:
+
+```python
+>>> t.update_dtypes_inplace({'x': 'str'})  # converts to StringDType
+>>> t.update_dtypes_inplace({'x': 'float64'})  # converts to float64
+```
+
+If you assign directly to `Tafra.data` or `Tafra._data`, you *must* call
+`Tafra._coalesce_dtypes()` to resync the metadata.
+
+### Left join null handling
+
+When a left join has unmatched rows, right-side columns are filled with
+native null values where possible:
+
+- **String columns** → `StringDType(na_object=None)` with `None`
+- **Float columns** → original dtype with `NaN`
+- **Datetime/timedelta columns** → original dtype with `NaT`
+- **Int/bool/bytes columns** → `object` dtype with `None` (a warning is emitted)

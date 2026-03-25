@@ -405,7 +405,7 @@ if __name__ == '__main__':
     accel_status = "C extension ACTIVE" if HAS_ACCEL else "C extension NOT available"
     print(f"Tafra Performance Comparison ({accel_status})")
     print(libs)
-    print(f"All times in ms. * = fastest in row.")
+    print("All times in ms. * = fastest in row.")
     print("=" * 80)
 
     bench_construction()

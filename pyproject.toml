@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tafra"
-version = "2.2.0"
+version = "2.2.1"
 description = "Tafra: essence of a dataframe"
 readme = "README.md"
 license = "MIT"
@@ -98,6 +98,12 @@ warn_unused_ignores = true
 [[tool.mypy.overrides]]
 module = "IPython.*"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# numpy stubs differ across Python versions, causing type: ignore
+# comments to be needed in some envs but unused in others.
+module = ["tafra.base", "tafra.group", "tafra.formatter", "tafra.csvreader"]
+warn_unused_ignores = false
 
 [[tool.mypy.overrides]]
 module = "test.*"

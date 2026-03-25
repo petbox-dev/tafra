@@ -176,7 +176,7 @@ class Tafra:
             if rows is None:
                 raise ValueError('No data provided in constructor statement.')
 
-            self.update_dtypes_inplace(self._dtypes)
+            self.update_dtypes_inplace(self._dtypes, _from_init=True)
             # must coalesce all dtypes immediately, other functions assume a
             # proper structure of the Tafra
             self._coalesce_dtypes()
@@ -746,7 +746,8 @@ class Tafra:
                 value = np.full(rows, value)
 
         elif isinstance(value, str):
-            value = np.full(rows, value, dtype=np.dtypes.StringDType())
+            _sd = np.dtypes.StringDType(na_object=None)  # type: ignore[call-arg]
+            value = np.full(rows, value, dtype=_sd)
 
         elif isinstance(value, Iterator):
             value = np.asarray(tuple(value))
@@ -1546,7 +1547,7 @@ class Tafra:
         """
         stats = ['count', 'mean', 'std', 'min', '25%', '50%', '75%', 'max']
         result: dict[str, np.ndarray[Any, Any]] = {
-            'stat': np.array(stats, dtype=np.dtypes.StringDType())
+            'stat': np.array(stats, dtype=np.dtypes.StringDType(na_object=None))  # type: ignore[call-arg]
         }
         for col, val in self._data.items():
             if val.dtype.kind in ('i', 'u', 'f'):
@@ -1744,7 +1745,8 @@ class Tafra:
         tafra.update_dtypes_inplace(dtypes)
         return tafra
 
-    def update_dtypes_inplace(self, dtypes: dict[str, Any]) -> None:
+    def update_dtypes_inplace(self, dtypes: dict[str, Any],
+                              _from_init: bool = False) -> None:
         """
         Inplace version.
 
@@ -1757,23 +1759,51 @@ class Tafra:
 
         Returns
         -------
-        tafra: Tafra | None
-            The updated `Tafra`.
+        None
+            This method mutates the `Tafra` in place.
         """
-        dtypes = self._validate_dtypes(dtypes)
-        self._dtypes.update(dtypes)
-
-        for column in dtypes.keys():
-            if self._format_dtype(self._data[column].dtype) != self._dtypes[column]:
+        # Preserve raw numpy dtypes for casting, since _format_dtype
+        # collapses e.g. <U and StringDType into the same 'str' label.
+        raw_dtypes: dict[str, Any] = {}
+        for column, dtype in dtypes.items():
+            self._validate_columns([column])
+            if isinstance(dtype, np.dtype):
+                raw_dtypes[column] = dtype
+            elif isinstance(dtype, str) and dtype == 'str' and not _from_init:
+                # 'str' label → StringDType with na_object=None so the
+                # column can hold None values. Skip during __post_init__
+                # to preserve the original dtype.
+                raw_dtypes[column] = np.dtypes.StringDType(na_object=None)  # type: ignore[call-arg]
+            else:
                 try:
-                    self._data[column] = self._data[column].astype(self._dtypes[column])
+                    raw_dtypes[column] = np.dtype(dtype)
+                except TypeError:
+                    # StringDType() can't go through np.dtype(); keep as-is
+                    raw_dtypes[column] = dtype
+
+        formatted = self._validate_dtypes(dtypes)
+        self._dtypes.update(formatted)
+
+        for column, target_dtype in raw_dtypes.items():
+            current_dtype = self._data[column].dtype
+            # Skip when the target is the ambiguous np.dtype('str') (= <U0)
+            # and the source is already a string type. This happens when
+            # __post_init__ round-trips through formatted labels ('str').
+            # Explicit StringDType() or specific <U widths are NOT skipped.
+            if (isinstance(target_dtype, np.dtype)
+                    and target_dtype == np.dtype('str')
+                    and self._reduce_dtype(current_dtype) == 'str'):
+                continue
+            if current_dtype != target_dtype:
+                try:
+                    self._data[column] = self._data[column].astype(target_dtype)
                 except ValueError:
                     REPL_VALS = ['', ]
                     col_data = self._data[column].astype(object)
                     for repl_val in REPL_VALS:
                         where_repl = np.equal(col_data, repl_val)
                         col_data[where_repl] = None
-                    self._data[column] = col_data.astype(self._dtypes[column])
+                    self._data[column] = col_data.astype(target_dtype)
 
     def rename(self, renames: dict[str, str]) -> 'Tafra':
         """

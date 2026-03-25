@@ -18,6 +18,7 @@ __all__ = ['GroupBy', 'Transform', 'IterateBy', 'InnerJoin', 'LeftJoin',
            'percentile', 'geomean', 'harmean']
 
 import operator
+import warnings
 from itertools import chain
 import dataclasses as dc
 
@@ -343,12 +344,8 @@ class Union:
                 raise TypeError(
                     f'This `Tafra` column `{data_column}` does not exist in right `Tafra`.')
 
-            elif value.dtype != right._data[data_column].dtype:
-                raise TypeError(
-                    f'This `Tafra` column `{data_column}` dtype `{value.dtype}` '
-                    f'does not match right `Tafra` dtype `{right._data[data_column].dtype}`.')
-
-            # should not happen unless dtypes manually changed, but let's check it
+            # Compare user-declared dtypes (metadata = intent).
+            # _format_dtype collapses string variants to 'str'.
             elif dtype != right._dtypes[dtype_column]:
                 raise TypeError(
                     f'This `Tafra` column `{data_column}` dtype `{dtype}` '
@@ -919,18 +916,14 @@ class Join(GroupSet):
 
     def _validate_dtypes(self, l_table: 'Tafra', r_table: 'Tafra') -> None:
         for l_column, r_column, _ in self.on:
-            l_value = l_table._data[l_column]
-            r_value = r_table._data[r_column]
             l_dtype = l_table._dtypes[l_column]
             r_dtype = r_table._dtypes[r_column]
 
-            if l_value.dtype != r_value.dtype:
-                raise TypeError(
-                    f'This `Tafra` column `{l_column}` dtype `{l_value.dtype}` '
-                    f'does not match other `Tafra` dtype `{r_value.dtype}`.')
-
-            # should not happen unless dtypes manually changed, but let's check it
-            elif l_dtype != r_dtype:
+            # Compare user-declared dtypes (metadata). This is the user's
+            # intent for column type. _format_dtype collapses string variants
+            # (StringDType, <U8, <U12 → 'str') but preserves numeric width
+            # (int32 != int64, float32 != float64).
+            if l_dtype != r_dtype:
                 raise TypeError(
                     f'This `Tafra` column `{l_column}` dtype `{l_dtype}` '
                     f'does not match other `Tafra` dtype `{r_dtype}`.')
@@ -1243,7 +1236,10 @@ class LeftJoin(Join):
             if has_null:
                 for c in join_cols:
                     if c not in left_t._data and dtypes.get(c) != 'object':
-                        dtypes[c] = 'object'
+                        col_kind = right_t._data[c].dtype.kind
+                        # Kinds with native null: T/U (str), f (float), M/m (datetime)
+                        if col_kind not in ('T', 'U', 'f', 'M', 'm'):
+                            dtypes[c] = 'object'
 
             result: dict[str, np.ndarray[Any, Any]] = {}
             matched = ri >= 0
@@ -1251,11 +1247,42 @@ class LeftJoin(Join):
                 if c in left_t._data:
                     result[c] = left_t._data[c][li]
                 else:
-                    # right column: fill matched rows, None for unmatched
+                    # right column: fill matched rows, null for unmatched
                     if has_null:
-                        out = np.empty(len(li), dtype=object)
-                        out[matched] = right_t._data[c][ri[matched]]
-                        out[~matched] = None
+                        col_kind = right_t._data[c].dtype.kind
+                        if col_kind in ('T', 'U'):
+                            # String types: use StringDType(na_object=None)
+                            out = np.empty(len(li), dtype=np.dtypes.StringDType(na_object=None))  # type: ignore[call-arg]
+                            out[matched] = right_t._data[c][ri[matched]]
+                            out[~matched] = None  # type: ignore[assignment]
+                            dtypes[c] = 'str'
+                        elif col_kind == 'f':
+                            # Float types: use NaN for missing
+                            out = np.full(len(li), np.nan, dtype=right_t._data[c].dtype)
+                            out[matched] = right_t._data[c][ri[matched]]
+                        elif col_kind in ('M', 'm'):
+                            # datetime64/timedelta64: use NaT for missing
+                            nat = np.array('NaT', dtype=right_t._data[c].dtype).item()
+                            out = np.empty(len(li), dtype=right_t._data[c].dtype)
+                            out[matched] = right_t._data[c][ri[matched]]
+                            out[~matched] = nat
+                        else:
+                            # int, bool, etc.: fall back to object
+                            warnings.warn(
+                                f"Left join: column '{c}' "
+                                f"(dtype {right_t._data[c].dtype}) "
+                                f"has unmatched rows and no native null "
+                                f"representation. Dtype has been cast to "
+                                f"object. Use .astype(float) if NaN "
+                                f"semantics are needed.",
+                                stacklevel=3,
+                            )
+                            out = cast(
+                                np.ndarray[Any, Any],
+                                np.empty(len(li), dtype=object),
+                            )
+                            out[matched] = right_t._data[c][ri[matched]]
+                            out[~matched] = None  # type: ignore[assignment]
                         result[c] = out
                     else:
                         result[c] = right_t._data[c][ri]
@@ -1269,6 +1296,7 @@ class LeftJoin(Join):
             )
             right_rows = np.empty(right_t._rows, dtype=bool)
             join: dict[str, list[Any]] = {c: [] for c in join_cols}
+            has_null = False
 
             for i in range(left_t._rows):
                 right_rows[:] = True
@@ -1284,17 +1312,49 @@ class LeftJoin(Join):
                             [left_t._data[column][i]] * max(1, right_count))
                     elif column in right_t._data:
                         if right_count <= 0:
+                            has_null = True
                             join[column].append(None)
-                            if dtypes[column] != 'object':
+                            col_kind = right_t._data[column].dtype.kind
+                            if (col_kind not in ('T', 'U', 'f', 'M', 'm')
+                                    and dtypes[column] != 'object'):
+                                warnings.warn(
+                                    f"Left join: column '{column}' "
+                                    f"(dtype {right_t._data[column].dtype}) "
+                                    f"has unmatched rows and no native null "
+                                    f"representation. Dtype has been cast to "
+                                    f"object. Use .astype(float) if NaN "
+                                    f"semantics are needed.",
+                                    stacklevel=3,
+                                )
                                 dtypes[column] = 'object'
                         else:
                             join[column].extend(
                                 right_t._data[column][right_rows])
 
-            return Tafra(
-                {c: np.array(v) for c, v in join.items()},
-                dtypes
-            )
+            result_data: dict[str, np.ndarray[Any, Any]] = {}
+            for c, v in join.items():
+                col_kind = (right_t._data[c].dtype.kind
+                            if c in right_t._data else '')
+                if c not in left_t._data and col_kind in ('T', 'U') and has_null:
+                    result_data[c] = np.array(
+                        v,
+                        dtype=np.dtypes.StringDType(na_object=None),  # type: ignore[call-arg]
+                    )
+                    dtypes[c] = 'str'
+                elif c not in left_t._data and col_kind == 'f' and has_null:
+                    result_data[c] = np.array(
+                        [np.nan if x is None else x for x in v],
+                        dtype=right_t._data[c].dtype)
+                elif (c not in left_t._data
+                      and col_kind in ('M', 'm') and has_null):
+                    nat = np.array('NaT', dtype=right_t._data[c].dtype).item()
+                    result_data[c] = np.array(
+                        [nat if x is None else x for x in v],
+                        dtype=right_t._data[c].dtype)
+                else:
+                    result_data[c] = np.array(v)
+
+            return Tafra(result_data, dtypes)
 
 
 @dc.dataclass
