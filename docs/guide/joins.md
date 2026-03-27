@@ -268,14 +268,14 @@ intent for column types, not the raw numpy array dtype. This means:
 
 | Left key dtype | Right key dtype | Allowed? | Result dtype |
 |---|---|---|---|
-| `StringDType` | `<U10` | Yes | `StringDType` |
-| `<U8` | `<U12` | Yes | `<U12` |
+| `StringDType` | `<U10` | Yes | both keep original dtypes |
+| `<U8` | `<U12` | Yes | both keep original dtypes |
 | `int32` | `int64` | Yes (promoted) | `int64` |
 | `float32` | `float64` | Yes (promoted) | `float64` |
 | `int32` | `int32` | Yes | `int32` |
 | `int64` | `float64` | No — `TypeError` | — |
 | `int64` | `StringDType` | No — `TypeError` | — |
-| `datetime64[ns]` | `datetime64[us]` | Yes | `datetime64[ns]` |
+| `datetime64[ns]` | `datetime64[us]` | Yes | both keep original dtypes |
 
 Type promotion uses `np.result_type` under the hood — the same function numpy
 uses to determine output dtypes for binary operations. Users familiar with
@@ -408,7 +408,8 @@ Returning shortcut result.
 The `select` parameter controls which columns appear in the output.
 
 - If omitted, all unique column names are returned
-- Column order follows the `select` list
+- Column order follows left-table-then-right-table order (not `select` order)
+- `select` acts as a **filter**, not an ordering specification
 - Nonexistent column names are silently ignored
 - When a column name exists in both tables, the left table's version is used
 
@@ -416,9 +417,9 @@ The `select` parameter controls which columns appear in the output.
 result = left.inner_join(
     right,
     on=[('k', 'k', '==')],
-    select=['k', 'info', 'v'],  # order is preserved
+    select=['k', 'info', 'v'],  # acts as filter, order follows table order
 )
-print(result.columns)  # ('k', 'info', 'v')
+print(result.columns)  # ('k', 'v', 'info') — left columns first, then right
 ```
 
 ### Non-equality join performance

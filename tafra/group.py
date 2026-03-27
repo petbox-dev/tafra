@@ -55,6 +55,9 @@ try:
 except ImportError:
     _HAS_ACCEL = False
 
+# Dtype kinds that can hold null values (None, NaN, NaT).
+# Used by _non_null_mask to skip scanning for non-nullable types.
+_NULLABLE_KINDS: frozenset[str] = frozenset("fMmTUO")
 
 # Vectorized aggregation functions that can bypass per-group Python loops.
 # Maps function identity to a callable(data, labels, n_groups) -> result_array.
@@ -933,7 +936,13 @@ class Join(GroupSet):
     on: Iterable[tuple[str, str, str]]
     select: Iterable[str]
 
-    def _validate_dtypes(self, l_table: "Tafra", r_table: "Tafra") -> None:
+    def _validate_dtypes(self, l_table: "Tafra", r_table: "Tafra") -> dict[str, np.dtype[Any]]:
+        """Validate join key dtypes and compute promotions.
+
+        Returns a dict mapping column name -> promoted numpy dtype for any
+        columns that need casting. Does NOT mutate the input tables.
+        """
+        promotions: dict[str, np.dtype[Any]] = {}
         for l_column, r_column, _ in self.on:
             l_dtype = l_table._dtypes[l_column]
             r_dtype = r_table._dtypes[r_column]
@@ -945,36 +954,34 @@ class Join(GroupSet):
             l_base = Tafra._reduce_dtype(l_dtype)
             r_base = Tafra._reduce_dtype(r_dtype)
             if l_base == r_base == "str":
-                # Both are string types — allow without promotion
                 continue
 
             # Check numpy kind compatibility for numeric promotion
             l_np = np.dtype(l_dtype)
             r_np = np.dtype(r_dtype)
             if l_np.kind == r_np.kind:
-                # Same family (e.g. int32 vs int64) — promote via result_type
                 promoted = np.result_type(l_np, r_np)
-                promoted_label = Tafra._format_dtype(promoted)
-                l_table._data[l_column] = l_table._data[l_column].astype(promoted)
-                l_table._dtypes[l_column] = promoted_label
-                r_table._data[r_column] = r_table._data[r_column].astype(promoted)
-                r_table._dtypes[r_column] = promoted_label
+                promotions[l_column] = promoted
+                promotions[r_column] = promoted
             else:
                 raise TypeError(
                     f"This `Tafra` column `{l_column}` dtype `{l_dtype}` "
                     f"does not match other `Tafra` dtype `{r_dtype}`."
                 )
+        return promotions
 
     @staticmethod
-    def _non_null_mask(cols: list[np.ndarray[Any, Any]]) -> np.ndarray[Any, Any]:
-        """Build a boolean mask that is True for rows with no null in any key column."""
-        n = len(cols[0])
-        # Fast path: if all columns are non-nullable types (int, uint, bool),
-        # no nulls are possible — return all-True without allocating.
-        nullable_kinds = frozenset("fMmTUOS")
-        if not any(c.dtype.kind in nullable_kinds for c in cols):
-            return np.ones(n, dtype=bool)
+    def _non_null_mask(cols: list[np.ndarray[Any, Any]]) -> np.ndarray[Any, Any] | None:
+        """Build a boolean mask that is True for rows with no null in any key column.
 
+        Returns None if all columns are non-nullable types (int, uint, bool),
+        meaning no nulls are possible and no mask is needed.
+        """
+        # Fast path: non-nullable types cannot hold nulls — skip entirely.
+        if not any(c.dtype.kind in _NULLABLE_KINDS for c in cols):
+            return None
+
+        n = len(cols[0])
         valid = np.ones(n, dtype=bool)
         for c in cols:
             kind = c.dtype.kind
@@ -985,7 +992,11 @@ class Join(GroupSet):
             elif kind in ("T", "U"):
                 valid &= np.array([x is not None for x in c], dtype=bool)
             elif kind == "O":
-                valid &= np.array([x is not None for x in c], dtype=bool)
+                # Object arrays can hold None, NaN, and NaT simultaneously
+                valid &= np.array(
+                    [x is not None and not (isinstance(x, float) and np.isnan(x)) for x in c],
+                    dtype=bool,
+                )
         return valid
 
     @staticmethod
@@ -1101,12 +1112,21 @@ class InnerJoin(Join):
         tafra: Tafra
             The joined `Tafra`.
         """
-        # Empty table shortcut — inner join with either side empty → empty result
+        # Validate structure — column names and operators (works even on empty tables)
+        left_cols, right_cols, ops = list(zip(*self.on))
+        left_t._validate_columns(left_cols)
+        right_t._validate_columns(right_cols)
+        promotions = self._validate_dtypes(left_t, right_t)
+        self._validate_ops(ops)
+
+        join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
+
+        # Empty table shortcut — after validation so schema errors aren't hidden
         if left_t._rows < 1 or right_t._rows < 1:
             warnings.warn(
-                "Join: one or both tables have zero rows. Returning shortcut result.", stacklevel=2
+                "Join: one or both tables have zero rows. Returning shortcut result.",
+                stacklevel=2,
             )
-            join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
             return Tafra(
                 {
                     c: np.array(
@@ -1120,27 +1140,31 @@ class InnerJoin(Join):
                 dtypes,
             )
 
-        left_cols, right_cols, ops = list(zip(*self.on))
-        self._validate(left_t, left_cols)
-        self._validate(right_t, right_cols)
-        self._validate_dtypes(left_t, right_t)
-        self._validate_ops(ops)
-
-        join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
         all_equi = all(op_str == "==" for _, _, op_str in self.on)
 
         if all_equi:
-            # Encode left+right together for consistent codebooks
-            left_cols_data = [left_t._data[lc] for lc, _, _ in self.on]
-            right_cols_data = [right_t._data[rc] for _, rc, _ in self.on]
+            # Build key arrays — apply promotions on copies, not originals
+            left_cols_data = [
+                left_t._data[lc].astype(promotions[lc], copy=False)
+                if lc in promotions
+                else left_t._data[lc]
+                for lc, _, _ in self.on
+            ]
+            right_cols_data = [
+                right_t._data[rc].astype(promotions[rc], copy=False)
+                if rc in promotions
+                else right_t._data[rc]
+                for _, rc, _ in self.on
+            ]
 
             # NULL != NULL: filter out rows with nulls in key columns
             left_valid = self._non_null_mask(left_cols_data)
             right_valid = self._non_null_mask(right_cols_data)
-            has_left_nulls = not left_valid.all()
-            has_right_nulls = not right_valid.all()
+            has_left_nulls = left_valid is not None and not left_valid.all()
+            has_right_nulls = right_valid is not None and not right_valid.all()
 
             if has_left_nulls or has_right_nulls:
+                assert left_valid is not None and right_valid is not None
                 left_cols_filt = [c[left_valid] for c in left_cols_data]
                 right_cols_filt = [c[right_valid] for c in right_cols_data]
                 left_orig_idx = np.where(left_valid)[0]
@@ -1301,12 +1325,21 @@ class LeftJoin(Join):
         tafra: Tafra
             The joined `Tafra`.
         """
-        # Empty table shortcut
+        # Validate structure — column names and operators (works even on empty tables)
+        left_cols, right_cols, ops = list(zip(*self.on))
+        left_t._validate_columns(left_cols)
+        right_t._validate_columns(right_cols)
+        promotions = self._validate_dtypes(left_t, right_t)
+        self._validate_ops(ops)
+
+        join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
+
+        # Empty table shortcuts — after validation
         if left_t._rows < 1:
             warnings.warn(
-                "Join: one or both tables have zero rows. Returning shortcut result.", stacklevel=2
+                "Join: one or both tables have zero rows. Returning shortcut result.",
+                stacklevel=2,
             )
-            join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
             return Tafra(
                 {
                     c: np.array(
@@ -1321,16 +1354,15 @@ class LeftJoin(Join):
             )
         if right_t._rows < 1:
             warnings.warn(
-                "Join: one or both tables have zero rows. Returning shortcut result.", stacklevel=2
+                "Join: one or both tables have zero rows. Returning shortcut result.",
+                stacklevel=2,
             )
-            join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
             n_left = left_t._rows
             shortcut: dict[str, np.ndarray[Any, Any]] = {}
             for c in join_cols:
                 if c in left_t._data:
                     shortcut[c] = left_t._data[c].copy()
                 else:
-                    # Null-fill right columns
                     col_kind = right_t._data[c].dtype.kind
                     if col_kind in ("T", "U"):
                         out = np.empty(
@@ -1353,27 +1385,31 @@ class LeftJoin(Join):
                         dtypes[c] = "object"
                     shortcut[c] = out
             return Tafra(shortcut, dtypes)
-
-        left_cols, right_cols, ops = list(zip(*self.on))
-        self._validate(left_t, left_cols)
-        self._validate(right_t, right_cols)
-        self._validate_dtypes(left_t, right_t)
-        self._validate_ops(ops)
-
-        join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
         all_equi = all(op_str == "==" for _, _, op_str in self.on)
 
         if all_equi:
-            left_cols_data = [left_t._data[lc] for lc, _, _ in self.on]
-            right_cols_data = [right_t._data[rc] for _, rc, _ in self.on]
+            # Build key arrays — apply promotions on copies, not originals
+            left_cols_data = [
+                left_t._data[lc].astype(promotions[lc], copy=False)
+                if lc in promotions
+                else left_t._data[lc]
+                for lc, _, _ in self.on
+            ]
+            right_cols_data = [
+                right_t._data[rc].astype(promotions[rc], copy=False)
+                if rc in promotions
+                else right_t._data[rc]
+                for _, rc, _ in self.on
+            ]
 
             # NULL != NULL: filter out rows with nulls in key columns
             left_valid = self._non_null_mask(left_cols_data)
             right_valid = self._non_null_mask(right_cols_data)
-            has_left_nulls = not left_valid.all()
-            has_right_nulls = not right_valid.all()
+            has_left_nulls = left_valid is not None and not left_valid.all()
+            has_right_nulls = right_valid is not None and not right_valid.all()
 
             if has_left_nulls or has_right_nulls:
+                assert left_valid is not None and right_valid is not None
                 left_cols_filt = [c[left_valid] for c in left_cols_data]
                 right_cols_filt = [c[right_valid] for c in right_cols_data]
                 left_orig_idx = np.where(left_valid)[0]
@@ -1399,7 +1435,11 @@ class LeftJoin(Join):
             # Map back to original row positions only if nulls were filtered
             if (has_left_nulls or has_right_nulls) and len(li) > 0:
                 li = left_orig_idx[li]
-                ri_mapped = np.where(ri >= 0, right_orig_idx[ri], -1)
+                # Safe indexing: avoid right_orig_idx[-1] when ri contains -1
+                ri_mapped = np.full_like(ri, -1, dtype=np.intp)
+                nonneg = ri >= 0
+                if np.any(nonneg):
+                    ri_mapped[nonneg] = right_orig_idx[ri[nonneg]]
             else:
                 ri_mapped = ri
 
@@ -1417,18 +1457,18 @@ class LeftJoin(Join):
                 for c in join_cols:
                     if c not in left_t._data and dtypes.get(c) != "object":
                         col_kind = right_t._data[c].dtype.kind
-                        # Kinds with native null: T/U (str), f (float), M/m (datetime)
                         if col_kind not in ("T", "U", "f", "M", "m"):
                             dtypes[c] = "object"
 
             result: dict[str, np.ndarray[Any, Any]] = {}
-            matched = ri >= 0
+            matched = ri >= 0 if has_null else None
             for c in join_cols:
                 if c in left_t._data:
                     result[c] = left_t._data[c][li]
                 else:
                     # right column: fill matched rows, null for unmatched
                     if has_null:
+                        assert matched is not None
                         col_kind = right_t._data[c].dtype.kind
                         if col_kind in ("T", "U"):
                             # String types: use StringDType(na_object=None)
@@ -1564,12 +1604,14 @@ class CrossJoin(Join):
         tafra: Tafra
             The joined `Tafra`.
         """
+        join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
+
         # Empty table shortcut — cross join with either side empty → empty result
         if left_t._rows < 1 or right_t._rows < 1:
             warnings.warn(
-                "Join: one or both tables have zero rows. Returning shortcut result.", stacklevel=2
+                "Join: one or both tables have zero rows. Returning shortcut result.",
+                stacklevel=2,
             )
-            join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
             return Tafra(
                 {
                     c: np.array(
@@ -1582,8 +1624,6 @@ class CrossJoin(Join):
                 },
                 dtypes,
             )
-
-        self._validate_dtypes(left_t, right_t)
 
         left_rows = left_t._rows
         right_rows = right_t._rows
@@ -1606,7 +1646,7 @@ class CrossJoin(Join):
                 result[c] = v
         result.update(left_data)
 
-        return Tafra(result)
+        return Tafra(result, dtypes)
 
 
 # Import here to resolve circular dependency
