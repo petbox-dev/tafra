@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.5">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -784,6 +784,100 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#null-handling-dtype-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Null Handling &amp; Dtype Behavior
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Null Handling &amp; Dtype Behavior">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dtype-validation-on-join-keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dtype validation on join keys
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#null-values-in-join-keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Null values in join keys
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#left-join-null-fill-by-dtype" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Left join null-fill by dtype
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#type-promotion-in-join-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Type promotion in join results
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#empty-table-joins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Empty table joins
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#column-selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Column selection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#non-equality-join-performance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Non-equality join performance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1256,6 +1350,100 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#null-handling-dtype-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Null Handling &amp; Dtype Behavior
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Null Handling &amp; Dtype Behavior">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dtype-validation-on-join-keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dtype validation on join keys
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#null-values-in-join-keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Null values in join keys
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#left-join-null-fill-by-dtype" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Left join null-fill by dtype
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#type-promotion-in-join-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Type promotion in join results
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#empty-table-joins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Empty table joins
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#column-selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Column selection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#non-equality-join-performance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Non-equality join performance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1325,8 +1513,8 @@ when a column exists in both.</p>
 <h2 id="inner-join">Inner Join</h2>
 <p>Returns only rows where the join condition matches in both tables. Analogous
 to SQL <code>INNER JOIN</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span> <span class="nn">tafra</span> <span class="kn">import</span> <span class="n">Tafra</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tafra</span><span class="w"> </span><span class="kn">import</span> <span class="n">Tafra</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">orders</span> <span class="o">=</span> <span class="n">Tafra</span><span class="p">({</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="s1">&#39;order_id&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]),</span>
@@ -1375,47 +1563,8 @@ to SQL <code>INNER JOIN</code>.</p>
 <h2 id="left-join">Left Join</h2>
 <p>Returns all rows from the left table, with matching rows from the right.
 Unmatched right-side columns are filled with native null values where possible.
-Analogous to SQL <code>LEFT JOIN</code>.</p>
-<div class="admonition note">
-<p class="admonition-title">Null handling in left joins</p>
-<p>Unmatched right-side columns preserve their dtype when a native null exists:</p>
-<table>
-<thead>
-<tr>
-<th>Column dtype</th>
-<th>Null value</th>
-<th>Result dtype</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>String (<code>StringDType</code>, <code>&lt;U</code>)</td>
-<td><code>None</code></td>
-<td><code>StringDType(na_object=None)</code></td>
-</tr>
-<tr>
-<td>Float (<code>float32</code>, <code>float64</code>)</td>
-<td><code>NaN</code></td>
-<td>original dtype preserved</td>
-</tr>
-<tr>
-<td>Datetime (<code>datetime64</code>)</td>
-<td><code>NaT</code></td>
-<td>original dtype preserved</td>
-</tr>
-<tr>
-<td>Timedelta (<code>timedelta64</code>)</td>
-<td><code>NaT</code></td>
-<td>original dtype preserved</td>
-</tr>
-<tr>
-<td>Int, bool, bytes</td>
-<td><code>None</code></td>
-<td><code>object</code> (with warning)</td>
-</tr>
-</tbody>
-</table>
-</div>
+Analogous to SQL <code>LEFT JOIN</code>. See <a href="#null-handling-dtype-behavior">Null Handling &amp; Dtype Behavior</a>
+for details on how each dtype is handled.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">orders</span><span class="o">.</span><span class="n">left_join</span><span class="p">(</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">customers</span><span class="p">,</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">on</span><span class="o">=</span><span class="p">[(</span><span class="s1">&#39;customer_id&#39;</span><span class="p">,</span> <span class="s1">&#39;customer_id&#39;</span><span class="p">,</span> <span class="s1">&#39;==&#39;</span><span class="p">)],</span>
@@ -1539,6 +1688,319 @@ optimization.</p>
 <p>Build the C extension with:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>python<span class="w"> </span>setup.py<span class="w"> </span>build_ext<span class="w"> </span>--inplace
 </code></pre></div>
+<h2 id="null-handling-dtype-behavior">Null Handling &amp; Dtype Behavior</h2>
+<h3 id="dtype-validation-on-join-keys">Dtype validation on join keys</h3>
+<p>Join keys are validated using the <code>_dtypes</code> metadata — the user's declared
+intent for column types, not the raw numpy array dtype. This means:</p>
+<ul>
+<li><strong>String variants match</strong>: <code>StringDType</code>, <code>StringDType(na_object=None)</code>,
+  <code>&lt;U8</code>, <code>&lt;U12</code> all reduce to <code>'str'</code> and can join freely.</li>
+<li><strong>Same-family numeric types are promoted</strong>: <code>int32</code> vs <code>int64</code>, or
+  <code>float32</code> vs <code>float64</code>, are promoted to the higher precision type using
+  <code>np.result_type</code>. The narrower column is cast automatically.</li>
+<li><strong>Different families are rejected</strong>: <code>int64</code> vs <code>float64</code>, or <code>int64</code> vs
+  <code>str</code>, raise <code>TypeError</code>.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Left key dtype</th>
+<th>Right key dtype</th>
+<th>Allowed?</th>
+<th>Result dtype</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>StringDType</code></td>
+<td><code>&lt;U10</code></td>
+<td>Yes</td>
+<td>both keep original dtypes</td>
+</tr>
+<tr>
+<td><code>&lt;U8</code></td>
+<td><code>&lt;U12</code></td>
+<td>Yes</td>
+<td>both keep original dtypes</td>
+</tr>
+<tr>
+<td><code>int32</code></td>
+<td><code>int64</code></td>
+<td>Yes (promoted)</td>
+<td><code>int64</code></td>
+</tr>
+<tr>
+<td><code>float32</code></td>
+<td><code>float64</code></td>
+<td>Yes (promoted)</td>
+<td><code>float64</code></td>
+</tr>
+<tr>
+<td><code>int32</code></td>
+<td><code>int32</code></td>
+<td>Yes</td>
+<td><code>int32</code></td>
+</tr>
+<tr>
+<td><code>int64</code></td>
+<td><code>float64</code></td>
+<td>No — <code>TypeError</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>int64</code></td>
+<td><code>StringDType</code></td>
+<td>No — <code>TypeError</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>datetime64[ns]</code></td>
+<td><code>datetime64[us]</code></td>
+<td>Yes</td>
+<td>both keep original dtypes</td>
+</tr>
+</tbody>
+</table>
+<p>Type promotion uses <code>np.result_type</code> under the hood — the same function numpy
+uses to determine output dtypes for binary operations. <strong>Promotion applies only
+to key matching</strong> — the original input tables are never modified, and the output
+column dtype depends on which table the column came from (left takes precedence
+for shared column names).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># int32 key joins with int64 key — promoted for matching, not in output</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="n">left</span> <span class="o">=</span> <span class="n">Tafra</span><span class="p">({</span><span class="s1">&#39;k&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span> <span class="s1">&#39;v&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">])})</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="n">right</span> <span class="o">=</span> <span class="n">Tafra</span><span class="p">({</span><span class="s1">&#39;k&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">),</span> <span class="s1">&#39;info&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="s1">&#39;a&#39;</span><span class="p">,</span> <span class="s1">&#39;b&#39;</span><span class="p">])})</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="n">result</span> <span class="o">=</span> <span class="n">left</span><span class="o">.</span><span class="n">inner_join</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="p">[(</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="s1">&#39;==&#39;</span><span class="p">)])</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="c1"># Works — k promoted to int64 internally for matching</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="c1"># result[&#39;k&#39;].dtype is int32 (left table wins)</span>
+</code></pre></div>
+<h3 id="null-values-in-join-keys">Null values in join keys</h3>
+<p>Null values in join keys (<code>None</code>, <code>NaN</code>, <code>NaT</code>) follow SQL semantics:
+<strong>NULL never equals NULL</strong>. Rows with null keys are excluded from matching.</p>
+<table>
+<thead>
+<tr>
+<th>Key dtype</th>
+<th>Null value</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Float</td>
+<td><code>NaN</code></td>
+<td>Excluded from matching</td>
+</tr>
+<tr>
+<td>String (<code>StringDType(na_object=None)</code>)</td>
+<td><code>None</code></td>
+<td>Excluded from matching</td>
+</tr>
+<tr>
+<td>Datetime (<code>datetime64</code>)</td>
+<td><code>NaT</code></td>
+<td>Excluded from matching</td>
+</tr>
+<tr>
+<td>Timedelta (<code>timedelta64</code>)</td>
+<td><code>NaT</code></td>
+<td>Excluded from matching</td>
+</tr>
+</tbody>
+</table>
+<p>For <strong>inner joins</strong>, rows with null keys are dropped from both sides — they
+produce no output rows.</p>
+<p>For <strong>left joins</strong>, left-side rows with null keys are preserved in the output
+with null-filled right columns (since they can't match anything).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="n">left</span> <span class="o">=</span> <span class="n">Tafra</span><span class="p">({</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>    <span class="s1">&#39;k&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">]),</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>    <span class="s1">&#39;v&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">30</span><span class="p">]),</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="p">})</span>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="n">right</span> <span class="o">=</span> <span class="n">Tafra</span><span class="p">({</span>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>    <span class="s1">&#39;k&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">]),</span>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>    <span class="s1">&#39;info&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="s1">&#39;a&#39;</span><span class="p">,</span> <span class="s1">&#39;b&#39;</span><span class="p">,</span> <span class="s1">&#39;c&#39;</span><span class="p">]),</span>
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a><span class="p">})</span>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="c1"># Inner join: NaN rows excluded from both sides</span>
+<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="n">result</span> <span class="o">=</span> <span class="n">left</span><span class="o">.</span><span class="n">inner_join</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="p">[(</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="s1">&#39;==&#39;</span><span class="p">)])</span>
+<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="c1"># Result: k=[1.0, 3.0], v=[10, 30], info=[&#39;a&#39;, &#39;c&#39;]</span>
+<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a><span class="c1"># NaN row excluded — NaN != NaN</span>
+<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a>
+<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a><span class="c1"># Left join: NaN row preserved with null right columns</span>
+<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a><span class="n">result</span> <span class="o">=</span> <span class="n">left</span><span class="o">.</span><span class="n">left_join</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="p">[(</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="s1">&#39;==&#39;</span><span class="p">)])</span>
+<a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a><span class="c1"># Result: k=[1.0, NaN, 3.0], v=[10, 20, 30], info=[&#39;a&#39;, None, &#39;c&#39;]</span>
+</code></pre></div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Avoid using float columns as join keys. If you must, filter out NaN
+values first, or cast to integer IDs.</p>
+</div>
+<h3 id="left-join-null-fill-by-dtype">Left join null-fill by dtype</h3>
+<p>When a left join has unmatched rows, right-side columns are filled with
+native null values where the dtype supports them. Tafra preserves the
+original column precision — <code>float32</code> stays <code>float32</code>, not promoted to
+<code>float64</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Column dtype</th>
+<th>Null value</th>
+<th>Result dtype</th>
+<th>Warning?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>StringDType</code></td>
+<td><code>None</code></td>
+<td><code>StringDType(na_object=None)</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>&lt;U</code> (fixed unicode)</td>
+<td><code>None</code></td>
+<td><code>StringDType(na_object=None)</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>float32</code></td>
+<td><code>NaN</code></td>
+<td><code>float32</code> (preserved)</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>float64</code></td>
+<td><code>NaN</code></td>
+<td><code>float64</code> (preserved)</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>datetime64</code></td>
+<td><code>NaT</code></td>
+<td>original dtype preserved</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>timedelta64</code></td>
+<td><code>NaT</code></td>
+<td>original dtype preserved</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>int8</code>/<code>int16</code>/<code>int32</code>/<code>int64</code></td>
+<td><code>None</code></td>
+<td><code>object</code></td>
+<td><strong>Yes</strong></td>
+</tr>
+<tr>
+<td><code>bool</code></td>
+<td><code>None</code></td>
+<td><code>object</code></td>
+<td><strong>Yes</strong></td>
+</tr>
+<tr>
+<td><code>bytes</code></td>
+<td><code>None</code></td>
+<td><code>object</code></td>
+<td><strong>Yes</strong></td>
+</tr>
+</tbody>
+</table>
+<p>For integer, boolean, and bytes columns, numpy has no native null
+representation. These columns fall back to <code>object</code> dtype and a warning is
+emitted:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>UserWarning: Left join: column &#39;count&#39; (dtype int64) has unmatched rows
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>and no native null representation. Dtype has been cast to object.
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>Use .astype(float) if NaN semantics are needed.
+</code></pre></div>
+<p>To recover a numeric dtype after the join:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">left</span><span class="o">.</span><span class="n">left_join</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="p">[(</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="s1">&#39;==&#39;</span><span class="p">)])</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="c1"># Convert object column with None to float with NaN</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="n">result</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>    <span class="n">result</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="kc">None</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>  <span class="c1"># noqa: E711</span>
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>    <span class="n">result</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">],</span>
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="type-promotion-in-join-results">Type promotion in join results</h3>
+<p><strong>Shared column names</strong>: When both tables have a column with the same name,
+the left table's version takes precedence. No type promotion occurs — the
+right column is simply excluded.</p>
+<p><strong>Null-fill preserves precision</strong>: <code>float32</code> columns stay <code>float32</code> after
+null-fill (not widened to <code>float64</code>). The null value (<code>NaN</code>) fits in any
+float width.</p>
+<p><strong>String promotion</strong>: <code>&lt;U</code> (fixed-width unicode) columns are promoted to
+<code>StringDType(na_object=None)</code> when null values are needed, since fixed-width
+unicode cannot represent <code>None</code>.</p>
+<h3 id="empty-table-joins">Empty table joins</h3>
+<p>Joining with an empty table (zero rows) is allowed but emits a warning,
+since it usually indicates unexpected data:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>UserWarning: Join: one or both tables have zero rows.
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>Returning shortcut result.
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Inner join, either table empty</td>
+<td>Empty Tafra with correct columns/dtypes</td>
+</tr>
+<tr>
+<td>Left join, left empty</td>
+<td>Empty Tafra with correct columns/dtypes</td>
+</tr>
+<tr>
+<td>Left join, right empty</td>
+<td>Left table with null-filled right columns</td>
+</tr>
+<tr>
+<td>Cross join, either table empty</td>
+<td>Empty Tafra with correct columns/dtypes</td>
+</tr>
+</tbody>
+</table>
+<h3 id="column-selection">Column selection</h3>
+<p>The <code>select</code> parameter controls which columns appear in the output.</p>
+<ul>
+<li>If omitted, all unique column names are returned</li>
+<li>Column order follows left-table-then-right-table order (not <code>select</code> order)</li>
+<li><code>select</code> acts as a <strong>filter</strong>, not an ordering specification</li>
+<li>Nonexistent column names are silently ignored</li>
+<li>When a column name exists in both tables, the left table's version is used</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">left</span><span class="o">.</span><span class="n">inner_join</span><span class="p">(</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>    <span class="n">right</span><span class="p">,</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>    <span class="n">on</span><span class="o">=</span><span class="p">[(</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="s1">&#39;==&#39;</span><span class="p">)],</span>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>    <span class="n">select</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="s1">&#39;info&#39;</span><span class="p">,</span> <span class="s1">&#39;v&#39;</span><span class="p">],</span>  <span class="c1"># acts as filter, order follows table order</span>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="p">)</span>
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>  <span class="c1"># (&#39;k&#39;, &#39;v&#39;, &#39;info&#39;) — left columns first, then right</span>
+</code></pre></div>
+<h3 id="non-equality-join-performance">Non-equality join performance</h3>
+<p>Non-equality operators (<code>!=</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code>) use an O(n × m)
+row-by-row loop. They do not benefit from the C extension or sort-merge
+optimization. This applies even when mixed with equality conditions —
+if any condition uses a non-equality operator, the entire join falls back
+to the row-by-row path.</p>
+<p>For large datasets, consider restructuring the query to use an equality
+join followed by a filter:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1"># Instead of: left.inner_join(right, on=[(&#39;date&#39;, &#39;cutoff&#39;, &#39;&gt;=&#39;)])</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="c1"># Do:</span>
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="n">result</span> <span class="o">=</span> <span class="n">left</span><span class="o">.</span><span class="n">cross_join</span><span class="p">(</span><span class="n">right</span><span class="p">)</span>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="n">mask</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;date&#39;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;cutoff&#39;</span><span class="p">]</span>
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="n">result</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">_slice</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">mask</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+</code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">Row ordering</p>
+<p>Join results are not guaranteed to be in any particular order. The C
+extension (hash-based) and Python fallback (sort-merge) may produce
+rows in different orders. If you need a specific sort order, call
+<code>result.sort('column')</code> after the join. This matches SQL semantics —
+<code>SELECT</code> without <code>ORDER BY</code> has no guaranteed ordering.</p>
+</div>
 
 
 
