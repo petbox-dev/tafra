@@ -278,15 +278,18 @@ intent for column types, not the raw numpy array dtype. This means:
 | `datetime64[ns]` | `datetime64[us]` | Yes | both keep original dtypes |
 
 Type promotion uses `np.result_type` under the hood — the same function numpy
-uses to determine output dtypes for binary operations. Users familiar with
-numpy's promotion rules will find no surprises here.
+uses to determine output dtypes for binary operations. **Promotion applies only
+to key matching** — the original input tables are never modified, and the output
+column dtype depends on which table the column came from (left takes precedence
+for shared column names).
 
 ```python
-# int32 key joins with int64 key — promoted automatically
+# int32 key joins with int64 key — promoted for matching, not in output
 left = Tafra({'k': np.array([1, 2], dtype=np.int32), 'v': np.array([10, 20])})
 right = Tafra({'k': np.array([1, 2], dtype=np.int64), 'info': np.array(['a', 'b'])})
 result = left.inner_join(right, on=[('k', 'k', '==')])
-# Works — k promoted to int64
+# Works — k promoted to int64 internally for matching
+# result['k'].dtype is int32 (left table wins)
 ```
 
 ### Null values in join keys

@@ -3524,11 +3524,15 @@ class TestCrossJoin:
         t = l.cross_join(r, select=["x", "z", "a", "c"])
         check_tafra(t)
 
-        with pytest.raises(IndexError) as e:
-            t = l.cross_join(r, select=["x", "z"])
+        # select filtering out all columns from one side should still work
+        t = l.cross_join(r, select=["x", "z"])
+        assert "x" in t.columns
+        assert "z" in t.columns
+        assert t.rows == l.rows * r.rows
 
-        with pytest.raises(IndexError) as e:
-            t = l.cross_join(r, select=["a", "c"])
+        t = l.cross_join(r, select=["a", "c"])
+        assert "a" in t.columns
+        assert "c" in t.columns
 
     # ---- New comprehensive tests ----
 

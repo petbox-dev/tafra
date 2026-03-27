@@ -504,7 +504,7 @@ class GroupSet:
         """
         Combine multiple integer-coded columns into a single flat key.
         Uses positional encoding: key = c0 * N1*N2*... + c1 * N2*... + c2 * ...
-        Falls back to structured array if values would overflow int64.
+        Raises ValueError if the product of cardinalities would overflow int64.
         """
         if len(encoded) == 1:
             return encoded[0]
@@ -936,13 +936,17 @@ class Join(GroupSet):
     on: Iterable[tuple[str, str, str]]
     select: Iterable[str]
 
-    def _validate_dtypes(self, l_table: "Tafra", r_table: "Tafra") -> dict[str, np.dtype[Any]]:
+    def _validate_dtypes(
+        self, l_table: "Tafra", r_table: "Tafra"
+    ) -> tuple[dict[str, np.dtype[Any]], dict[str, np.dtype[Any]]]:
         """Validate join key dtypes and compute promotions.
 
-        Returns a dict mapping column name -> promoted numpy dtype for any
-        columns that need casting. Does NOT mutate the input tables.
+        Returns (left_promotions, right_promotions) — separate dicts to
+        avoid key collisions when the same column name appears on both
+        sides across different predicates. Does NOT mutate the input tables.
         """
-        promotions: dict[str, np.dtype[Any]] = {}
+        left_promos: dict[str, np.dtype[Any]] = {}
+        right_promos: dict[str, np.dtype[Any]] = {}
         for l_column, r_column, _ in self.on:
             l_dtype = l_table._dtypes[l_column]
             r_dtype = r_table._dtypes[r_column]
@@ -950,25 +954,25 @@ class Join(GroupSet):
             if l_dtype == r_dtype:
                 continue
 
-            # Collapse string variants: StringDType, <U8, <U12 all reduce to 'str'
             l_base = Tafra._reduce_dtype(l_dtype)
             r_base = Tafra._reduce_dtype(r_dtype)
             if l_base == r_base == "str":
                 continue
 
-            # Check numpy kind compatibility for numeric promotion
             l_np = np.dtype(l_dtype)
             r_np = np.dtype(r_dtype)
             if l_np.kind == r_np.kind:
                 promoted = np.result_type(l_np, r_np)
-                promotions[l_column] = promoted
-                promotions[r_column] = promoted
+                if l_np != promoted:
+                    left_promos[l_column] = promoted
+                if r_np != promoted:
+                    right_promos[r_column] = promoted
             else:
                 raise TypeError(
                     f"This `Tafra` column `{l_column}` dtype `{l_dtype}` "
                     f"does not match other `Tafra` dtype `{r_dtype}`."
                 )
-        return promotions
+        return left_promos, right_promos
 
     @staticmethod
     def _non_null_mask(cols: list[np.ndarray[Any, Any]]) -> np.ndarray[Any, Any] | None:
@@ -993,10 +997,16 @@ class Join(GroupSet):
                 valid &= np.array([x is not None for x in c], dtype=bool)
             elif kind == "O":
                 # Object arrays can hold None, NaN, and NaT simultaneously
-                valid &= np.array(
-                    [x is not None and not (isinstance(x, float) and np.isnan(x)) for x in c],
-                    dtype=bool,
-                )
+                def _is_valid(x: Any) -> bool:
+                    if x is None:
+                        return False
+                    if isinstance(x, (float, np.floating)):
+                        return not np.isnan(x)
+                    if isinstance(x, (np.datetime64, np.timedelta64)):
+                        return not np.isnat(x)
+                    return True
+
+                valid &= np.array([_is_valid(x) for x in c], dtype=bool)
         return valid
 
     @staticmethod
@@ -1116,7 +1126,7 @@ class InnerJoin(Join):
         left_cols, right_cols, ops = list(zip(*self.on))
         left_t._validate_columns(left_cols)
         right_t._validate_columns(right_cols)
-        promotions = self._validate_dtypes(left_t, right_t)
+        left_promos, right_promos = self._validate_dtypes(left_t, right_t)
         self._validate_ops(ops)
 
         join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
@@ -1145,14 +1155,14 @@ class InnerJoin(Join):
         if all_equi:
             # Build key arrays — apply promotions on copies, not originals
             left_cols_data = [
-                left_t._data[lc].astype(promotions[lc], copy=False)
-                if lc in promotions
+                left_t._data[lc].astype(left_promos[lc], copy=False)
+                if lc in left_promos
                 else left_t._data[lc]
                 for lc, _, _ in self.on
             ]
             right_cols_data = [
-                right_t._data[rc].astype(promotions[rc], copy=False)
-                if rc in promotions
+                right_t._data[rc].astype(right_promos[rc], copy=False)
+                if rc in right_promos
                 else right_t._data[rc]
                 for _, rc, _ in self.on
             ]
@@ -1218,8 +1228,21 @@ class InnerJoin(Join):
             right_rows = np.empty(right_t._rows, dtype=bool)
             join: dict[str, list[Any]] = {c: [] for c in join_cols}
 
+            # Precompute null masks for key columns (SQL: NULL never matches)
+            left_key_cols = [left_t._data[lc] for lc, _, _ in self.on]
+            right_key_cols = [right_t._data[rc] for _, rc, _ in self.on]
+            left_null = self._non_null_mask(left_key_cols)
+            right_null = self._non_null_mask(right_key_cols)
+
             for i in range(left_t._rows):
+                # Skip rows with null keys — NULL never matches
+                if left_null is not None and not left_null[i]:
+                    continue
+
                 right_rows[:] = True
+                # Exclude right rows with null keys
+                if right_null is not None:
+                    right_rows &= right_null
                 for left_col, right_col, op in _on:
                     right_rows &= op(left_t._data[left_col][i], right_t._data[right_col])
 
@@ -1329,7 +1352,7 @@ class LeftJoin(Join):
         left_cols, right_cols, ops = list(zip(*self.on))
         left_t._validate_columns(left_cols)
         right_t._validate_columns(right_cols)
-        promotions = self._validate_dtypes(left_t, right_t)
+        left_promos, right_promos = self._validate_dtypes(left_t, right_t)
         self._validate_ops(ops)
 
         join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
@@ -1377,6 +1400,15 @@ class LeftJoin(Join):
                         nat = np.array("NaT", dtype=right_t._data[c].dtype).item()
                         out = np.full(n_left, nat, dtype=right_t._data[c].dtype)
                     else:
+                        warnings.warn(
+                            f"Left join: column '{c}' "
+                            f"(dtype {right_t._data[c].dtype}) "
+                            f"has unmatched rows and no native null "
+                            f"representation. Dtype has been cast to "
+                            f"object. Use .astype(float) if NaN "
+                            f"semantics are needed.",
+                            stacklevel=2,
+                        )
                         out = cast(
                             np.ndarray[Any, Any],
                             np.empty(n_left, dtype=object),
@@ -1390,14 +1422,14 @@ class LeftJoin(Join):
         if all_equi:
             # Build key arrays — apply promotions on copies, not originals
             left_cols_data = [
-                left_t._data[lc].astype(promotions[lc], copy=False)
-                if lc in promotions
+                left_t._data[lc].astype(left_promos[lc], copy=False)
+                if lc in left_promos
                 else left_t._data[lc]
                 for lc, _, _ in self.on
             ]
             right_cols_data = [
-                right_t._data[rc].astype(promotions[rc], copy=False)
-                if rc in promotions
+                right_t._data[rc].astype(right_promos[rc], copy=False)
+                if rc in right_promos
                 else right_t._data[rc]
                 for _, rc, _ in self.on
             ]
@@ -1515,8 +1547,42 @@ class LeftJoin(Join):
             join: dict[str, list[Any]] = {c: [] for c in join_cols}
             has_null = False
 
+            # Precompute null masks for key columns (SQL: NULL never matches)
+            left_key_cols = [left_t._data[lc] for lc, _, _ in self.on]
+            right_key_cols = [right_t._data[rc] for _, rc, _ in self.on]
+            left_null = self._non_null_mask(left_key_cols)
+            right_null = self._non_null_mask(right_key_cols)
+
             for i in range(left_t._rows):
+                # Null key left rows: always unmatched in left join
+                if left_null is not None and not left_null[i]:
+                    has_null = True
+                    for column in join_cols:
+                        if column in left_t._data:
+                            join[column].append(left_t._data[column][i])
+                        elif column in right_t._data:
+                            join[column].append(None)
+                            col_kind = right_t._data[column].dtype.kind
+                            if (
+                                col_kind not in ("T", "U", "f", "M", "m")
+                                and dtypes[column] != "object"
+                            ):
+                                warnings.warn(
+                                    f"Left join: column '{column}' "
+                                    f"(dtype {right_t._data[column].dtype}) "
+                                    f"has unmatched rows and no native null "
+                                    f"representation. Dtype has been cast to "
+                                    f"object. Use .astype(float) if NaN "
+                                    f"semantics are needed.",
+                                    stacklevel=3,
+                                )
+                                dtypes[column] = "object"
+                    continue
+
                 right_rows[:] = True
+                # Exclude right rows with null keys
+                if right_null is not None:
+                    right_rows &= right_null
                 for left_col, right_col, op in _on:
                     right_rows &= op(left_t._data[left_col][i], right_t._data[right_col])
 
@@ -1636,15 +1702,21 @@ class CrossJoin(Join):
             left_cols = list(left_t._data.keys())
             right_cols = list(right_t._data.keys())
 
-        left_data = dict(left_t[left_cols].key_map(np.repeat, repeats=right_rows))
-        right_data = dict(right_t[right_cols].key_map(np.tile, reps=left_rows))
+        # Handle empty side after filtering
+        left_data = (
+            dict(left_t[left_cols].key_map(np.repeat, repeats=right_rows)) if left_cols else {}
+        )
+        right_data = (
+            dict(right_t[right_cols].key_map(np.tile, reps=left_rows)) if right_cols else {}
+        )
 
-        # Left takes precedence on shared column names (matching inner/left join)
+        # Left-first column order, left wins on name conflicts
         result: dict[str, np.ndarray[Any, Any]] = {}
+        for c, v in left_data.items():
+            result[c] = v
         for c, v in right_data.items():
-            if c not in left_data:
+            if c not in result:
                 result[c] = v
-        result.update(left_data)
 
         return Tafra(result, dtypes)
 
