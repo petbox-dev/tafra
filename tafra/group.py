@@ -12,10 +12,19 @@ Notes
 -----
 Created on April 25, 2020
 """
+
 from __future__ import annotations
 
-__all__ = ['GroupBy', 'Transform', 'IterateBy', 'InnerJoin', 'LeftJoin',
-           'percentile', 'geomean', 'harmean']
+__all__ = [
+    "GroupBy",
+    "Transform",
+    "IterateBy",
+    "InnerJoin",
+    "LeftJoin",
+    "percentile",
+    "geomean",
+    "harmean",
+]
 
 import operator
 import warnings
@@ -24,8 +33,7 @@ import dataclasses as dc
 
 import numpy as np
 
-from typing import (Any, Callable, Mapping, Sequence,
-                    Iterable, Iterator)
+from typing import Any, Callable, Mapping, Sequence, Iterable, Iterator
 from typing import cast
 
 try:
@@ -42,6 +50,7 @@ try:
         group_indices as _c_group_indices,
         encode_strings as _c_encode_strings,
     )
+
     _HAS_ACCEL = True
 except ImportError:
     _HAS_ACCEL = False
@@ -56,7 +65,7 @@ def _sorted_segments(
     data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
 ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]]:
     """Sort data by group labels, return (sorted_data, offsets, counts)."""
-    order = np.argsort(labels, kind='stable')
+    order = np.argsort(labels, kind="stable")
     sorted_data = data[order]
     counts = np.bincount(labels, minlength=n)
     offsets = np.zeros(n + 1, dtype=np.intp)
@@ -64,20 +73,23 @@ def _sorted_segments(
     return sorted_data, offsets, counts
 
 
-def _vec_sum(data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any],
-             n: int) -> np.ndarray[Any, Any]:
+def _vec_sum(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+) -> np.ndarray[Any, Any]:
     return np.bincount(labels, weights=data.astype(float), minlength=n)
 
 
-def _vec_mean(data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any],
-              n: int) -> np.ndarray[Any, Any]:
+def _vec_mean(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+) -> np.ndarray[Any, Any]:
     sums = np.bincount(labels, weights=data.astype(float), minlength=n)
     counts = np.bincount(labels, minlength=n)
     return sums / counts
 
 
-def _vec_var(data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any],
-             n: int) -> np.ndarray[Any, Any]:
+def _vec_var(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+) -> np.ndarray[Any, Any]:
     fdata = data.astype(float)
     counts = np.bincount(labels, minlength=n).astype(float)
     sums = np.bincount(labels, weights=fdata, minlength=n)
@@ -86,60 +98,71 @@ def _vec_var(data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any],
     return sum_sq / counts - mean * mean
 
 
-def _vec_std(data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any],
-             n: int) -> np.ndarray[Any, Any]:
+def _vec_std(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+) -> np.ndarray[Any, Any]:
     return np.sqrt(_vec_var(data, labels, n))
 
 
-def _vec_min(data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any],
-             n: int) -> np.ndarray[Any, Any]:
+def _vec_min(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+) -> np.ndarray[Any, Any]:
     sorted_data, offsets, _ = _sorted_segments(data, labels, n)
     return np.minimum.reduceat(sorted_data, offsets[:n])
 
 
-def _vec_max(data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any],
-             n: int) -> np.ndarray[Any, Any]:
+def _vec_max(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+) -> np.ndarray[Any, Any]:
     sorted_data, offsets, _ = _sorted_segments(data, labels, n)
     return np.maximum.reduceat(sorted_data, offsets[:n])
 
 
-def _vec_ptp(data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any],
-             n: int) -> np.ndarray[Any, Any]:
+def _vec_ptp(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+) -> np.ndarray[Any, Any]:
     sorted_data, offsets, _ = _sorted_segments(data, labels, n)
-    return (np.maximum.reduceat(sorted_data, offsets[:n])
-            - np.minimum.reduceat(sorted_data, offsets[:n]))
+    return np.maximum.reduceat(sorted_data, offsets[:n]) - np.minimum.reduceat(
+        sorted_data, offsets[:n]
+    )
 
 
-def _vec_prod(data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any],
-              n: int) -> np.ndarray[Any, Any]:
+def _vec_prod(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+) -> np.ndarray[Any, Any]:
     sorted_data, offsets, _ = _sorted_segments(data, labels, n)
     return np.multiply.reduceat(sorted_data.astype(float), offsets[:n])
 
 
-def _vec_any(data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any],
-             n: int) -> np.ndarray[Any, Any]:
+def _vec_any(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+) -> np.ndarray[Any, Any]:
     sorted_data, offsets, _ = _sorted_segments(data.astype(bool), labels, n)
     return np.logical_or.reduceat(sorted_data, offsets[:n])
 
 
-def _vec_all(data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any],
-             n: int) -> np.ndarray[Any, Any]:
+def _vec_all(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+) -> np.ndarray[Any, Any]:
     sorted_data, offsets, _ = _sorted_segments(data.astype(bool), labels, n)
     return np.logical_and.reduceat(sorted_data, offsets[:n])
 
 
-def _vec_len(data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any],
-             n: int) -> np.ndarray[Any, Any]:
+def _vec_len(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+) -> np.ndarray[Any, Any]:
     return np.bincount(labels, minlength=n)
 
 
-def _vec_count_nonzero(data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any],
-                       n: int) -> np.ndarray[Any, Any]:
+def _vec_count_nonzero(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+) -> np.ndarray[Any, Any]:
     return np.bincount(labels, weights=(data != 0).astype(float), minlength=n)
 
 
-def _vec_median(data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any],
-                n: int) -> np.ndarray[Any, Any]:
+def _vec_median(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+) -> np.ndarray[Any, Any]:
     sorted_data, offsets, counts = _sorted_segments(data, labels, n)
     result = np.empty(n, dtype=float)
     for g in range(n):
@@ -155,26 +178,30 @@ def _vec_median(data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any],
     return result
 
 
-def _vec_geomean(data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any],
-                 n: int) -> np.ndarray[Any, Any]:
+def _vec_geomean(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+) -> np.ndarray[Any, Any]:
     log_sums = np.bincount(labels, weights=np.log(data.astype(float)), minlength=n)
     counts = np.bincount(labels, minlength=n).astype(float)
     return np.exp(log_sums / counts)
 
 
-def _vec_harmean(data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any],
-                 n: int) -> np.ndarray[Any, Any]:
+def _vec_harmean(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+) -> np.ndarray[Any, Any]:
     recip_sums = np.bincount(labels, weights=1.0 / data.astype(float), minlength=n)
     counts = np.bincount(labels, minlength=n).astype(float)
     return counts / recip_sums
 
 
 def _make_vec_percentile(
-    q: float
+    q: float,
 ) -> Callable[[np.ndarray[Any, Any], np.ndarray[Any, Any], int], np.ndarray[Any, Any]]:
     """Create a vectorized percentile function for a given quantile."""
-    def _vec_pct(data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any],
-                 n: int) -> np.ndarray[Any, Any]:
+
+    def _vec_pct(
+        data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+    ) -> np.ndarray[Any, Any]:
         sorted_data, offsets, counts = _sorted_segments(data, labels, n)
         result = np.empty(n, dtype=float)
         for g in range(n):
@@ -182,12 +209,14 @@ def _make_vec_percentile(
             hi = offsets[g + 1]
             result[g] = np.percentile(sorted_data[lo:hi], q)
         return result
+
     return _vec_pct
 
 
 class _PercentileAgg:
     """Callable aggregation for percentile(q). Registered for vectorized fast path."""
-    __slots__ = ('q', '_vec_fn')
+
+    __slots__ = ("q", "_vec_fn")
 
     def __init__(self, q: float) -> None:
         self.q = q
@@ -198,7 +227,7 @@ class _PercentileAgg:
         return np.percentile(data, self.q)
 
     def __repr__(self) -> str:
-        return f'percentile({self.q})'
+        return f"percentile({self.q})"
 
 
 def percentile(q: float) -> _PercentileAgg:
@@ -237,12 +266,17 @@ def _register_vectorized() -> None:
     """Register known numpy reducers for vectorized GroupBy."""
     # Use C accelerated versions when available, fall back to numpy
     if _HAS_ACCEL:
+
         def _wrap_c(c_fn: Callable[..., Any]) -> Callable[..., np.ndarray[Any, Any]]:
-            def _wrapped(data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any],
-                         n: int) -> np.ndarray[Any, Any]:
-                return c_fn(labels.astype(np.int64, copy=False),
-                            data.astype(np.float64, copy=False), n)
+            def _wrapped(
+                data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+            ) -> np.ndarray[Any, Any]:
+                return c_fn(
+                    labels.astype(np.int64, copy=False), data.astype(np.float64, copy=False), n
+                )
+
             return _wrapped
+
         _fast_sum = _wrap_c(_c_sum)
         _fast_mean = _wrap_c(_c_mean)
         _fast_var = _wrap_c(_c_var)
@@ -289,19 +323,17 @@ _register_vectorized()
 
 
 JOIN_OPS: dict[str, Callable[[Any, Any], Any]] = {
-    '==': operator.eq,
-    '!=': operator.ne,
-    '<': operator.lt,
-    '<=': operator.le,
-    '>': operator.gt,
-    '>=': operator.ge
+    "==": operator.eq,
+    "!=": operator.ne,
+    "<": operator.lt,
+    "<=": operator.le,
+    ">": operator.gt,
+    ">=": operator.ge,
 }
 
 # for the passed argument to an aggregation
 InitAggregation = Mapping[
-    str,
-    Callable[[np.ndarray[Any, Any]], Any]
-    | tuple[Callable[[np.ndarray[Any, Any]], Any], str]
+    str, Callable[[np.ndarray[Any, Any]], Any] | tuple[Callable[[np.ndarray[Any, Any]], Any], str]
 ]
 
 
@@ -309,7 +341,7 @@ InitAggregation = Mapping[
 GroupDescription = tuple[
     tuple[Any, ...],  # tuple of unique values from group-by columns
     np.ndarray[Any, Any],  # int array of row indices into original tafra for this group
-    'Tafra'  # sub-tafra for the group
+    "Tafra",  # sub-tafra for the group
 ]
 
 
@@ -318,40 +350,42 @@ class Union:
     Union two `Tafra` together. Analogy to SQL UNION or
     `pandas.append`. All column names and dtypes must match.
     """
+
     @staticmethod
-    def _validate(left: 'Tafra', right: 'Tafra') -> None:
+    def _validate(left: "Tafra", right: "Tafra") -> None:
         """
         Validate the `Tafra` before applying.
         """
         # These should be unreachable unless attributes were directly modified
         if len(left._data) != len(left._dtypes):
-            raise ValueError('This `Tafra` length of data and dtypes do not match')
+            raise ValueError("This `Tafra` length of data and dtypes do not match")
         if len(right._data) != len(right._dtypes):
-            raise ValueError('right `Tafra` length of data and dtypes do not match')
+            raise ValueError("right `Tafra` length of data and dtypes do not match")
 
         # ensure same number of columns
         if len(left._data) != len(right._data) or len(left._dtypes) != len(right._dtypes):
-            raise ValueError(
-                'This `Tafra` column count does not match right `Tafra` column count.')
+            raise ValueError("This `Tafra` column count does not match right `Tafra` column count.")
 
         # ensure all columns in this `Tafra` exist in right `Tafra`
         # if len() is same AND all columns in this exist in right,
         # do not need to check right `Tafra` columns in this `Tafra`.
-        for (data_column, value), (dtype_column, dtype) \
-                in zip(left._data.items(), left._dtypes.items()):
-
+        for (data_column, value), (dtype_column, dtype) in zip(
+            left._data.items(), left._dtypes.items()
+        ):
             if data_column not in right._data or dtype_column not in right._dtypes:
                 raise TypeError(
-                    f'This `Tafra` column `{data_column}` does not exist in right `Tafra`.')
+                    f"This `Tafra` column `{data_column}` does not exist in right `Tafra`."
+                )
 
             # Compare user-declared dtypes (metadata = intent).
             # _format_dtype collapses string variants to 'str'.
             elif dtype != right._dtypes[dtype_column]:
                 raise TypeError(
-                    f'This `Tafra` column `{data_column}` dtype `{dtype}` '
-                    f'does not match right `Tafra` dtype `{right._dtypes[dtype_column]}`.')
+                    f"This `Tafra` column `{data_column}` dtype `{dtype}` "
+                    f"does not match right `Tafra` dtype `{right._dtypes[dtype_column]}`."
+                )
 
-    def apply(self, left: 'Tafra', right: 'Tafra') -> 'Tafra':
+    def apply(self, left: "Tafra", right: "Tafra") -> "Tafra":
         """
         Apply the `Union_` to the `Tafra`.
 
@@ -372,10 +406,10 @@ class Union:
 
         return Tafra(
             {column: np.append(value, right._data[column]) for column, value in left._data.items()},
-            left._dtypes.copy()
+            left._dtypes.copy(),
         )
 
-    def apply_inplace(self, left: 'Tafra', right: 'Tafra') -> None:
+    def apply_inplace(self, left: "Tafra", right: "Tafra") -> None:
         """
         In-place version.
 
@@ -400,6 +434,7 @@ class Union:
             left._data[column] = np.append(value, right._data[column])
         left._update_rows()
 
+
 @dc.dataclass
 class GroupSet:
     """
@@ -408,7 +443,7 @@ class GroupSet:
 
     @staticmethod
     def _encode_columns(
-        col_arrays: list[np.ndarray[Any, Any]]
+        col_arrays: list[np.ndarray[Any, Any]],
     ) -> tuple[list[np.ndarray[Any, Any]], list[np.ndarray[Any, Any] | None]]:
         """
         Encode columns for structured array compatibility.
@@ -421,7 +456,7 @@ class GroupSet:
         encoded = []
         codebooks: list[np.ndarray[Any, Any] | None] = []
         for c in col_arrays:
-            if c.dtype.kind in ('T', 'U', 'S', 'O'):
+            if c.dtype.kind in ("T", "U", "S", "O"):
                 if _HAS_ACCEL and len(c) >= 50_000:
                     obj_arr = c.astype(object)
                     codes, _ = _c_encode_strings(obj_arr)
@@ -448,23 +483,21 @@ class GroupSet:
         left_enc = []
         right_enc = []
         for lc, rc in zip(left_cols, right_cols):
-            if lc.dtype.kind in ('T', 'U', 'S', 'O'):
+            if lc.dtype.kind in ("T", "U", "S", "O"):
                 combined = np.concatenate([lc, rc])
                 if _HAS_ACCEL and len(combined) >= 50_000:
                     codes, _ = _c_encode_strings(combined.astype(object))
                 else:
                     _, codes = np.unique(combined, return_inverse=True)
-                left_enc.append(codes[:len(lc)])
-                right_enc.append(codes[len(lc):])
+                left_enc.append(codes[: len(lc)])
+                right_enc.append(codes[len(lc) :])
             else:
                 left_enc.append(lc)
                 right_enc.append(rc)
         return left_enc, right_enc
 
     @staticmethod
-    def _build_composite_key(
-        encoded: list[np.ndarray[Any, Any]]
-    ) -> np.ndarray[Any, Any]:
+    def _build_composite_key(encoded: list[np.ndarray[Any, Any]]) -> np.ndarray[Any, Any]:
         """
         Combine multiple integer-coded columns into a single flat key.
         Uses positional encoding: key = c0 * N1*N2*... + c1 * N2*... + c2 * ...
@@ -504,8 +537,8 @@ class GroupSet:
             return key
         else:
             raise ValueError(
-                'Composite key space overflow: too many unique key '
-                'combinations for multi-column join'
+                "Composite key space overflow: too many unique key "
+                "combinations for multi-column join"
             )
 
     @staticmethod
@@ -517,10 +550,7 @@ class GroupSet:
         if len(col_arrays) == 1:
             return [(v,) for v in col_arrays[0][first_seen_indices]]
         else:
-            return [
-                tuple(c[idx] for c in col_arrays)
-                for idx in first_seen_indices
-            ]
+            return [tuple(c[idx] for c in col_arrays) for idx in first_seen_indices]
 
     @staticmethod
     def _direct_labels_firstseen(
@@ -550,9 +580,7 @@ class GroupSet:
         return labels, first_pos[order], n_groups
 
     @staticmethod
-    def _direct_labels_sorted(
-        data: np.ndarray[Any, Any]
-    ) -> tuple[np.ndarray[Any, Any], int]:
+    def _direct_labels_sorted(data: np.ndarray[Any, Any]) -> tuple[np.ndarray[Any, Any], int]:
         """
         Assign sorted-order group labels using direct array mapping.
         O(n + max_key) — no sort. For Transform (order doesn't matter).
@@ -569,7 +597,7 @@ class GroupSet:
 
     @staticmethod
     def _prepare_keys(
-        tafra: 'Tafra', columns: Iterable[str]
+        tafra: "Tafra", columns: Iterable[str]
     ) -> tuple[np.ndarray[Any, Any], list[np.ndarray[Any, Any]]]:
         """Encode columns and build composite integer key."""
         cols = list(columns)
@@ -583,7 +611,7 @@ class GroupSet:
 
     @staticmethod
     def _build_group_indices(
-        tafra: 'Tafra', columns: Iterable[str]
+        tafra: "Tafra", columns: Iterable[str]
     ) -> tuple[list[tuple[Any, ...]], list[np.ndarray[Any, Any]]]:
         """
         Build per-group row index arrays in a single pass.
@@ -596,24 +624,23 @@ class GroupSet:
 
         if _HAS_ACCEL and data.dtype == np.int64 and tafra._rows >= 50_000:
             first_seen_idx, group_indices_list, n_groups = _c_group_indices(
-                np.ascontiguousarray(data))
+                np.ascontiguousarray(data)
+            )
             group_indices = list(group_indices_list)
         else:
-            labels, first_seen_idx, n_groups = GroupSet._direct_labels_firstseen(
-                data, tafra._rows)
-            sorted_row_indices = np.argsort(labels, kind='stable')
+            labels, first_seen_idx, n_groups = GroupSet._direct_labels_firstseen(data, tafra._rows)
+            sorted_row_indices = np.argsort(labels, kind="stable")
             counts = np.bincount(labels, minlength=n_groups)
             splits = np.cumsum(counts[:-1])
             group_indices = list(np.split(sorted_row_indices, splits))
 
-        unique: list[tuple[Any, ...]] = GroupSet._decode_unique(
-            first_seen_idx, col_arrays)
+        unique: list[tuple[Any, ...]] = GroupSet._decode_unique(first_seen_idx, col_arrays)
 
         return unique, group_indices
 
     @staticmethod
     def _build_group_labels(
-        tafra: 'Tafra', columns: Iterable[str]
+        tafra: "Tafra", columns: Iterable[str]
     ) -> tuple[list[tuple[Any, ...]], np.ndarray[Any, Any], int]:
         """
         Build per-row group labels (integers 0..n_groups-1) in first-seen order.
@@ -623,21 +650,19 @@ class GroupSet:
         """
         data, col_arrays = GroupSet._prepare_keys(tafra, columns)
 
-        labels, first_seen_idx, n_groups = GroupSet._direct_labels_firstseen(
-            data, tafra._rows)
+        labels, first_seen_idx, n_groups = GroupSet._direct_labels_firstseen(data, tafra._rows)
 
-        unique: list[tuple[Any, ...]] = GroupSet._decode_unique(
-            first_seen_idx, col_arrays)
+        unique: list[tuple[Any, ...]] = GroupSet._decode_unique(first_seen_idx, col_arrays)
 
         return unique, labels, n_groups
 
     @staticmethod
-    def _validate(tafra: 'Tafra', columns: Iterable[str]) -> None:  # pragma: no cover
+    def _validate(tafra: "Tafra", columns: Iterable[str]) -> None:  # pragma: no cover
         """
         Validate the `Tafra` before applying.
         """
         if tafra._rows < 1:
-            raise ValueError('No rows exist in `tafra`.')
+            raise ValueError("No rows exist in `tafra`.")
         tafra._validate_columns(columns)
 
 
@@ -646,11 +671,12 @@ class AggMethod(GroupSet):
     """
     Basic methods for aggregations over a data table.
     """
+
     group_by_cols: Iterable[str]
     aggregation: dc.InitVar[InitAggregation]
-    _aggregation: Mapping[
-        str, tuple[Callable[[np.ndarray[Any, Any]], Any], str]
-    ] = dc.field(init=False)
+    _aggregation: Mapping[str, tuple[Callable[[np.ndarray[Any, Any]], Any], str]] = dc.field(
+        init=False
+    )
     iter_fn: Mapping[str, Callable[[np.ndarray[Any, Any]], Any]]
 
     def __post_init__(self, aggregation: InitAggregation) -> None:
@@ -658,15 +684,14 @@ class AggMethod(GroupSet):
         for rename, agg in aggregation.items():
             if callable(agg):
                 self._aggregation[rename] = (agg, rename)
-            elif (isinstance(agg, Sequence) and len(agg) == 2
-                  and callable(agg[0])):
+            elif isinstance(agg, Sequence) and len(agg) == 2 and callable(agg[0]):
                 self._aggregation[rename] = agg
             else:
-                raise ValueError(f'{rename}: {agg} is not a valid aggregation argument')
+                raise ValueError(f"{rename}: {agg} is not a valid aggregation argument")
 
         for rename, agg in self.iter_fn.items():
             if not callable(agg):
-                raise ValueError(f'{rename}: {agg} is not a valid aggregation argument')
+                raise ValueError(f"{rename}: {agg} is not a valid aggregation argument")
 
     def result_factory(
         self, fn: Callable[[str, str], np.ndarray[Any, Any]]
@@ -677,9 +702,10 @@ class AggMethod(GroupSet):
         and return an empty `np.ndarray` should be given.
         """
         return {
-            rename: fn(rename, col) for rename, col in (
+            rename: fn(rename, col)
+            for rename, col in (
                 *((col, col) for col in self.group_by_cols),
-                *((rename, agg[1]) for rename, agg in self._aggregation.items())
+                *((rename, agg[1]) for rename, agg in self._aggregation.items()),
             )
         }
 
@@ -688,7 +714,7 @@ class AggMethod(GroupSet):
     ) -> dict[str, np.ndarray[Any, Any]]:
         return {rename: fn() for rename in self.iter_fn.keys()}
 
-    def apply(self, tafra: 'Tafra') -> 'Tafra':
+    def apply(self, tafra: "Tafra") -> "Tafra":
         raise NotImplementedError
 
 
@@ -713,7 +739,7 @@ class GroupBy(AggMethod):
         the enumeration. Should be given as {'new_column': fn}.
     """
 
-    def apply(self, tafra: 'Tafra') -> 'Tafra':
+    def apply(self, tafra: "Tafra") -> "Tafra":
         """
         Apply the `GroupBy` to the `Tafra`.
 
@@ -727,22 +753,18 @@ class GroupBy(AggMethod):
         tafra: Tafra
             The aggregated `Tafra`.
         """
-        self._validate(tafra, (
-            *self.group_by_cols,
-            *(col for (_, col) in self._aggregation.values())
-        ))
+        self._validate(
+            tafra, (*self.group_by_cols, *(col for (_, col) in self._aggregation.values()))
+        )
 
         # check if all aggregations can be vectorized
-        all_vectorized = (
-            not self.iter_fn
-            and all(id(fn) in _VECTORIZED_AGGS
-                    for fn, _ in self._aggregation.values())
+        all_vectorized = not self.iter_fn and all(
+            id(fn) in _VECTORIZED_AGGS for fn, _ in self._aggregation.values()
         )
 
         if all_vectorized and self._aggregation:
             # fast path: vectorized aggregation via labels, no per-group loop
-            unique, labels, n_groups = self._build_group_labels(
-                tafra, self.group_by_cols)
+            unique, labels, n_groups = self._build_group_labels(tafra, self.group_by_cols)
 
             result: dict[str, np.ndarray[Any, Any]] = {}
             for i, col in enumerate(self.group_by_cols):
@@ -751,8 +773,7 @@ class GroupBy(AggMethod):
                 first_occurrence = np.empty(n_groups, dtype=np.intp)
                 first_occurrence[labels] = np.arange(len(labels))
                 # overwrite gives last, we want first — reverse
-                first_occurrence[labels[::-1]] = np.arange(
-                    len(labels) - 1, -1, -1)
+                first_occurrence[labels[::-1]] = np.arange(len(labels) - 1, -1, -1)
                 result[col] = vals[first_occurrence]
 
             for rename, (fn, col) in self._aggregation.items():
@@ -762,12 +783,12 @@ class GroupBy(AggMethod):
             return Tafra(result)
 
         # standard path: per-group loop
-        unique, group_indices = self._build_group_indices(
-            tafra, self.group_by_cols)
+        unique, group_indices = self._build_group_indices(tafra, self.group_by_cols)
         n_groups = len(unique)
 
         result = self.result_factory(
-            lambda rename, col: np.empty(n_groups, dtype=tafra._data[col].dtype))
+            lambda rename, col: np.empty(n_groups, dtype=tafra._data[col].dtype)
+        )
         iter_fn = self.iter_fn_factory(lambda: np.ones(n_groups, dtype=int))
 
         for i, (u, rows) in enumerate(zip(unique, group_indices)):
@@ -806,7 +827,7 @@ class Transform(AggMethod):
         the enumeration. Should be given as {'new_column': fn}.
     """
 
-    def apply(self, tafra: 'Tafra') -> 'Tafra':
+    def apply(self, tafra: "Tafra") -> "Tafra":
         """
         Apply the `Transform` to the `Tafra`.
 
@@ -820,16 +841,13 @@ class Transform(AggMethod):
         tafra: Tafra
             The transformed `Tafra`.
         """
-        self._validate(tafra, (
-            *self.group_by_cols,
-            *(col for (_, col) in self._aggregation.values())
-        ))
+        self._validate(
+            tafra, (*self.group_by_cols, *(col for (_, col) in self._aggregation.values()))
+        )
 
         # check if all aggregations can be vectorized
-        all_vectorized = (
-            not self.iter_fn
-            and all(id(fn) in _VECTORIZED_AGGS
-                    for fn, _ in self._aggregation.values())
+        all_vectorized = not self.iter_fn and all(
+            id(fn) in _VECTORIZED_AGGS for fn, _ in self._aggregation.values()
         )
 
         if all_vectorized and self._aggregation:
@@ -850,11 +868,9 @@ class Transform(AggMethod):
             return Tafra(result)
 
         # standard path: per-group loop
-        unique, group_indices = self._build_group_indices(
-            tafra, self.group_by_cols)
+        unique, group_indices = self._build_group_indices(tafra, self.group_by_cols)
 
-        result = self.result_factory(
-            lambda rename, col: np.empty_like(tafra._data[col]))
+        result = self.result_factory(lambda rename, col: np.empty_like(tafra._data[col]))
         iter_fn = self.iter_fn_factory(lambda: np.ones(tafra._rows, dtype=int))
 
         for i, (u, rows) in enumerate(zip(unique, group_indices)):
@@ -884,9 +900,10 @@ class IterateBy(GroupSet):
     group_by_cols: Iterable[str]
         The column names to group by.
     """
+
     group_by_cols: Iterable[str]
 
-    def apply(self, tafra: 'Tafra') -> Iterator[GroupDescription]:
+    def apply(self, tafra: "Tafra") -> Iterator[GroupDescription]:
         """
         Apply the `IterateBy` to the `Tafra`.
 
@@ -912,10 +929,11 @@ class Join(GroupSet):
     """
     Base class for SQL-like JOINs.
     """
+
     on: Iterable[tuple[str, str, str]]
     select: Iterable[str]
 
-    def _validate_dtypes(self, l_table: 'Tafra', r_table: 'Tafra') -> None:
+    def _validate_dtypes(self, l_table: "Tafra", r_table: "Tafra") -> None:
         for l_column, r_column, _ in self.on:
             l_dtype = l_table._dtypes[l_column]
             r_dtype = r_table._dtypes[r_column]
@@ -923,11 +941,11 @@ class Join(GroupSet):
             if l_dtype == r_dtype:
                 continue
 
-            # Check base type via _reduce_dtype (collapses str variants)
+            # Collapse string variants: StringDType, <U8, <U12 all reduce to 'str'
             l_base = Tafra._reduce_dtype(l_dtype)
             r_base = Tafra._reduce_dtype(r_dtype)
-            if l_base == r_base:
-                # Same base type (e.g. both 'str') — allow
+            if l_base == r_base == "str":
+                # Both are string types — allow without promotion
                 continue
 
             # Check numpy kind compatibility for numeric promotion
@@ -943,26 +961,25 @@ class Join(GroupSet):
                 r_table._dtypes[r_column] = promoted_label
             else:
                 raise TypeError(
-                    f'This `Tafra` column `{l_column}` dtype `{l_dtype}` '
-                    f'does not match other `Tafra` dtype `{r_dtype}`.')
+                    f"This `Tafra` column `{l_column}` dtype `{l_dtype}` "
+                    f"does not match other `Tafra` dtype `{r_dtype}`."
+                )
 
     @staticmethod
-    def _non_null_mask(
-        cols: list[np.ndarray[Any, Any]]
-    ) -> np.ndarray[Any, Any]:
+    def _non_null_mask(cols: list[np.ndarray[Any, Any]]) -> np.ndarray[Any, Any]:
         """Build a boolean mask that is True for rows with no null in any key column."""
         n = len(cols[0])
         valid = np.ones(n, dtype=bool)
         for c in cols:
             kind = c.dtype.kind
-            if kind == 'f':
+            if kind == "f":
                 valid &= ~np.isnan(c)
-            elif kind in ('M', 'm'):
+            elif kind in ("M", "m"):
                 valid &= ~np.isnat(c)
-            elif kind in ('T', 'U'):
+            elif kind in ("T", "U"):
                 # StringDType: None is the null sentinel
                 valid &= np.array([x is not None for x in c], dtype=bool)
-            elif kind == 'O':
+            elif kind == "O":
                 valid &= np.array([x is not None for x in c], dtype=bool)
         return valid
 
@@ -971,20 +988,18 @@ class Join(GroupSet):
         for op in ops:
             _op = JOIN_OPS.get(op, None)
             if _op is None:
-                raise TypeError(f'The operator {op} is not valid.')
+                raise TypeError(f"The operator {op} is not valid.")
 
     @staticmethod
-    def _build_composite_key(
-        cols: list[np.ndarray[Any, Any]]
-    ) -> np.ndarray[Any, Any]:
+    def _build_composite_key(cols: list[np.ndarray[Any, Any]]) -> np.ndarray[Any, Any]:
         """Build a single sortable key array from multiple columns."""
         if len(cols) == 1:
             return cols[0]
         # structured array for multi-column sort
-        dt = np.dtype([(f'f{i}', c.dtype) for i, c in enumerate(cols)])
+        dt = np.dtype([(f"f{i}", c.dtype) for i, c in enumerate(cols)])
         key = np.empty(len(cols[0]), dtype=dt)
         for i, c in enumerate(cols):
-            key[f'f{i}'] = c
+            key[f"f{i}"] = c
         return key
 
     @staticmethod
@@ -996,11 +1011,11 @@ class Join(GroupSet):
         Compute inner-join index pairs using sort-merge.
         Returns (left_indices, right_indices) as intp arrays.
         """
-        right_order = np.argsort(right_key, kind='stable')
+        right_order = np.argsort(right_key, kind="stable")
         right_sorted = right_key[right_order]
 
-        left_lo = np.searchsorted(right_sorted, left_key, side='left')
-        left_hi = np.searchsorted(right_sorted, left_key, side='right')
+        left_lo = np.searchsorted(right_sorted, left_key, side="left")
+        left_hi = np.searchsorted(right_sorted, left_key, side="right")
         counts = left_hi - left_lo
 
         total = int(counts.sum())
@@ -1020,7 +1035,7 @@ class Join(GroupSet):
         return li, ri
 
     def _resolve_join_cols(
-        self, left_t: 'Tafra', right_t: 'Tafra'
+        self, left_t: "Tafra", right_t: "Tafra"
     ) -> tuple[list[str], dict[str, str]]:
         """Compute deduplicated output columns and dtypes."""
         seen_cols: dict[str, None] = {}
@@ -1029,13 +1044,13 @@ class Join(GroupSet):
                 seen_cols[c] = None
         join_cols = list(seen_cols.keys())
         dtypes: dict[str, str] = {
-            c: d for c, d in chain(
-                right_t._dtypes.items(), left_t._dtypes.items())
+            c: d
+            for c, d in chain(right_t._dtypes.items(), left_t._dtypes.items())
             if c in seen_cols
         }
         return join_cols, dtypes
 
-    def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
+    def apply(self, left_t: "Tafra", right_t: "Tafra") -> "Tafra":
         raise NotImplementedError
 
 
@@ -1064,7 +1079,7 @@ class InnerJoin(Join):
         prefers the left over the right.
     """
 
-    def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
+    def apply(self, left_t: "Tafra", right_t: "Tafra") -> "Tafra":
         """
         Apply the `InnerJoin` to the `Tafra`.
 
@@ -1084,16 +1099,20 @@ class InnerJoin(Join):
         # Empty table shortcut — inner join with either side empty → empty result
         if left_t._rows < 1 or right_t._rows < 1:
             warnings.warn(
-                'Join: one or both tables have zero rows. '
-                'Returning shortcut result.', stacklevel=2)
+                "Join: one or both tables have zero rows. Returning shortcut result.", stacklevel=2
+            )
             join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
             return Tafra(
-                {c: np.array(
-                    [], dtype=left_t._data[c].dtype
-                    if c in left_t._data
-                    else right_t._data[c].dtype)
-                 for c in join_cols},
-                dtypes
+                {
+                    c: np.array(
+                        [],
+                        dtype=left_t._data[c].dtype
+                        if c in left_t._data
+                        else right_t._data[c].dtype,
+                    )
+                    for c in join_cols
+                },
+                dtypes,
             )
 
         left_cols, right_cols, ops = list(zip(*self.on))
@@ -1103,7 +1122,7 @@ class InnerJoin(Join):
         self._validate_ops(ops)
 
         join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
-        all_equi = all(op_str == '==' for _, _, op_str in self.on)
+        all_equi = all(op_str == "==" for _, _, op_str in self.on)
 
         if all_equi:
             # Encode left+right together for consistent codebooks
@@ -1118,15 +1137,15 @@ class InnerJoin(Join):
             left_orig_idx = np.where(left_valid)[0]
             right_orig_idx = np.where(right_valid)[0]
 
-            l_enc, r_enc = GroupSet._encode_columns_paired(
-                left_cols_filt, right_cols_filt)
+            l_enc, r_enc = GroupSet._encode_columns_paired(left_cols_filt, right_cols_filt)
             left_key = GroupSet._build_composite_key(l_enc)
             right_key = GroupSet._build_composite_key(r_enc)
 
             if _HAS_ACCEL:
                 li, ri = _c_inner_join(
                     np.ascontiguousarray(left_key, dtype=np.int64),
-                    np.ascontiguousarray(right_key, dtype=np.int64))
+                    np.ascontiguousarray(right_key, dtype=np.int64),
+                )
             else:
                 li, ri = self._sort_merge_indices(left_key, right_key)
 
@@ -1137,12 +1156,16 @@ class InnerJoin(Join):
 
             if len(li) == 0:
                 return Tafra(
-                    {c: np.array(
-                        [], dtype=left_t._data[c].dtype
-                        if c in left_t._data
-                        else right_t._data[c].dtype)
-                     for c in join_cols},
-                    dtypes
+                    {
+                        c: np.array(
+                            [],
+                            dtype=left_t._data[c].dtype
+                            if c in left_t._data
+                            else right_t._data[c].dtype,
+                        )
+                        for c in join_cols
+                    },
+                    dtypes,
                 )
 
             result: dict[str, np.ndarray[Any, Any]] = {}
@@ -1155,18 +1178,14 @@ class InnerJoin(Join):
             return Tafra(result, dtypes)
 
         else:
-            _on = tuple(
-                (left_col, right_col, JOIN_OPS[op])
-                for left_col, right_col, op in self.on
-            )
+            _on = tuple((left_col, right_col, JOIN_OPS[op]) for left_col, right_col, op in self.on)
             right_rows = np.empty(right_t._rows, dtype=bool)
             join: dict[str, list[Any]] = {c: [] for c in join_cols}
 
             for i in range(left_t._rows):
                 right_rows[:] = True
                 for left_col, right_col, op in _on:
-                    right_rows &= op(
-                        left_t._data[left_col][i], right_t._data[right_col])
+                    right_rows &= op(left_t._data[left_col][i], right_t._data[right_col])
 
                 right_count = int(np.sum(right_rows))
                 if right_count <= 0:
@@ -1174,16 +1193,11 @@ class InnerJoin(Join):
 
                 for column in join_cols:
                     if column in left_t._data:
-                        join[column].extend(
-                            [left_t._data[column][i]] * right_count)
+                        join[column].extend([left_t._data[column][i]] * right_count)
                     elif column in right_t._data:
-                        join[column].extend(
-                            right_t._data[column][right_rows])
+                        join[column].extend(right_t._data[column][right_rows])
 
-            return Tafra(
-                {c: np.array(v) for c, v in join.items()},
-                dtypes
-            )
+            return Tafra({c: np.array(v) for c, v in join.items()}, dtypes)
 
 
 class LeftJoin(Join):
@@ -1221,11 +1235,11 @@ class LeftJoin(Join):
         Unmatched left rows get right index = -1.
         Returns (left_indices, right_indices, has_null).
         """
-        right_order = np.argsort(right_key, kind='stable')
+        right_order = np.argsort(right_key, kind="stable")
         right_sorted = right_key[right_order]
 
-        left_lo = np.searchsorted(right_sorted, left_key, side='left')
-        left_hi = np.searchsorted(right_sorted, left_key, side='right')
+        left_lo = np.searchsorted(right_sorted, left_key, side="left")
+        left_hi = np.searchsorted(right_sorted, left_key, side="right")
         counts = left_hi - left_lo
 
         # unmatched left rows get count=0 → force to 1 (with sentinel)
@@ -1244,7 +1258,7 @@ class LeftJoin(Join):
             for i in range(len(left_key)):
                 c = int(counts[i])
                 if c > 0:
-                    ri[pos:pos + c] = right_order[left_lo[i]:left_hi[i]]
+                    ri[pos : pos + c] = right_order[left_lo[i] : left_hi[i]]
                     pos += c
                 else:
                     ri[pos] = -1
@@ -1253,13 +1267,12 @@ class LeftJoin(Join):
             # all matched — fully vectorized
             offsets = np.repeat(left_lo, counts)
             group_starts = np.cumsum(counts) - counts
-            within = np.arange(total, dtype=np.intp) - np.repeat(
-                group_starts, counts)
+            within = np.arange(total, dtype=np.intp) - np.repeat(group_starts, counts)
             ri = right_order[offsets + within]
 
         return li, ri, has_null
 
-    def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
+    def apply(self, left_t: "Tafra", right_t: "Tafra") -> "Tafra":
         """
         Apply the `LeftJoin` to the `Tafra`.
 
@@ -1279,21 +1292,25 @@ class LeftJoin(Join):
         # Empty table shortcut
         if left_t._rows < 1:
             warnings.warn(
-                'Join: one or both tables have zero rows. '
-                'Returning shortcut result.', stacklevel=2)
+                "Join: one or both tables have zero rows. Returning shortcut result.", stacklevel=2
+            )
             join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
             return Tafra(
-                {c: np.array(
-                    [], dtype=left_t._data[c].dtype
-                    if c in left_t._data
-                    else right_t._data[c].dtype)
-                 for c in join_cols},
-                dtypes
+                {
+                    c: np.array(
+                        [],
+                        dtype=left_t._data[c].dtype
+                        if c in left_t._data
+                        else right_t._data[c].dtype,
+                    )
+                    for c in join_cols
+                },
+                dtypes,
             )
         if right_t._rows < 1:
             warnings.warn(
-                'Join: one or both tables have zero rows. '
-                'Returning shortcut result.', stacklevel=2)
+                "Join: one or both tables have zero rows. Returning shortcut result.", stacklevel=2
+            )
             join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
             n_left = left_t._rows
             shortcut: dict[str, np.ndarray[Any, Any]] = {}
@@ -1303,28 +1320,25 @@ class LeftJoin(Join):
                 else:
                     # Null-fill right columns
                     col_kind = right_t._data[c].dtype.kind
-                    if col_kind in ('T', 'U'):
+                    if col_kind in ("T", "U"):
                         out = np.empty(
                             n_left,
                             dtype=np.dtypes.StringDType(na_object=None),  # type: ignore[call-arg]
                         )
                         out[:] = None  # type: ignore[assignment]
-                        dtypes[c] = 'str'
-                    elif col_kind == 'f':
-                        out = np.full(
-                            n_left, np.nan, dtype=right_t._data[c].dtype)
-                    elif col_kind in ('M', 'm'):
-                        nat = np.array(
-                            'NaT', dtype=right_t._data[c].dtype).item()
-                        out = np.full(
-                            n_left, nat, dtype=right_t._data[c].dtype)
+                        dtypes[c] = "str"
+                    elif col_kind == "f":
+                        out = np.full(n_left, np.nan, dtype=right_t._data[c].dtype)
+                    elif col_kind in ("M", "m"):
+                        nat = np.array("NaT", dtype=right_t._data[c].dtype).item()
+                        out = np.full(n_left, nat, dtype=right_t._data[c].dtype)
                     else:
                         out = cast(
                             np.ndarray[Any, Any],
                             np.empty(n_left, dtype=object),
                         )
                         out[:] = None  # type: ignore[assignment]
-                        dtypes[c] = 'object'
+                        dtypes[c] = "object"
                     shortcut[c] = out
             return Tafra(shortcut, dtypes)
 
@@ -1335,7 +1349,7 @@ class LeftJoin(Join):
         self._validate_ops(ops)
 
         join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
-        all_equi = all(op_str == '==' for _, _, op_str in self.on)
+        all_equi = all(op_str == "==" for _, _, op_str in self.on)
 
         if all_equi:
             left_cols_data = [left_t._data[lc] for lc, _, _ in self.on]
@@ -1350,15 +1364,15 @@ class LeftJoin(Join):
             right_orig_idx = np.where(right_valid)[0]
             left_null_idx = np.where(~left_valid)[0]
 
-            l_enc, r_enc = GroupSet._encode_columns_paired(
-                left_cols_filt, right_cols_filt)
+            l_enc, r_enc = GroupSet._encode_columns_paired(left_cols_filt, right_cols_filt)
             left_key = GroupSet._build_composite_key(l_enc)
             right_key = GroupSet._build_composite_key(r_enc)
 
             if _HAS_ACCEL:
                 li, ri, has_null = _c_left_join(
                     np.ascontiguousarray(left_key, dtype=np.int64),
-                    np.ascontiguousarray(right_key, dtype=np.int64))
+                    np.ascontiguousarray(right_key, dtype=np.int64),
+                )
             else:
                 li, ri, has_null = self._left_join_indices(left_key, right_key)
 
@@ -1373,19 +1387,19 @@ class LeftJoin(Join):
             if len(left_null_idx) > 0:
                 has_null = True
                 li = np.concatenate([li, left_null_idx])
-                ri_mapped = np.concatenate([
-                    ri_mapped,
-                    np.full(len(left_null_idx), -1, dtype=np.intp)])
+                ri_mapped = np.concatenate(
+                    [ri_mapped, np.full(len(left_null_idx), -1, dtype=np.intp)]
+                )
 
             ri = ri_mapped
 
             if has_null:
                 for c in join_cols:
-                    if c not in left_t._data and dtypes.get(c) != 'object':
+                    if c not in left_t._data and dtypes.get(c) != "object":
                         col_kind = right_t._data[c].dtype.kind
                         # Kinds with native null: T/U (str), f (float), M/m (datetime)
-                        if col_kind not in ('T', 'U', 'f', 'M', 'm'):
-                            dtypes[c] = 'object'
+                        if col_kind not in ("T", "U", "f", "M", "m"):
+                            dtypes[c] = "object"
 
             result: dict[str, np.ndarray[Any, Any]] = {}
             matched = ri >= 0
@@ -1396,19 +1410,19 @@ class LeftJoin(Join):
                     # right column: fill matched rows, null for unmatched
                     if has_null:
                         col_kind = right_t._data[c].dtype.kind
-                        if col_kind in ('T', 'U'):
+                        if col_kind in ("T", "U"):
                             # String types: use StringDType(na_object=None)
                             out = np.empty(len(li), dtype=np.dtypes.StringDType(na_object=None))  # type: ignore[call-arg]
                             out[matched] = right_t._data[c][ri[matched]]
                             out[~matched] = None  # type: ignore[assignment]
-                            dtypes[c] = 'str'
-                        elif col_kind == 'f':
+                            dtypes[c] = "str"
+                        elif col_kind == "f":
                             # Float types: use NaN for missing
                             out = np.full(len(li), np.nan, dtype=right_t._data[c].dtype)
                             out[matched] = right_t._data[c][ri[matched]]
-                        elif col_kind in ('M', 'm'):
+                        elif col_kind in ("M", "m"):
                             # datetime64/timedelta64: use NaT for missing
-                            nat = np.array('NaT', dtype=right_t._data[c].dtype).item()
+                            nat = np.array("NaT", dtype=right_t._data[c].dtype).item()
                             out = np.empty(len(li), dtype=right_t._data[c].dtype)
                             out[matched] = right_t._data[c][ri[matched]]
                             out[~matched] = nat
@@ -1436,10 +1450,7 @@ class LeftJoin(Join):
             return Tafra(result, dtypes)
 
         else:
-            _on = tuple(
-                (left_col, right_col, JOIN_OPS[op])
-                for left_col, right_col, op in self.on
-            )
+            _on = tuple((left_col, right_col, JOIN_OPS[op]) for left_col, right_col, op in self.on)
             right_rows = np.empty(right_t._rows, dtype=bool)
             join: dict[str, list[Any]] = {c: [] for c in join_cols}
             has_null = False
@@ -1447,22 +1458,22 @@ class LeftJoin(Join):
             for i in range(left_t._rows):
                 right_rows[:] = True
                 for left_col, right_col, op in _on:
-                    right_rows &= op(
-                        left_t._data[left_col][i], right_t._data[right_col])
+                    right_rows &= op(left_t._data[left_col][i], right_t._data[right_col])
 
                 right_count = int(np.sum(right_rows))
 
                 for column in join_cols:
                     if column in left_t._data:
-                        join[column].extend(
-                            [left_t._data[column][i]] * max(1, right_count))
+                        join[column].extend([left_t._data[column][i]] * max(1, right_count))
                     elif column in right_t._data:
                         if right_count <= 0:
                             has_null = True
                             join[column].append(None)
                             col_kind = right_t._data[column].dtype.kind
-                            if (col_kind not in ('T', 'U', 'f', 'M', 'm')
-                                    and dtypes[column] != 'object'):
+                            if (
+                                col_kind not in ("T", "U", "f", "M", "m")
+                                and dtypes[column] != "object"
+                            ):
                                 warnings.warn(
                                     f"Left join: column '{column}' "
                                     f"(dtype {right_t._data[column].dtype}) "
@@ -1472,31 +1483,28 @@ class LeftJoin(Join):
                                     f"semantics are needed.",
                                     stacklevel=3,
                                 )
-                                dtypes[column] = 'object'
+                                dtypes[column] = "object"
                         else:
-                            join[column].extend(
-                                right_t._data[column][right_rows])
+                            join[column].extend(right_t._data[column][right_rows])
 
             result_data: dict[str, np.ndarray[Any, Any]] = {}
             for c, v in join.items():
-                col_kind = (right_t._data[c].dtype.kind
-                            if c in right_t._data else '')
-                if c not in left_t._data and col_kind in ('T', 'U') and has_null:
+                col_kind = right_t._data[c].dtype.kind if c in right_t._data else ""
+                if c not in left_t._data and col_kind in ("T", "U") and has_null:
                     result_data[c] = np.array(
                         v,
                         dtype=np.dtypes.StringDType(na_object=None),  # type: ignore[call-arg]
                     )
-                    dtypes[c] = 'str'
-                elif c not in left_t._data and col_kind == 'f' and has_null:
+                    dtypes[c] = "str"
+                elif c not in left_t._data and col_kind == "f" and has_null:
                     result_data[c] = np.array(
-                        [np.nan if x is None else x for x in v],
-                        dtype=right_t._data[c].dtype)
-                elif (c not in left_t._data
-                      and col_kind in ('M', 'm') and has_null):
-                    nat = np.array('NaT', dtype=right_t._data[c].dtype).item()
+                        [np.nan if x is None else x for x in v], dtype=right_t._data[c].dtype
+                    )
+                elif c not in left_t._data and col_kind in ("M", "m") and has_null:
+                    nat = np.array("NaT", dtype=right_t._data[c].dtype).item()
                     result_data[c] = np.array(
-                        [nat if x is None else x for x in v],
-                        dtype=right_t._data[c].dtype)
+                        [nat if x is None else x for x in v], dtype=right_t._data[c].dtype
+                    )
                 else:
                     result_data[c] = np.array(v)
 
@@ -1519,7 +1527,7 @@ class CrossJoin(Join):
         prefers the left over the right.
     """
 
-    def apply(self, left_t: 'Tafra', right_t: 'Tafra') -> 'Tafra':
+    def apply(self, left_t: "Tafra", right_t: "Tafra") -> "Tafra":
         """
         Apply the `CrossJoin` to the `Tafra`.
 
@@ -1539,16 +1547,20 @@ class CrossJoin(Join):
         # Empty table shortcut — cross join with either side empty → empty result
         if left_t._rows < 1 or right_t._rows < 1:
             warnings.warn(
-                'Join: one or both tables have zero rows. '
-                'Returning shortcut result.', stacklevel=2)
+                "Join: one or both tables have zero rows. Returning shortcut result.", stacklevel=2
+            )
             join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
             return Tafra(
-                {c: np.array(
-                    [], dtype=left_t._data[c].dtype
-                    if c in left_t._data
-                    else right_t._data[c].dtype)
-                 for c in join_cols},
-                dtypes
+                {
+                    c: np.array(
+                        [],
+                        dtype=left_t._data[c].dtype
+                        if c in left_t._data
+                        else right_t._data[c].dtype,
+                    )
+                    for c in join_cols
+                },
+                dtypes,
             )
 
         self._validate_dtypes(left_t, right_t)
