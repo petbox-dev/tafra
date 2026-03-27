@@ -969,6 +969,12 @@ class Join(GroupSet):
     def _non_null_mask(cols: list[np.ndarray[Any, Any]]) -> np.ndarray[Any, Any]:
         """Build a boolean mask that is True for rows with no null in any key column."""
         n = len(cols[0])
+        # Fast path: if all columns are non-nullable types (int, uint, bool),
+        # no nulls are possible — return all-True without allocating.
+        nullable_kinds = frozenset("fMmTUOS")
+        if not any(c.dtype.kind in nullable_kinds for c in cols):
+            return np.ones(n, dtype=bool)
+
         valid = np.ones(n, dtype=bool)
         for c in cols:
             kind = c.dtype.kind
@@ -977,7 +983,6 @@ class Join(GroupSet):
             elif kind in ("M", "m"):
                 valid &= ~np.isnat(c)
             elif kind in ("T", "U"):
-                # StringDType: None is the null sentinel
                 valid &= np.array([x is not None for x in c], dtype=bool)
             elif kind == "O":
                 valid &= np.array([x is not None for x in c], dtype=bool)
@@ -1132,10 +1137,17 @@ class InnerJoin(Join):
             # NULL != NULL: filter out rows with nulls in key columns
             left_valid = self._non_null_mask(left_cols_data)
             right_valid = self._non_null_mask(right_cols_data)
-            left_cols_filt = [c[left_valid] for c in left_cols_data]
-            right_cols_filt = [c[right_valid] for c in right_cols_data]
-            left_orig_idx = np.where(left_valid)[0]
-            right_orig_idx = np.where(right_valid)[0]
+            has_left_nulls = not left_valid.all()
+            has_right_nulls = not right_valid.all()
+
+            if has_left_nulls or has_right_nulls:
+                left_cols_filt = [c[left_valid] for c in left_cols_data]
+                right_cols_filt = [c[right_valid] for c in right_cols_data]
+                left_orig_idx = np.where(left_valid)[0]
+                right_orig_idx = np.where(right_valid)[0]
+            else:
+                left_cols_filt = left_cols_data
+                right_cols_filt = right_cols_data
 
             l_enc, r_enc = GroupSet._encode_columns_paired(left_cols_filt, right_cols_filt)
             left_key = GroupSet._build_composite_key(l_enc)
@@ -1149,8 +1161,8 @@ class InnerJoin(Join):
             else:
                 li, ri = self._sort_merge_indices(left_key, right_key)
 
-            # Map back to original row positions
-            if len(li) > 0:
+            # Map back to original row positions only if nulls were filtered
+            if (has_left_nulls or has_right_nulls) and len(li) > 0:
                 li = left_orig_idx[li]
                 ri = right_orig_idx[ri]
 
@@ -1358,11 +1370,19 @@ class LeftJoin(Join):
             # NULL != NULL: filter out rows with nulls in key columns
             left_valid = self._non_null_mask(left_cols_data)
             right_valid = self._non_null_mask(right_cols_data)
-            left_cols_filt = [c[left_valid] for c in left_cols_data]
-            right_cols_filt = [c[right_valid] for c in right_cols_data]
-            left_orig_idx = np.where(left_valid)[0]
-            right_orig_idx = np.where(right_valid)[0]
-            left_null_idx = np.where(~left_valid)[0]
+            has_left_nulls = not left_valid.all()
+            has_right_nulls = not right_valid.all()
+
+            if has_left_nulls or has_right_nulls:
+                left_cols_filt = [c[left_valid] for c in left_cols_data]
+                right_cols_filt = [c[right_valid] for c in right_cols_data]
+                left_orig_idx = np.where(left_valid)[0]
+                right_orig_idx = np.where(right_valid)[0]
+                left_null_idx = np.where(~left_valid)[0]
+            else:
+                left_cols_filt = left_cols_data
+                right_cols_filt = right_cols_data
+                left_null_idx = np.array([], dtype=np.intp)
 
             l_enc, r_enc = GroupSet._encode_columns_paired(left_cols_filt, right_cols_filt)
             left_key = GroupSet._build_composite_key(l_enc)
@@ -1376,8 +1396,8 @@ class LeftJoin(Join):
             else:
                 li, ri, has_null = self._left_join_indices(left_key, right_key)
 
-            # Map back to original row positions
-            if len(li) > 0:
+            # Map back to original row positions only if nulls were filtered
+            if (has_left_nulls or has_right_nulls) and len(li) > 0:
                 li = left_orig_idx[li]
                 ri_mapped = np.where(ri >= 0, right_orig_idx[ri], -1)
             else:
