@@ -57,7 +57,9 @@ except ImportError:
 
 # Dtype kinds that can hold null values (None, NaN, NaT).
 # Used by _non_null_mask to skip scanning for non-nullable types.
-_NULLABLE_KINDS: frozenset[str] = frozenset("fMmTUO")
+# 'T' = StringDType (can hold None with na_object=None)
+# 'U' (fixed-width unicode <U) is excluded — it cannot hold None.
+_NULLABLE_KINDS: frozenset[str] = frozenset("fMmTO")
 
 # Vectorized aggregation functions that can bypass per-group Python loops.
 # Maps function identity to a callable(data, labels, n_groups) -> result_array.
@@ -993,7 +995,8 @@ class Join(GroupSet):
                 valid &= ~np.isnan(c)
             elif kind in ("M", "m"):
                 valid &= ~np.isnat(c)
-            elif kind in ("T", "U"):
+            elif kind == "T":
+                # StringDType(na_object=None): None is the null sentinel
                 valid &= np.array([x is not None for x in c], dtype=bool)
             elif kind == "O":
                 # Object arrays can hold None, NaN, and NaT simultaneously
@@ -1174,7 +1177,11 @@ class InnerJoin(Join):
             has_right_nulls = right_valid is not None and not right_valid.all()
 
             if has_left_nulls or has_right_nulls:
-                assert left_valid is not None and right_valid is not None
+                # Synthesize all-True mask for the non-nullable side
+                if left_valid is None:
+                    left_valid = np.ones(len(left_cols_data[0]), dtype=bool)
+                if right_valid is None:
+                    right_valid = np.ones(len(right_cols_data[0]), dtype=bool)
                 left_cols_filt = [c[left_valid] for c in left_cols_data]
                 right_cols_filt = [c[right_valid] for c in right_cols_data]
                 left_orig_idx = np.where(left_valid)[0]
@@ -1407,7 +1414,7 @@ class LeftJoin(Join):
                             f"representation. Dtype has been cast to "
                             f"object. Use .astype(float) if NaN "
                             f"semantics are needed.",
-                            stacklevel=2,
+                            stacklevel=3,
                         )
                         out = cast(
                             np.ndarray[Any, Any],
@@ -1441,7 +1448,11 @@ class LeftJoin(Join):
             has_right_nulls = right_valid is not None and not right_valid.all()
 
             if has_left_nulls or has_right_nulls:
-                assert left_valid is not None and right_valid is not None
+                # Synthesize all-True mask for the non-nullable side
+                if left_valid is None:
+                    left_valid = np.ones(len(left_cols_data[0]), dtype=bool)
+                if right_valid is None:
+                    right_valid = np.ones(len(right_cols_data[0]), dtype=bool)
                 left_cols_filt = [c[left_valid] for c in left_cols_data]
                 right_cols_filt = [c[right_valid] for c in right_cols_data]
                 left_orig_idx = np.where(left_valid)[0]
