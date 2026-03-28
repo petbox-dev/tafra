@@ -1,8 +1,12 @@
 /*
- * tafra/_accel.c — Minimal C extension for hot-path acceleration.
+ * tafra/_accel.c — C extension for hot-path acceleration (v2).
  *
- * Provides single-pass grouped aggregation and hash-based join index
- * construction, eliminating multiple numpy passes and temporary arrays.
+ * Performance improvements over v1:
+ *   - Power-of-2 hash tables with bitmask probing (no division)
+ *   - CSR (flat contiguous) layout for join hash tables (no linked lists)
+ *   - Single-pass join index construction (no counting pre-pass)
+ *   - Unrolled composite_key for 1-3 column fast paths
+ *   - Reduced redundant initialization
  *
  * All functions accept and return numpy arrays. Falls back gracefully
  * if this module fails to compile — pure-Python paths remain available.
@@ -14,6 +18,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <math.h>
+#include <string.h>
 
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <numpy/arrayobject.h>
@@ -21,9 +26,21 @@
 #include <numpy/npy_math.h>
 
 /* Golden ratio constant for multiplicative hashing (Knuth).
- * phi = (sqrt(5)-1)/2 * 2^64 ≈ 0x9E3779B97F4A7C15 */
+ * phi = (sqrt(5)-1)/2 * 2^64 ~ 0x9E3779B97F4A7C15 */
 #define GOLDEN_HASH 0x9E3779B97F4A7C15ULL
-#define HASH_KEY(k, sz) ((npy_intp)(((npy_uint64)(k) * GOLDEN_HASH) >> 1) % (sz))
+
+/* Power-of-2 hash: multiply then mask. table_size must be power of 2. */
+#define HASH_KEY(k, mask) ((npy_intp)(((npy_uint64)(k) * GOLDEN_HASH) >> 1) & (mask))
+
+
+/* Round up to next power of 2 (minimum 16). */
+static npy_intp
+next_pow2(npy_intp n)
+{
+    npy_intp p = 16;
+    while (p < n) p <<= 1;
+    return p;
+}
 
 
 /* Helper: coerce to contiguous array of given type. Caller must Py_DECREF. */
@@ -305,7 +322,7 @@ accel_groupby_max(PyObject *self, PyObject *args)
  *   cardinalities: tuple of ints (max value + 1 for each column)
  *
  * Computes: key[i] = col0[i]*card1*card2*... + col1[i]*card2*... + ...
- * Single pass, no temporaries.
+ * Unrolled fast paths for 1-3 columns (common case).
  * ================================================================ */
 
 static PyObject *
@@ -375,9 +392,9 @@ accel_composite_key(PyObject *self, PyObject *args)
     for (Py_ssize_t c = n_cols - 2; c >= 0; c--)
         mult[c] = mult[c + 1] * cards[c + 1];
 
-    /* Build output in single pass */
+    /* Build output */
     npy_intp dims[1] = {n_rows};
-    PyArrayObject *out = (PyArrayObject *)PyArray_ZEROS(1, dims, NPY_INT64, 0);
+    PyArrayObject *out = (PyArrayObject *)PyArray_EMPTY(1, dims, NPY_INT64, 0);
     if (!out) {
         for (Py_ssize_t c = 0; c < n_cols; c++) Py_DECREF(col_arrs[c]);
         free(col_arrs); free(cards); free(mult);
@@ -385,27 +402,46 @@ accel_composite_key(PyObject *self, PyObject *args)
     }
     npy_int64 *result = (npy_int64 *)PyArray_DATA(out);
 
-    /* Get data pointers */
-    const npy_int64 **col_data = (const npy_int64 **)malloc(n_cols * sizeof(npy_int64 *));
-    if (!col_data) {
-        for (Py_ssize_t c = 0; c < n_cols; c++) Py_DECREF(col_arrs[c]);
-        free(col_arrs); free(cards); free(mult);
-        Py_DECREF(out);
-        return PyErr_NoMemory();
-    }
-    for (Py_ssize_t c = 0; c < n_cols; c++)
-        col_data[c] = (const npy_int64 *)PyArray_DATA(col_arrs[c]);
-
-    /* Single pass: result[i] = sum(col_data[c][i] * mult[c]) */
-    for (npy_intp i = 0; i < n_rows; i++) {
-        npy_int64 key = 0;
+    /* Unrolled fast paths for common column counts */
+    if (n_cols == 1) {
+        const npy_int64 *d0 = (const npy_int64 *)PyArray_DATA(col_arrs[0]);
+        memcpy(result, d0, n_rows * sizeof(npy_int64));
+    } else if (n_cols == 2) {
+        const npy_int64 *d0 = (const npy_int64 *)PyArray_DATA(col_arrs[0]);
+        const npy_int64 *d1 = (const npy_int64 *)PyArray_DATA(col_arrs[1]);
+        npy_int64 m0 = mult[0];
+        for (npy_intp i = 0; i < n_rows; i++)
+            result[i] = d0[i] * m0 + d1[i];
+    } else if (n_cols == 3) {
+        const npy_int64 *d0 = (const npy_int64 *)PyArray_DATA(col_arrs[0]);
+        const npy_int64 *d1 = (const npy_int64 *)PyArray_DATA(col_arrs[1]);
+        const npy_int64 *d2 = (const npy_int64 *)PyArray_DATA(col_arrs[2]);
+        npy_int64 m0 = mult[0], m1 = mult[1];
+        for (npy_intp i = 0; i < n_rows; i++)
+            result[i] = d0[i] * m0 + d1[i] * m1 + d2[i];
+    } else {
+        /* General case */
+        const npy_int64 **col_data = (const npy_int64 **)malloc(n_cols * sizeof(npy_int64 *));
+        if (!col_data) {
+            for (Py_ssize_t c = 0; c < n_cols; c++) Py_DECREF(col_arrs[c]);
+            free(col_arrs); free(cards); free(mult);
+            Py_DECREF(out);
+            return PyErr_NoMemory();
+        }
         for (Py_ssize_t c = 0; c < n_cols; c++)
-            key += col_data[c][i] * mult[c];
-        result[i] = key;
+            col_data[c] = (const npy_int64 *)PyArray_DATA(col_arrs[c]);
+
+        for (npy_intp i = 0; i < n_rows; i++) {
+            npy_int64 key = 0;
+            for (Py_ssize_t c = 0; c < n_cols; c++)
+                key += col_data[c][i] * mult[c];
+            result[i] = key;
+        }
+        free((void *)col_data);
     }
 
     for (Py_ssize_t c = 0; c < n_cols; c++) Py_DECREF(col_arrs[c]);
-    free(col_arrs); free(cards); free(mult); free((void *)col_data);
+    free(col_arrs); free(cards); free(mult);
     return (PyObject *)out;
 }
 
@@ -420,7 +456,7 @@ accel_composite_key(PyObject *self, PyObject *args)
  *   codes:    int64 array of integer codes (0..n_unique-1), first-seen order
  *   n_unique: int
  *
- * Replaces np.unique(return_inverse=True) which is O(n log n).
+ * Power-of-2 table with bitmask probing.
  * ================================================================ */
 
 typedef struct {
@@ -444,9 +480,9 @@ accel_encode_strings(PyObject *self, PyObject *args)
     npy_intp n = PyArray_SIZE(arr);
     PyObject **data = (PyObject **)PyArray_DATA(arr);
 
-    /* Hash table */
-    npy_intp table_size = n * 2;
-    if (table_size < 16) table_size = 16;
+    /* Power-of-2 hash table at ~50% load factor */
+    npy_intp table_size = next_pow2(n * 2);
+    npy_intp mask = table_size - 1;
     StrHashEntry *table = (StrHashEntry *)calloc(table_size, sizeof(StrHashEntry));
     if (!table) { Py_DECREF(arr); return PyErr_NoMemory(); }
 
@@ -466,24 +502,23 @@ accel_encode_strings(PyObject *self, PyObject *args)
             return NULL;
         }
 
-        npy_intp slot = HASH_KEY(h, table_size);
+        npy_intp slot = (npy_intp)(((npy_uint64)h * GOLDEN_HASH) >> 1) & mask;
 
         while (table[slot].occupied) {
-            /* Check if same object or equal value */
             if (table[slot].hash == h) {
                 int eq = PyObject_RichCompareBool(table[slot].obj, obj, Py_EQ);
                 if (eq < 0) {
                     free(table); Py_DECREF(arr); Py_DECREF(codes_out);
                     return NULL;
                 }
-                if (eq) break;  /* found existing entry */
+                if (eq) break;
             }
-            slot = (slot + 1) % table_size;
+            slot = (slot + 1) & mask;
         }
 
         if (!table[slot].occupied) {
             table[slot].hash = h;
-            table[slot].obj = obj;  /* borrowed ref, arr keeps it alive */
+            table[slot].obj = obj;
             table[slot].code = n_unique;
             table[slot].occupied = 1;
             n_unique++;
@@ -506,17 +541,12 @@ accel_encode_strings(PyObject *self, PyObject *args)
  * group_indices(key_array) -> (first_seen_indices, group_row_lists, n_groups)
  *   key_array:  int64 array (composite or single-column key)
  *
- * Returns:
- *   first_seen_indices: int64 array of length n_groups
- *   group_row_lists:    Python list of int64 arrays (row indices per group)
- *   n_groups:           int
- *
- * Replaces np.unique + argsort + split with a single O(n) pass.
+ * Power-of-2 table with bitmask probing.
  * ================================================================ */
 
 typedef struct {
     npy_int64 key;
-    npy_intp label;     /* assigned group label */
+    npy_intp label;
     int occupied;
 } GroupHashEntry;
 
@@ -533,9 +563,9 @@ accel_group_indices(PyObject *self, PyObject *args)
     npy_intp n = PyArray_SIZE(key_arr);
     const npy_int64 *keys = (const npy_int64 *)PyArray_DATA(key_arr);
 
-    /* Allocate hash table */
-    npy_intp table_size = n * 2;
-    if (table_size < 16) table_size = 16;
+    /* Power-of-2 hash table */
+    npy_intp table_size = next_pow2(n * 2);
+    npy_intp mask = table_size - 1;
     GroupHashEntry *table = (GroupHashEntry *)calloc(table_size, sizeof(GroupHashEntry));
     if (!table) { Py_DECREF(key_arr); return PyErr_NoMemory(); }
 
@@ -553,9 +583,9 @@ accel_group_indices(PyObject *self, PyObject *args)
 
     for (npy_intp i = 0; i < n; i++) {
         npy_int64 k = keys[i];
-        npy_intp h = HASH_KEY(k, table_size);
+        npy_intp h = HASH_KEY(k, mask);
         while (table[h].occupied && table[h].key != k)
-            h = (h + 1) % table_size;
+            h = (h + 1) & mask;
 
         if (!table[h].occupied) {
             table[h].key = k;
@@ -612,7 +642,7 @@ accel_group_indices(PyObject *self, PyObject *args)
             return NULL;
         }
         group_data[g] = (npy_intp *)PyArray_DATA(arr);
-        PyList_SET_ITEM(group_list, g, (PyObject *)arr);  /* steals ref */
+        PyList_SET_ITEM(group_list, g, (PyObject *)arr);
     }
     free(counts);
 
@@ -629,9 +659,7 @@ accel_group_indices(PyObject *self, PyObject *args)
     npy_intp fs_dims[1] = {n_groups};
     PyArrayObject *fs_out = (PyArrayObject *)PyArray_EMPTY(1, fs_dims, NPY_INTP, 0);
     if (!fs_out) { free(first_seen); Py_DECREF(group_list); return NULL; }
-    npy_intp *fs_data = (npy_intp *)PyArray_DATA(fs_out);
-    for (npy_intp g = 0; g < n_groups; g++)
-        fs_data[g] = first_seen[g];
+    memcpy(PyArray_DATA(fs_out), first_seen, n_groups * sizeof(npy_intp));
     free(first_seen);
 
     PyObject *result = Py_BuildValue("(OOn)", fs_out, group_list, (Py_ssize_t)n_groups);
@@ -642,64 +670,135 @@ accel_group_indices(PyObject *self, PyObject *args)
 
 
 /* ================================================================
- * Hash join: build (left_indices, right_indices) for equi-join
+ * Hash join v2: CSR layout + single-pass index construction
  *
- * Uses a simple open-addressing hash table on the right key,
- * then probes with each left key.
+ * Build phase:
+ *   1. Hash right keys into power-of-2 table, count per bucket.
+ *   2. Prefix sum -> offsets into flat contiguous row buffer.
+ *   3. Scatter right row indices into flat buffer.
  *
- * Input arrays are coerced to contiguous int64.
+ * Probe phase reads sequential memory per bucket (cache-friendly).
+ *
+ * Output construction uses a growable buffer (realloc doubling)
+ * to avoid a separate counting pre-pass over left keys.
  * ================================================================ */
 
 typedef struct {
     npy_int64 key;
-    npy_intp first;  /* index into chain array */
-    npy_intp count;
-} HashEntry;
-
-typedef struct {
-    npy_intp row;
-    npy_intp next;  /* -1 = end */
-} ChainNode;
+    npy_intp offset;    /* start index into flat row buffer */
+    npy_intp count;     /* number of right rows with this key */
+} CSRHashEntry;
 
 
-/* Build hash table on right-side keys. Returns 0 on success, -1 on error. */
+/* Build CSR hash table on right-side keys.
+ * Returns 0 on success, -1 on error.
+ * Caller must free *out_table and *out_rows. */
 static int
-build_hash_table(const npy_int64 *right, npy_intp right_n,
-                 HashEntry **out_table, npy_intp *out_table_size,
-                 ChainNode **out_chain)
+build_csr_hash_table(const npy_int64 *right, npy_intp right_n,
+                     CSRHashEntry **out_table, npy_intp *out_mask,
+                     npy_intp **out_rows)
 {
-    npy_intp table_size = right_n * 2;
-    if (table_size < 16) table_size = 16;
+    npy_intp table_size = next_pow2(right_n * 2);
+    npy_intp mask = table_size - 1;
 
-    HashEntry *table = (HashEntry *)calloc(table_size, sizeof(HashEntry));
-    ChainNode *chain = (ChainNode *)malloc(right_n * sizeof(ChainNode));
-    if (!table || !chain) {
-        free(table); free(chain);
-        PyErr_NoMemory();
-        return -1;
-    }
+    /* calloc zeros count and offset to 0; count==0 means empty slot */
+    CSRHashEntry *table = (CSRHashEntry *)calloc(table_size, sizeof(CSRHashEntry));
+    if (!table) { PyErr_NoMemory(); return -1; }
 
-    for (npy_intp i = 0; i < table_size; i++) {
-        table[i].count = 0;
-        table[i].first = -1;
-    }
-
+    /* Pass 1: count occurrences per key */
     for (npy_intp i = 0; i < right_n; i++) {
         npy_int64 k = right[i];
-        npy_intp h = HASH_KEY(k, table_size);
+        npy_intp h = HASH_KEY(k, mask);
         while (table[h].count > 0 && table[h].key != k)
-            h = (h + 1) % table_size;
-        chain[i].row = i;
-        chain[i].next = table[h].first;
+            h = (h + 1) & mask;
         table[h].key = k;
-        table[h].first = i;
         table[h].count++;
     }
 
+    /* Pass 2: prefix sum to compute offsets */
+    npy_intp running = 0;
+    for (npy_intp h = 0; h < table_size; h++) {
+        if (table[h].count > 0) {
+            table[h].offset = running;
+            running += table[h].count;
+        }
+    }
+
+    /* Allocate flat row buffer */
+    npy_intp *rows = (npy_intp *)malloc(right_n * sizeof(npy_intp));
+    if (!rows) { free(table); PyErr_NoMemory(); return -1; }
+
+    /* Temporary write positions (reuse a stack of counts) */
+    npy_intp *write_pos = (npy_intp *)calloc(table_size, sizeof(npy_intp));
+    if (!write_pos) { free(table); free(rows); PyErr_NoMemory(); return -1; }
+
+    /* Pass 3: scatter right row indices into flat buffer */
+    for (npy_intp i = 0; i < right_n; i++) {
+        npy_int64 k = right[i];
+        npy_intp h = HASH_KEY(k, mask);
+        while (table[h].count > 0 && table[h].key != k)
+            h = (h + 1) & mask;
+        rows[table[h].offset + write_pos[h]] = i;
+        write_pos[h]++;
+    }
+    free(write_pos);
+
     *out_table = table;
-    *out_table_size = table_size;
-    *out_chain = chain;
+    *out_mask = mask;
+    *out_rows = rows;
     return 0;
+}
+
+
+/* Growable index buffer for single-pass join output */
+typedef struct {
+    npy_intp *data;
+    npy_intp len;
+    npy_intp cap;
+} IndexBuf;
+
+static int
+indexbuf_init(IndexBuf *buf, npy_intp initial_cap)
+{
+    buf->data = (npy_intp *)malloc(initial_cap * sizeof(npy_intp));
+    if (!buf->data) { PyErr_NoMemory(); return -1; }
+    buf->len = 0;
+    buf->cap = initial_cap;
+    return 0;
+}
+
+static int
+indexbuf_ensure(IndexBuf *buf, npy_intp additional)
+{
+    if (buf->len + additional <= buf->cap) return 0;
+    npy_intp new_cap = buf->cap;
+    while (new_cap < buf->len + additional) new_cap <<= 1;
+    npy_intp *tmp = (npy_intp *)realloc(buf->data, new_cap * sizeof(npy_intp));
+    if (!tmp) { PyErr_NoMemory(); return -1; }
+    buf->data = tmp;
+    buf->cap = new_cap;
+    return 0;
+}
+
+static void
+indexbuf_free(IndexBuf *buf)
+{
+    free(buf->data);
+    buf->data = NULL;
+    buf->len = buf->cap = 0;
+}
+
+/* Transfer ownership of buffer contents into a numpy array.
+ * On success, buf->data is set to NULL (numpy owns it via its own copy).
+ * Returns new reference or NULL on error. */
+static PyArrayObject *
+indexbuf_to_array(IndexBuf *buf)
+{
+    npy_intp dims[1] = {buf->len};
+    PyArrayObject *arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
+    if (!arr) return NULL;
+    memcpy(PyArray_DATA(arr), buf->data, buf->len * sizeof(npy_intp));
+    return arr;
 }
 
 
@@ -722,53 +821,57 @@ accel_inner_join(PyObject *self, PyObject *args)
     const npy_int64 *left = (const npy_int64 *)PyArray_DATA(left_arr);
     const npy_int64 *right = (const npy_int64 *)PyArray_DATA(right_arr);
 
-    HashEntry *table; npy_intp table_size; ChainNode *chain;
-    if (build_hash_table(right, right_n, &table, &table_size, &chain) < 0) {
+    CSRHashEntry *table; npy_intp mask; npy_intp *rows;
+    if (build_csr_hash_table(right, right_n, &table, &mask, &rows) < 0) {
         Py_DECREF(left_arr); Py_DECREF(right_arr);
         return NULL;
     }
 
-    /* Count total output rows */
-    npy_intp total = 0;
-    for (npy_intp i = 0; i < left_n; i++) {
-        npy_intp h = HASH_KEY(left[i], table_size);
-        while (table[h].count > 0 && table[h].key != left[i])
-            h = (h + 1) % table_size;
-        if (table[h].count > 0 && table[h].key == left[i])
-            total += table[h].count;
-    }
-
-    npy_intp dims[1] = {total};
-    PyArrayObject *li_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
-    PyArrayObject *ri_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
-    if (!li_arr || !ri_arr) {
-        Py_XDECREF(li_arr); Py_XDECREF(ri_arr);
-        free(table); free(chain);
+    /* Single-pass probe with growable output */
+    npy_intp init_cap = left_n;  /* reasonable starting guess */
+    if (init_cap < 64) init_cap = 64;
+    IndexBuf li_buf, ri_buf;
+    if (indexbuf_init(&li_buf, init_cap) < 0 ||
+        indexbuf_init(&ri_buf, init_cap) < 0) {
+        indexbuf_free(&li_buf); indexbuf_free(&ri_buf);
+        free(table); free(rows);
         Py_DECREF(left_arr); Py_DECREF(right_arr);
         return NULL;
     }
 
-    npy_intp *li = (npy_intp *)PyArray_DATA(li_arr);
-    npy_intp *ri = (npy_intp *)PyArray_DATA(ri_arr);
-    npy_intp pos = 0;
-
     for (npy_intp i = 0; i < left_n; i++) {
-        npy_intp h = HASH_KEY(left[i], table_size);
+        npy_intp h = HASH_KEY(left[i], mask);
         while (table[h].count > 0 && table[h].key != left[i])
-            h = (h + 1) % table_size;
+            h = (h + 1) & mask;
         if (table[h].count > 0 && table[h].key == left[i]) {
-            npy_intp ci = table[h].first;
-            while (ci >= 0) {
-                li[pos] = i;
-                ri[pos] = chain[ci].row;
-                pos++;
-                ci = chain[ci].next;
+            npy_intp cnt = table[h].count;
+            npy_intp off = table[h].offset;
+            if (indexbuf_ensure(&li_buf, cnt) < 0 ||
+                indexbuf_ensure(&ri_buf, cnt) < 0) {
+                indexbuf_free(&li_buf); indexbuf_free(&ri_buf);
+                free(table); free(rows);
+                Py_DECREF(left_arr); Py_DECREF(right_arr);
+                return NULL;
+            }
+            for (npy_intp j = 0; j < cnt; j++) {
+                li_buf.data[li_buf.len] = i;
+                ri_buf.data[ri_buf.len] = rows[off + j];
+                li_buf.len++;
+                ri_buf.len++;
             }
         }
     }
 
-    free(table); free(chain);
+    free(table); free(rows);
     Py_DECREF(left_arr); Py_DECREF(right_arr);
+
+    PyArrayObject *li_arr = indexbuf_to_array(&li_buf);
+    PyArrayObject *ri_arr = indexbuf_to_array(&ri_buf);
+    indexbuf_free(&li_buf); indexbuf_free(&ri_buf);
+    if (!li_arr || !ri_arr) {
+        Py_XDECREF(li_arr); Py_XDECREF(ri_arr);
+        return NULL;
+    }
 
     PyObject *result = PyTuple_Pack(2, (PyObject *)li_arr, (PyObject *)ri_arr);
     Py_DECREF(li_arr); Py_DECREF(ri_arr);
@@ -795,61 +898,72 @@ accel_left_join(PyObject *self, PyObject *args)
     const npy_int64 *left = (const npy_int64 *)PyArray_DATA(left_arr);
     const npy_int64 *right = (const npy_int64 *)PyArray_DATA(right_arr);
 
-    HashEntry *table; npy_intp table_size; ChainNode *chain;
-    if (build_hash_table(right, right_n, &table, &table_size, &chain) < 0) {
+    CSRHashEntry *table; npy_intp mask; npy_intp *rows;
+    if (build_csr_hash_table(right, right_n, &table, &mask, &rows) < 0) {
         Py_DECREF(left_arr); Py_DECREF(right_arr);
         return NULL;
     }
 
-    npy_intp total = 0;
+    /* Single-pass probe with growable output */
+    npy_intp init_cap = left_n;
+    if (init_cap < 64) init_cap = 64;
+    IndexBuf li_buf, ri_buf;
+    if (indexbuf_init(&li_buf, init_cap) < 0 ||
+        indexbuf_init(&ri_buf, init_cap) < 0) {
+        indexbuf_free(&li_buf); indexbuf_free(&ri_buf);
+        free(table); free(rows);
+        Py_DECREF(left_arr); Py_DECREF(right_arr);
+        return NULL;
+    }
+
     int has_null = 0;
+
     for (npy_intp i = 0; i < left_n; i++) {
-        npy_intp h = HASH_KEY(left[i], table_size);
+        npy_intp h = HASH_KEY(left[i], mask);
         while (table[h].count > 0 && table[h].key != left[i])
-            h = (h + 1) % table_size;
-        if (table[h].count > 0 && table[h].key == left[i])
-            total += table[h].count;
-        else {
-            total++;
+            h = (h + 1) & mask;
+        if (table[h].count > 0 && table[h].key == left[i]) {
+            npy_intp cnt = table[h].count;
+            npy_intp off = table[h].offset;
+            if (indexbuf_ensure(&li_buf, cnt) < 0 ||
+                indexbuf_ensure(&ri_buf, cnt) < 0) {
+                indexbuf_free(&li_buf); indexbuf_free(&ri_buf);
+                free(table); free(rows);
+                Py_DECREF(left_arr); Py_DECREF(right_arr);
+                return NULL;
+            }
+            for (npy_intp j = 0; j < cnt; j++) {
+                li_buf.data[li_buf.len] = i;
+                ri_buf.data[ri_buf.len] = rows[off + j];
+                li_buf.len++;
+                ri_buf.len++;
+            }
+        } else {
+            if (indexbuf_ensure(&li_buf, 1) < 0 ||
+                indexbuf_ensure(&ri_buf, 1) < 0) {
+                indexbuf_free(&li_buf); indexbuf_free(&ri_buf);
+                free(table); free(rows);
+                Py_DECREF(left_arr); Py_DECREF(right_arr);
+                return NULL;
+            }
+            li_buf.data[li_buf.len] = i;
+            ri_buf.data[ri_buf.len] = -1;
+            li_buf.len++;
+            ri_buf.len++;
             has_null = 1;
         }
     }
 
-    npy_intp dims[1] = {total};
-    PyArrayObject *li_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
-    PyArrayObject *ri_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
+    free(table); free(rows);
+    Py_DECREF(left_arr); Py_DECREF(right_arr);
+
+    PyArrayObject *li_arr = indexbuf_to_array(&li_buf);
+    PyArrayObject *ri_arr = indexbuf_to_array(&ri_buf);
+    indexbuf_free(&li_buf); indexbuf_free(&ri_buf);
     if (!li_arr || !ri_arr) {
         Py_XDECREF(li_arr); Py_XDECREF(ri_arr);
-        free(table); free(chain);
-        Py_DECREF(left_arr); Py_DECREF(right_arr);
         return NULL;
     }
-
-    npy_intp *li = (npy_intp *)PyArray_DATA(li_arr);
-    npy_intp *ri = (npy_intp *)PyArray_DATA(ri_arr);
-    npy_intp pos = 0;
-
-    for (npy_intp i = 0; i < left_n; i++) {
-        npy_intp h = HASH_KEY(left[i], table_size);
-        while (table[h].count > 0 && table[h].key != left[i])
-            h = (h + 1) % table_size;
-        if (table[h].count > 0 && table[h].key == left[i]) {
-            npy_intp ci = table[h].first;
-            while (ci >= 0) {
-                li[pos] = i;
-                ri[pos] = chain[ci].row;
-                pos++;
-                ci = chain[ci].next;
-            }
-        } else {
-            li[pos] = i;
-            ri[pos] = -1;
-            pos++;
-        }
-    }
-
-    free(table); free(chain);
-    Py_DECREF(left_arr); Py_DECREF(right_arr);
 
     PyObject *result = PyTuple_Pack(3,
         (PyObject *)li_arr, (PyObject *)ri_arr,
@@ -892,7 +1006,7 @@ static PyMethodDef AccelMethods[] = {
 static struct PyModuleDef accelmodule = {
     PyModuleDef_HEAD_INIT,
     "_accel",
-    "C acceleration for tafra hot paths",
+    "C acceleration for tafra hot paths (v2: CSR joins, bitmask hashing)",
     -1,
     AccelMethods
 };
