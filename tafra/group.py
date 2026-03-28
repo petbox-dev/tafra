@@ -61,6 +61,9 @@ except ImportError:
 # 'U' (fixed-width unicode <U) is excluded — it cannot hold None.
 _NULLABLE_KINDS: frozenset[str] = frozenset("fMmTO")
 
+# Dtype kinds that represent string-like types for encoding purposes.
+_STRING_KINDS: frozenset[str] = frozenset("TUSO")
+
 # Vectorized aggregation functions that can bypass per-group Python loops.
 # Maps function identity to a callable(data, labels, n_groups) -> result_array.
 _VECTORIZED_AGGS: dict[int, Callable[..., np.ndarray[Any, Any]]] = {}
@@ -472,6 +475,20 @@ class GroupSet:
                     encoded.append(codes)
                     codebooks.append(uniq)
             else:
+                # Shift signed integer columns to non-negative for positional encoding.
+                if c.dtype.kind == "i" and len(c) > 0:
+                    c64 = c.astype(np.int64, copy=False)
+                    c_min = int(c64.min())
+                    if c_min < 0:
+                        c_max = int(c64.max())
+                        if c_max - c_min > np.iinfo(np.int64).max:
+                            raise ValueError(
+                                f"Column value range ({c_min} to {c_max}) exceeds "
+                                f"int64 after shift — cannot encode for groupby."
+                            )
+                        encoded.append(c64 - c_min)
+                        codebooks.append(None)
+                        continue
                 encoded.append(c)
                 codebooks.append(None)
         return encoded, codebooks
@@ -488,7 +505,14 @@ class GroupSet:
         left_enc = []
         right_enc = []
         for lc, rc in zip(left_cols, right_cols):
-            if lc.dtype.kind in ("T", "U", "S", "O"):
+            # Verify both sides have compatible kinds before encoding
+            l_kind, r_kind = lc.dtype.kind, rc.dtype.kind
+            if (l_kind in _STRING_KINDS) != (r_kind in _STRING_KINDS):
+                raise TypeError(
+                    f"Cannot encode columns with incompatible dtype kinds: "
+                    f"left={lc.dtype} (kind={l_kind}), right={rc.dtype} (kind={r_kind})"
+                )
+            if l_kind in _STRING_KINDS:
                 combined = np.concatenate([lc, rc])
                 if _HAS_ACCEL and len(combined) >= 50_000:
                     codes, _ = _c_encode_strings(combined.astype(object))
@@ -497,6 +521,20 @@ class GroupSet:
                 left_enc.append(codes[: len(lc)])
                 right_enc.append(codes[len(lc) :])
             else:
+                # For signed integer columns, shift to non-negative using
+                # COMBINED min so both sides share the same baseline.
+                if l_kind == "i" and len(lc) > 0 and len(rc) > 0:
+                    combined_min = min(int(lc.min()), int(rc.min()))
+                    if combined_min < 0:
+                        combined_max = max(int(lc.max()), int(rc.max()))
+                        if combined_max - combined_min > np.iinfo(np.int64).max:
+                            raise ValueError(
+                                f"Column value range ({combined_min} to {combined_max}) "
+                                f"exceeds int64 after shift — cannot encode for join."
+                            )
+                        left_enc.append(lc.astype(np.int64, copy=False) - combined_min)
+                        right_enc.append(rc.astype(np.int64, copy=False) - combined_min)
+                        continue
                 left_enc.append(lc)
                 right_enc.append(rc)
         return left_enc, right_enc
@@ -515,7 +553,10 @@ class GroupSet:
         if len(encoded[0]) == 0:
             return np.array([], dtype=np.int64)
 
-        # compute cardinality of each column
+        # Precondition: columns are already non-negative integer codes.
+        # Callers _encode_columns (GroupBy/Transform) and _encode_columns_paired
+        # (joins) ensure this by encoding strings via np.unique and shifting
+        # negative integers to non-negative range.
         cards = [int(c.max()) + 1 for c in encoded]
 
         # check for overflow: product of all cardinalities must fit int64
@@ -530,14 +571,14 @@ class GroupSet:
         if not overflow:
             if _HAS_ACCEL:
                 return _c_composite_key(
-                    tuple(c.astype(np.int64) for c in encoded),
+                    tuple(c.astype(np.int64, copy=False) for c in encoded),
                     tuple(cards),
                 )
             # Python fallback: flat integer key via positional encoding
             key = np.zeros(len(encoded[0]), dtype=np.int64)
             multiplier = 1
             for c, card in zip(reversed(encoded), reversed(cards)):
-                key += c.astype(np.int64) * multiplier
+                key += c.astype(np.int64, copy=False) * multiplier
                 multiplier *= card
             return key
         else:
@@ -938,6 +979,11 @@ class Join(GroupSet):
     on: Iterable[tuple[str, str, str]]
     select: Iterable[str]
 
+    def __post_init__(self) -> None:
+        # Materialize iterables to prevent generator exhaustion on reuse.
+        self.on = list(self.on)
+        self.select = list(self.select)
+
     def _validate_dtypes(
         self, l_table: "Tafra", r_table: "Tafra"
     ) -> tuple[dict[str, np.dtype[Any]], dict[str, np.dtype[Any]]]:
@@ -1066,10 +1112,26 @@ class Join(GroupSet):
     def _resolve_join_cols(
         self, left_t: "Tafra", right_t: "Tafra"
     ) -> tuple[list[str], dict[str, str]]:
-        """Compute deduplicated output columns and dtypes."""
+        """Compute deduplicated output columns and dtypes.
+
+        Validates that all select columns exist in at least one table.
+        """
+        # Use a frozenset for O(1) membership testing.
+        # select is already materialized to a list in __post_init__.
+        select_set = frozenset(self.select)
+
+        # Validate select columns exist
+        if select_set:
+            valid_cols = set(left_t._data.keys()) | set(right_t._data.keys())
+            invalid = select_set - valid_cols
+            if invalid:
+                raise KeyError(
+                    f"Column(s) {tuple(sorted(invalid))} in `select` not found in either table."
+                )
+
         seen_cols: dict[str, None] = {}
         for c in chain(left_t._data.keys(), right_t._data.keys()):
-            if not self.select or c in self.select:
+            if not select_set or c in select_set:
                 seen_cols[c] = None
         join_cols = list(seen_cols.keys())
         dtypes: dict[str, str] = {
@@ -1651,10 +1713,9 @@ class LeftJoin(Join):
 @dc.dataclass
 class CrossJoin(Join):
     """
-    A cross join.
+    A cross join (Cartesian product).
 
-    Analogy to SQL CROSS JOIN, or `pandas.merge(..., how='outer')
-    using temporary columns of static value to intersect all rows`.
+    Analogy to SQL CROSS JOIN, or `pandas.merge(left, right, how='cross')`.
 
     Parameters
     ----------

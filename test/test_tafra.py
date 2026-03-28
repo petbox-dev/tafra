@@ -2774,7 +2774,7 @@ class TestInnerJoin:
         assert "other" not in t.columns
 
     def test_inner_join_select_nonexistent(self) -> None:
-        """Nonexistent column in select is ignored."""
+        """Nonexistent column in select raises KeyError."""
         left = Tafra(
             {
                 "k": np.array([1, 2, 3]),
@@ -2787,13 +2787,12 @@ class TestInnerJoin:
                 "rv": np.array([200, 300]),
             }
         )
-        t = left.inner_join(
-            right,
-            [("k", "k", "==")],
-            select=["k", "lv", "rv", "nonexistent"],
-        )
-        assert "nonexistent" not in t.columns
-        assert len(t) == 2
+        with pytest.raises(KeyError, match="nonexistent"):
+            left.inner_join(
+                right,
+                [("k", "k", "==")],
+                select=["k", "lv", "rv", "nonexistent"],
+            )
 
     def test_inner_join_duplicate_column_left_wins(self) -> None:
         """Shared column name, left wins."""
@@ -3999,3 +3998,213 @@ class TestEncodeStrings:
         codes, nu = encode_strings(arr)
         assert nu == 3
         np.testing.assert_array_equal(codes, [0, 1, 0, 2, 1])
+
+
+class TestJoinSelectValidation:
+    """Tests for select parameter validation and generator handling."""
+
+    def test_generator_select_inner_join(self) -> None:
+        """Generator passed as select should not exhaust on reuse."""
+        from tafra.group import InnerJoin
+
+        left = Tafra({"k": np.array([1, 2]), "v": np.array([10, 20])})
+        right = Tafra({"k": np.array([1, 2]), "w": np.array([100, 200])})
+
+        def gen_select() -> Iterator[str]:
+            yield "k"
+            yield "v"
+
+        j = InnerJoin(on=[("k", "k", "==")], select=gen_select())
+        r1 = j.apply(left, right)
+        assert "k" in r1.columns
+        assert "v" in r1.columns
+        # Second call should also work (generator was materialized in __post_init__)
+        r2 = j.apply(left, right)
+        assert "k" in r2.columns
+        assert "v" in r2.columns
+
+    def test_generator_on_inner_join(self) -> None:
+        """Generator passed as on should not exhaust on reuse."""
+        from tafra.group import InnerJoin
+
+        left = Tafra({"k": np.array([1, 2]), "v": np.array([10, 20])})
+        right = Tafra({"k": np.array([1, 2]), "w": np.array([100, 200])})
+
+        def gen_on() -> Iterator[tuple[str, str, str]]:
+            yield ("k", "k", "==")
+
+        j = InnerJoin(on=gen_on(), select=[])
+        r1 = j.apply(left, right)
+        assert r1.rows == 2
+        r2 = j.apply(left, right)
+        assert r2.rows == 2
+
+    def test_invalid_select_inner_join(self) -> None:
+        """InnerJoin should raise KeyError for nonexistent select columns."""
+        left = Tafra({"k": np.array([1, 2]), "v": np.array([10, 20])})
+        right = Tafra({"k": np.array([1, 2]), "w": np.array([100, 200])})
+        with pytest.raises(KeyError, match="nonexistent"):
+            left.inner_join(right, on=[("k", "k", "==")], select=["nonexistent"])
+
+    def test_invalid_select_left_join(self) -> None:
+        """LeftJoin should raise KeyError for nonexistent select columns."""
+        left = Tafra({"k": np.array([1, 2]), "v": np.array([10, 20])})
+        right = Tafra({"k": np.array([1, 2]), "w": np.array([100, 200])})
+        with pytest.raises(KeyError, match="nonexistent"):
+            left.left_join(right, on=[("k", "k", "==")], select=["nonexistent"])
+
+    def test_invalid_select_cross_join(self) -> None:
+        """CrossJoin should raise KeyError for nonexistent select columns."""
+        left = Tafra({"k": np.array([1, 2]), "v": np.array([10, 20])})
+        right = Tafra({"j": np.array([3, 4]), "w": np.array([100, 200])})
+        with pytest.raises(KeyError, match="nonexistent"):
+            left.cross_join(right, select=["nonexistent"])
+
+
+class TestCoverageGaps:
+    """Tests targeting specific uncovered code paths."""
+
+    def test_left_join_empty_right_datetime_null_fill(self) -> None:
+        """Empty right table with datetime column uses NaT fill."""
+        left = Tafra({"k": np.array([1, 2])})
+        right = Tafra(
+            {
+                "k": np.array([], dtype=np.int64),
+                "dt": np.array([], dtype="datetime64[ns]"),
+            }
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            t = left.left_join(right, on=[("k", "k", "==")])
+        assert t.rows == 2
+        assert np.isnat(t["dt"][0])
+
+    def test_left_join_empty_right_timedelta_null_fill(self) -> None:
+        """Empty right table with timedelta column uses NaT fill."""
+        left = Tafra({"k": np.array([1, 2])})
+        right = Tafra(
+            {
+                "k": np.array([], dtype=np.int64),
+                "td": np.array([], dtype="timedelta64[ns]"),
+            }
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            t = left.left_join(right, on=[("k", "k", "==")])
+        assert t.rows == 2
+        assert np.isnat(t["td"][0])
+
+    def test_left_join_empty_right_int_object_warning(self) -> None:
+        """Empty right table with int column emits warning and casts to object."""
+        left = Tafra({"k": np.array([1, 2])})
+        right = Tafra(
+            {
+                "k": np.array([], dtype=np.int64),
+                "count": np.array([], dtype=np.int64),
+            }
+        )
+        with pytest.warns(UserWarning, match="cast to object"):
+            t = left.left_join(right, on=[("k", "k", "==")])
+        assert t["count"].dtype == object
+
+    def test_left_join_empty_right_string_null_fill(self) -> None:
+        """Empty right table with StringDType column fills None."""
+        left = Tafra({"k": np.array([1, 2])})
+        right = Tafra(
+            {
+                "k": np.array([], dtype=np.int64),
+                "name": np.array([], dtype=np.dtypes.StringDType()),
+            }
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            t = left.left_join(right, on=[("k", "k", "==")])
+        assert t.rows == 2
+        assert t["name"][0] is None
+
+    def test_left_join_nonequi_null_keys(self) -> None:
+        """Non-equi left join with NaN keys: null rows get unmatched."""
+        left = Tafra(
+            {
+                "k": np.array([1.0, np.nan, 3.0]),
+                "lv": np.array([10, 20, 30]),
+            }
+        )
+        right = Tafra(
+            {
+                "k": np.array([0.5, 2.5]),
+                "rv": np.array([100, 200]),
+            }
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            t = left.left_join(right, on=[("k", "k", ">=")])
+        # NaN row should be unmatched (null key)
+        nan_rows = [i for i in range(t.rows) if t["lv"][i] == 20]
+        for i in nan_rows:
+            assert t["rv"][i] is None
+
+    def test_inner_join_nonequi_null_keys(self) -> None:
+        """Non-equi inner join with NaN keys: null rows excluded."""
+        left = Tafra(
+            {
+                "k": np.array([1.0, np.nan, 3.0]),
+                "lv": np.array([10, 20, 30]),
+            }
+        )
+        right = Tafra(
+            {
+                "k": np.array([0.5, 2.5]),
+                "rv": np.array([100, 200]),
+            }
+        )
+        t = left.inner_join(right, on=[("k", "k", ">=")])
+        # NaN row (lv=20) should NOT appear in results
+        assert 20 not in list(t["lv"])
+
+    def test_composite_key_overflow(self) -> None:
+        """Composite key overflow raises ValueError."""
+        from tafra.group import GroupSet
+
+        # Two columns with huge cardinality to trigger overflow
+        big = np.array([0, 2**31], dtype=np.int64)
+        with pytest.raises(ValueError, match="overflow"):
+            GroupSet._build_composite_key([big, big])
+
+    def test_negative_int_groupby_multi_column(self) -> None:
+        """GroupBy on multiple columns with negative integer keys."""
+        t = Tafra(
+            {
+                "g1": np.array([-2, -2, -1, -1, 0, 0], dtype=np.int64),
+                "g2": np.array([1, 2, 1, 2, 1, 2], dtype=np.int64),
+                "v": np.array([10.0, 20.0, 30.0, 40.0, 50.0, 60.0]),
+            }
+        )
+        r = t.group_by(["g1", "g2"], {"v": np.sum})
+        assert r.rows == 6
+        # Each combination is unique — sums should equal original values
+        for i in range(r.rows):
+            g1, g2, v = r["g1"][i], r["g2"][i], r["v"][i]
+            expected = t["v"][(t["g1"] == g1) & (t["g2"] == g2)].sum()
+            assert v == expected, f"Mismatch for g1={g1}, g2={g2}: {v} != {expected}"
+
+    def test_negative_int_join_multi_column(self) -> None:
+        """Multi-column join with negative integer keys on both sides."""
+        left = Tafra(
+            {
+                "k1": np.array([-5, -3, 0, 2], dtype=np.int64),
+                "k2": np.array([1, 2, 3, 4], dtype=np.int64),
+                "lv": np.array([10, 20, 30, 40]),
+            }
+        )
+        right = Tafra(
+            {
+                "k1": np.array([-3, 0, 2, 5], dtype=np.int64),
+                "k2": np.array([2, 3, 4, 1], dtype=np.int64),
+                "rv": np.array([100, 200, 300, 400]),
+            }
+        )
+        r = left.inner_join(right, on=[("k1", "k1", "=="), ("k2", "k2", "==")])
+        assert r.rows == 3
+        assert list(r["lv"]) == [20, 30, 40]
+        assert list(r["rv"]) == [100, 200, 300]
