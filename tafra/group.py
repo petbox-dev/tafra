@@ -475,6 +475,13 @@ class GroupSet:
                     encoded.append(codes)
                     codebooks.append(uniq)
             else:
+                # Shift signed integer columns to non-negative for positional encoding.
+                if c.dtype.kind == "i" and len(c) > 0:
+                    c_min = int(c.min())
+                    if c_min < 0:
+                        encoded.append(c.astype(np.int64, copy=False) - c_min)
+                        codebooks.append(None)
+                        continue
                 encoded.append(c)
                 codebooks.append(None)
         return encoded, codebooks
@@ -507,6 +514,14 @@ class GroupSet:
                 left_enc.append(codes[: len(lc)])
                 right_enc.append(codes[len(lc) :])
             else:
+                # For signed integer columns, shift to non-negative using
+                # COMBINED min so both sides share the same baseline.
+                if l_kind == "i" and len(lc) > 0 and len(rc) > 0:
+                    combined_min = min(int(lc.min()), int(rc.min()))
+                    if combined_min < 0:
+                        left_enc.append(lc.astype(np.int64, copy=False) - combined_min)
+                        right_enc.append(rc.astype(np.int64, copy=False) - combined_min)
+                        continue
                 left_enc.append(lc)
                 right_enc.append(rc)
         return left_enc, right_enc
@@ -525,14 +540,10 @@ class GroupSet:
         if len(encoded[0]) == 0:
             return np.array([], dtype=np.int64)
 
-        # Shift columns to non-negative range and compute cardinality.
-        # Raw integer keys can be negative (e.g., signed ID columns).
-        mins = [int(c.min()) for c in encoded]
-        shifted = [
-            (c.astype(np.int64, copy=False) - m) if m != 0 else c.astype(np.int64, copy=False)
-            for c, m in zip(encoded, mins)
-        ]
-        cards = [int(c.max()) + 1 for c in shifted]
+        # Compute cardinality of each column.
+        # Columns should be non-negative at this point — _encode_columns_paired
+        # shifts negative integer columns using a combined min across both sides.
+        cards = [int(c.max()) + 1 for c in encoded]
 
         # check for overflow: product of all cardinalities must fit int64
         product = 1
@@ -546,14 +557,14 @@ class GroupSet:
         if not overflow:
             if _HAS_ACCEL:
                 return _c_composite_key(
-                    tuple(shifted),
+                    tuple(c.astype(np.int64, copy=False) for c in encoded),
                     tuple(cards),
                 )
             # Python fallback: flat integer key via positional encoding
             key = np.zeros(len(encoded[0]), dtype=np.int64)
             multiplier = 1
-            for c, card in zip(reversed(shifted), reversed(cards)):
-                key += c * multiplier
+            for c, card in zip(reversed(encoded), reversed(cards)):
+                key += c.astype(np.int64, copy=False) * multiplier
                 multiplier *= card
             return key
         else:
@@ -953,6 +964,11 @@ class Join(GroupSet):
 
     on: Iterable[tuple[str, str, str]]
     select: Iterable[str]
+
+    def __post_init__(self) -> None:
+        # Materialize iterables to prevent generator exhaustion on reuse.
+        self.on = list(self.on)
+        self.select = list(self.select)
 
     def _validate_dtypes(
         self, l_table: "Tafra", r_table: "Tafra"
