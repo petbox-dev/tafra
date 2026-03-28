@@ -380,7 +380,7 @@ class Tafra:
         return self.__repr__()
 
     def __len__(self) -> int:
-        assert self._data is not None, "Interal error: Cannot construct a Tafra with no data."
+        assert self._data is not None, "Internal error: Cannot construct a Tafra with no data."
         return self._rows
 
     def __iter__(self) -> Iterator["Tafra"]:
@@ -803,7 +803,7 @@ class Tafra:
                 warnings.warn("`np.squeeze(ndarray)` applied to set ndim == 1.")
                 value = sq_value
 
-        assert value.ndim >= 1, "Interal error: `Tafra` only supports assigning ndim == 1."
+        assert value.ndim >= 1, "Internal error: `Tafra` only supports assigning ndim == 1."
 
         if check_rows and len(value) != rows:
             raise ValueError(
@@ -1386,7 +1386,7 @@ class Tafra:
     ) -> "Tafra":
         """
         Apply a function to the `Tafra` and return the resulting `Tafra`. Primarily
-        used to build a tranformer pipeline.
+        used to build a transformer pipeline.
 
         Parameters
         ----------
