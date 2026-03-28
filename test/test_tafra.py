@@ -4059,3 +4059,114 @@ class TestJoinSelectValidation:
         right = Tafra({"j": np.array([3, 4]), "w": np.array([100, 200])})
         with pytest.raises(KeyError, match="nonexistent"):
             left.cross_join(right, select=["nonexistent"])
+
+
+class TestCoverageGaps:
+    """Tests targeting specific uncovered code paths."""
+
+    def test_left_join_empty_right_datetime_null_fill(self) -> None:
+        """Empty right table with datetime column uses NaT fill."""
+        left = Tafra({"k": np.array([1, 2])})
+        right = Tafra(
+            {
+                "k": np.array([], dtype=np.int64),
+                "dt": np.array([], dtype="datetime64[ns]"),
+            }
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            t = left.left_join(right, on=[("k", "k", "==")])
+        assert t.rows == 2
+        assert np.isnat(t["dt"][0])
+
+    def test_left_join_empty_right_timedelta_null_fill(self) -> None:
+        """Empty right table with timedelta column uses NaT fill."""
+        left = Tafra({"k": np.array([1, 2])})
+        right = Tafra(
+            {
+                "k": np.array([], dtype=np.int64),
+                "td": np.array([], dtype="timedelta64[ns]"),
+            }
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            t = left.left_join(right, on=[("k", "k", "==")])
+        assert t.rows == 2
+        assert np.isnat(t["td"][0])
+
+    def test_left_join_empty_right_int_object_warning(self) -> None:
+        """Empty right table with int column emits warning and casts to object."""
+        left = Tafra({"k": np.array([1, 2])})
+        right = Tafra(
+            {
+                "k": np.array([], dtype=np.int64),
+                "count": np.array([], dtype=np.int64),
+            }
+        )
+        with pytest.warns(UserWarning, match="cast to object"):
+            t = left.left_join(right, on=[("k", "k", "==")])
+        assert t["count"].dtype == object
+
+    def test_left_join_empty_right_string_null_fill(self) -> None:
+        """Empty right table with StringDType column fills None."""
+        left = Tafra({"k": np.array([1, 2])})
+        right = Tafra(
+            {
+                "k": np.array([], dtype=np.int64),
+                "name": np.array([], dtype=np.dtypes.StringDType()),
+            }
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            t = left.left_join(right, on=[("k", "k", "==")])
+        assert t.rows == 2
+        assert t["name"][0] is None
+
+    def test_left_join_nonequi_null_keys(self) -> None:
+        """Non-equi left join with NaN keys: null rows get unmatched."""
+        left = Tafra(
+            {
+                "k": np.array([1.0, np.nan, 3.0]),
+                "lv": np.array([10, 20, 30]),
+            }
+        )
+        right = Tafra(
+            {
+                "k": np.array([0.5, 2.5]),
+                "rv": np.array([100, 200]),
+            }
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            t = left.left_join(right, on=[("k", "k", ">=")])
+        # NaN row should be unmatched (null key)
+        nan_rows = [i for i in range(t.rows) if t["lv"][i] == 20]
+        for i in nan_rows:
+            assert t["rv"][i] is None
+
+    def test_inner_join_nonequi_null_keys(self) -> None:
+        """Non-equi inner join with NaN keys: null rows excluded."""
+        left = Tafra(
+            {
+                "k": np.array([1.0, np.nan, 3.0]),
+                "lv": np.array([10, 20, 30]),
+            }
+        )
+        right = Tafra(
+            {
+                "k": np.array([0.5, 2.5]),
+                "rv": np.array([100, 200]),
+            }
+        )
+        t = left.inner_join(right, on=[("k", "k", ">=")])
+        # NaN row (lv=20) should NOT appear in results
+        assert 20 not in list(t["lv"])
+
+    def test_composite_key_overflow(self) -> None:
+        """Composite key overflow raises ValueError."""
+        from tafra.group import GroupSet
+
+        # Two columns with huge cardinality to trigger overflow
+        big = np.array([0, 2**31], dtype=np.int64)
+        with pytest.raises(ValueError, match="overflow"):
+            GroupSet._build_composite_key([big, big])
