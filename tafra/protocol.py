@@ -12,6 +12,7 @@ Notes
 -----
 Created on April 25, 2020
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -31,6 +32,7 @@ class DataFrame(Protocol):
     """
     A fake class to satisfy typing of a ``pandas.DataFrame`` without a dependency.
     """
+
     _data: dict[str, Series]
     columns: list[str]
     dtypes: list[str]
@@ -41,11 +43,13 @@ class DataFrame(Protocol):
     def __setitem__(self, column: str, value: np.ndarray[Any, Any]) -> None:
         raise NotImplementedError
 
+
 @runtime_checkable
 class Cursor(Protocol):
     """
     A fake class to satisfy typing of a ``pyodbc.Cursor`` without a dependency.
     """
+
     description: tuple[tuple[str, type[Any], int | None, int, int, int, bool]]
 
     def __iter__(self) -> Iterator[tuple[Any, ...]]:

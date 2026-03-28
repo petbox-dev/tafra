@@ -4170,3 +4170,41 @@ class TestCoverageGaps:
         big = np.array([0, 2**31], dtype=np.int64)
         with pytest.raises(ValueError, match="overflow"):
             GroupSet._build_composite_key([big, big])
+
+    def test_negative_int_groupby_multi_column(self) -> None:
+        """GroupBy on multiple columns with negative integer keys."""
+        t = Tafra(
+            {
+                "g1": np.array([-2, -2, -1, -1, 0, 0], dtype=np.int64),
+                "g2": np.array([1, 2, 1, 2, 1, 2], dtype=np.int64),
+                "v": np.array([10.0, 20.0, 30.0, 40.0, 50.0, 60.0]),
+            }
+        )
+        r = t.group_by(["g1", "g2"], {"v": np.sum})
+        assert r.rows == 6
+        # Each combination is unique — sums should equal original values
+        for i in range(r.rows):
+            g1, g2, v = r["g1"][i], r["g2"][i], r["v"][i]
+            expected = t["v"][(t["g1"] == g1) & (t["g2"] == g2)].sum()
+            assert v == expected, f"Mismatch for g1={g1}, g2={g2}: {v} != {expected}"
+
+    def test_negative_int_join_multi_column(self) -> None:
+        """Multi-column join with negative integer keys on both sides."""
+        left = Tafra(
+            {
+                "k1": np.array([-5, -3, 0, 2], dtype=np.int64),
+                "k2": np.array([1, 2, 3, 4], dtype=np.int64),
+                "lv": np.array([10, 20, 30, 40]),
+            }
+        )
+        right = Tafra(
+            {
+                "k1": np.array([-3, 0, 2, 5], dtype=np.int64),
+                "k2": np.array([2, 3, 4, 1], dtype=np.int64),
+                "rv": np.array([100, 200, 300, 400]),
+            }
+        )
+        r = left.inner_join(right, on=[("k1", "k1", "=="), ("k2", "k2", "==")])
+        assert r.rows == 3
+        assert list(r["lv"]) == [20, 30, 40]
+        assert list(r["rv"]) == [100, 200, 300]
