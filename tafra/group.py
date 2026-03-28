@@ -477,9 +477,16 @@ class GroupSet:
             else:
                 # Shift signed integer columns to non-negative for positional encoding.
                 if c.dtype.kind == "i" and len(c) > 0:
-                    c_min = int(c.min())
+                    c64 = c.astype(np.int64, copy=False)
+                    c_min = int(c64.min())
                     if c_min < 0:
-                        encoded.append(c.astype(np.int64, copy=False) - c_min)
+                        c_max = int(c64.max())
+                        if c_max - c_min > np.iinfo(np.int64).max:
+                            raise ValueError(
+                                f"Column value range ({c_min} to {c_max}) exceeds "
+                                f"int64 after shift — cannot encode for groupby."
+                            )
+                        encoded.append(c64 - c_min)
                         codebooks.append(None)
                         continue
                 encoded.append(c)
@@ -519,6 +526,12 @@ class GroupSet:
                 if l_kind == "i" and len(lc) > 0 and len(rc) > 0:
                     combined_min = min(int(lc.min()), int(rc.min()))
                     if combined_min < 0:
+                        combined_max = max(int(lc.max()), int(rc.max()))
+                        if combined_max - combined_min > np.iinfo(np.int64).max:
+                            raise ValueError(
+                                f"Column value range ({combined_min} to {combined_max}) "
+                                f"exceeds int64 after shift — cannot encode for join."
+                            )
                         left_enc.append(lc.astype(np.int64, copy=False) - combined_min)
                         right_enc.append(rc.astype(np.int64, copy=False) - combined_min)
                         continue
@@ -1103,8 +1116,8 @@ class Join(GroupSet):
 
         Validates that all select columns exist in at least one table.
         """
-        # Materialize select to a set — protects against generator exhaustion
-        # and provides O(1) membership testing.
+        # Use a frozenset for O(1) membership testing.
+        # select is already materialized to a list in __post_init__.
         select_set = frozenset(self.select)
 
         # Validate select columns exist
