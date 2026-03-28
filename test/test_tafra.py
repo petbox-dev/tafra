@@ -2774,7 +2774,7 @@ class TestInnerJoin:
         assert "other" not in t.columns
 
     def test_inner_join_select_nonexistent(self) -> None:
-        """Nonexistent column in select is ignored."""
+        """Nonexistent column in select raises KeyError."""
         left = Tafra(
             {
                 "k": np.array([1, 2, 3]),
@@ -2787,13 +2787,12 @@ class TestInnerJoin:
                 "rv": np.array([200, 300]),
             }
         )
-        t = left.inner_join(
-            right,
-            [("k", "k", "==")],
-            select=["k", "lv", "rv", "nonexistent"],
-        )
-        assert "nonexistent" not in t.columns
-        assert len(t) == 2
+        with pytest.raises(KeyError, match="nonexistent"):
+            left.inner_join(
+                right,
+                [("k", "k", "==")],
+                select=["k", "lv", "rv", "nonexistent"],
+            )
 
     def test_inner_join_duplicate_column_left_wins(self) -> None:
         """Shared column name, left wins."""
@@ -3999,3 +3998,64 @@ class TestEncodeStrings:
         codes, nu = encode_strings(arr)
         assert nu == 3
         np.testing.assert_array_equal(codes, [0, 1, 0, 2, 1])
+
+
+class TestJoinSelectValidation:
+    """Tests for select parameter validation and generator handling."""
+
+    def test_generator_select_inner_join(self) -> None:
+        """Generator passed as select should not exhaust on reuse."""
+        from tafra.group import InnerJoin
+
+        left = Tafra({"k": np.array([1, 2]), "v": np.array([10, 20])})
+        right = Tafra({"k": np.array([1, 2]), "w": np.array([100, 200])})
+
+        def gen_select() -> Iterator[str]:
+            yield "k"
+            yield "v"
+
+        j = InnerJoin(on=[("k", "k", "==")], select=gen_select())
+        r1 = j.apply(left, right)
+        assert "k" in r1.columns
+        assert "v" in r1.columns
+        # Second call should also work (generator was materialized in __post_init__)
+        r2 = j.apply(left, right)
+        assert "k" in r2.columns
+        assert "v" in r2.columns
+
+    def test_generator_on_inner_join(self) -> None:
+        """Generator passed as on should not exhaust on reuse."""
+        from tafra.group import InnerJoin
+
+        left = Tafra({"k": np.array([1, 2]), "v": np.array([10, 20])})
+        right = Tafra({"k": np.array([1, 2]), "w": np.array([100, 200])})
+
+        def gen_on() -> Iterator[tuple[str, str, str]]:
+            yield ("k", "k", "==")
+
+        j = InnerJoin(on=gen_on(), select=[])
+        r1 = j.apply(left, right)
+        assert r1.rows == 2
+        r2 = j.apply(left, right)
+        assert r2.rows == 2
+
+    def test_invalid_select_inner_join(self) -> None:
+        """InnerJoin should raise KeyError for nonexistent select columns."""
+        left = Tafra({"k": np.array([1, 2]), "v": np.array([10, 20])})
+        right = Tafra({"k": np.array([1, 2]), "w": np.array([100, 200])})
+        with pytest.raises(KeyError, match="nonexistent"):
+            left.inner_join(right, on=[("k", "k", "==")], select=["nonexistent"])
+
+    def test_invalid_select_left_join(self) -> None:
+        """LeftJoin should raise KeyError for nonexistent select columns."""
+        left = Tafra({"k": np.array([1, 2]), "v": np.array([10, 20])})
+        right = Tafra({"k": np.array([1, 2]), "w": np.array([100, 200])})
+        with pytest.raises(KeyError, match="nonexistent"):
+            left.left_join(right, on=[("k", "k", "==")], select=["nonexistent"])
+
+    def test_invalid_select_cross_join(self) -> None:
+        """CrossJoin should raise KeyError for nonexistent select columns."""
+        left = Tafra({"k": np.array([1, 2]), "v": np.array([10, 20])})
+        right = Tafra({"j": np.array([3, 4]), "w": np.array([100, 200])})
+        with pytest.raises(KeyError, match="nonexistent"):
+            left.cross_join(right, select=["nonexistent"])

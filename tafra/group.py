@@ -540,9 +540,10 @@ class GroupSet:
         if len(encoded[0]) == 0:
             return np.array([], dtype=np.int64)
 
-        # Compute cardinality of each column.
-        # Columns should be non-negative at this point — _encode_columns_paired
-        # shifts negative integer columns using a combined min across both sides.
+        # Precondition: columns are already non-negative integer codes.
+        # Callers _encode_columns (GroupBy/Transform) and _encode_columns_paired
+        # (joins) ensure this by encoding strings via np.unique and shifting
+        # negative integers to non-negative range.
         cards = [int(c.max()) + 1 for c in encoded]
 
         # check for overflow: product of all cardinalities must fit int64
@@ -1098,10 +1099,23 @@ class Join(GroupSet):
     def _resolve_join_cols(
         self, left_t: "Tafra", right_t: "Tafra"
     ) -> tuple[list[str], dict[str, str]]:
-        """Compute deduplicated output columns and dtypes."""
+        """Compute deduplicated output columns and dtypes.
+
+        Validates that all select columns exist in at least one table.
+        """
         # Materialize select to a set — protects against generator exhaustion
         # and provides O(1) membership testing.
         select_set = frozenset(self.select)
+
+        # Validate select columns exist
+        if select_set:
+            valid_cols = set(left_t._data.keys()) | set(right_t._data.keys())
+            invalid = select_set - valid_cols
+            if invalid:
+                raise KeyError(
+                    f"Column(s) {tuple(sorted(invalid))} in `select` not found in either table."
+                )
+
         seen_cols: dict[str, None] = {}
         for c in chain(left_t._data.keys(), right_t._data.keys()):
             if not select_set or c in select_set:
@@ -1716,14 +1730,6 @@ class CrossJoin(Join):
             The joined `Tafra`.
         """
         join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
-
-        # Validate that select columns actually exist in at least one table
-        select_set = frozenset(self.select)
-        if select_set:
-            valid_cols = set(left_t._data.keys()) | set(right_t._data.keys())
-            invalid = select_set - valid_cols
-            if invalid:
-                raise KeyError(f"Column(s) {invalid} in `select` not found in either table.")
 
         # Empty table shortcut — cross join with either side empty → empty result
         if left_t._rows < 1 or right_t._rows < 1:
