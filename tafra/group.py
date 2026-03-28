@@ -61,6 +61,9 @@ except ImportError:
 # 'U' (fixed-width unicode <U) is excluded — it cannot hold None.
 _NULLABLE_KINDS: frozenset[str] = frozenset("fMmTO")
 
+# Dtype kinds that represent string-like types for encoding purposes.
+_STRING_KINDS: frozenset[str] = frozenset("TUSO")
+
 # Vectorized aggregation functions that can bypass per-group Python loops.
 # Maps function identity to a callable(data, labels, n_groups) -> result_array.
 _VECTORIZED_AGGS: dict[int, Callable[..., np.ndarray[Any, Any]]] = {}
@@ -488,7 +491,14 @@ class GroupSet:
         left_enc = []
         right_enc = []
         for lc, rc in zip(left_cols, right_cols):
-            if lc.dtype.kind in ("T", "U", "S", "O"):
+            # Verify both sides have compatible kinds before encoding
+            l_kind, r_kind = lc.dtype.kind, rc.dtype.kind
+            if (l_kind in _STRING_KINDS) != (r_kind in _STRING_KINDS):
+                raise TypeError(
+                    f"Cannot encode columns with incompatible dtype kinds: "
+                    f"left={lc.dtype} (kind={l_kind}), right={rc.dtype} (kind={r_kind})"
+                )
+            if l_kind in _STRING_KINDS:
                 combined = np.concatenate([lc, rc])
                 if _HAS_ACCEL and len(combined) >= 50_000:
                     codes, _ = _c_encode_strings(combined.astype(object))
@@ -515,8 +525,14 @@ class GroupSet:
         if len(encoded[0]) == 0:
             return np.array([], dtype=np.int64)
 
-        # compute cardinality of each column
-        cards = [int(c.max()) + 1 for c in encoded]
+        # Shift columns to non-negative range and compute cardinality.
+        # Raw integer keys can be negative (e.g., signed ID columns).
+        mins = [int(c.min()) for c in encoded]
+        shifted = [
+            (c.astype(np.int64, copy=False) - m) if m != 0 else c.astype(np.int64, copy=False)
+            for c, m in zip(encoded, mins)
+        ]
+        cards = [int(c.max()) + 1 for c in shifted]
 
         # check for overflow: product of all cardinalities must fit int64
         product = 1
@@ -530,14 +546,14 @@ class GroupSet:
         if not overflow:
             if _HAS_ACCEL:
                 return _c_composite_key(
-                    tuple(c.astype(np.int64) for c in encoded),
+                    tuple(shifted),
                     tuple(cards),
                 )
             # Python fallback: flat integer key via positional encoding
             key = np.zeros(len(encoded[0]), dtype=np.int64)
             multiplier = 1
-            for c, card in zip(reversed(encoded), reversed(cards)):
-                key += c.astype(np.int64) * multiplier
+            for c, card in zip(reversed(shifted), reversed(cards)):
+                key += c * multiplier
                 multiplier *= card
             return key
         else:
@@ -1067,9 +1083,12 @@ class Join(GroupSet):
         self, left_t: "Tafra", right_t: "Tafra"
     ) -> tuple[list[str], dict[str, str]]:
         """Compute deduplicated output columns and dtypes."""
+        # Materialize select to a set — protects against generator exhaustion
+        # and provides O(1) membership testing.
+        select_set = frozenset(self.select)
         seen_cols: dict[str, None] = {}
         for c in chain(left_t._data.keys(), right_t._data.keys()):
-            if not self.select or c in self.select:
+            if not select_set or c in select_set:
                 seen_cols[c] = None
         join_cols = list(seen_cols.keys())
         dtypes: dict[str, str] = {
@@ -1651,10 +1670,9 @@ class LeftJoin(Join):
 @dc.dataclass
 class CrossJoin(Join):
     """
-    A cross join.
+    A cross join (Cartesian product).
 
-    Analogy to SQL CROSS JOIN, or `pandas.merge(..., how='outer')
-    using temporary columns of static value to intersect all rows`.
+    Analogy to SQL CROSS JOIN, or `pandas.merge(left, right, how='cross')`.
 
     Parameters
     ----------
@@ -1682,6 +1700,14 @@ class CrossJoin(Join):
             The joined `Tafra`.
         """
         join_cols, dtypes = self._resolve_join_cols(left_t, right_t)
+
+        # Validate that select columns actually exist in at least one table
+        select_set = frozenset(self.select)
+        if select_set:
+            valid_cols = set(left_t._data.keys()) | set(right_t._data.keys())
+            invalid = select_set - valid_cols
+            if invalid:
+                raise KeyError(f"Column(s) {invalid} in `select` not found in either table.")
 
         # Empty table shortcut — cross join with either side empty → empty result
         if left_t._rows < 1 or right_t._rows < 1:
