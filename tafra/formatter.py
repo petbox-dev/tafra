@@ -12,6 +12,7 @@ Notes
 -----
 Created on April 25, 2020
 """
+
 from __future__ import annotations
 
 from typing import Any, Callable, Iterator, MutableMapping
@@ -19,8 +20,10 @@ from typing import Any, Callable, Iterator, MutableMapping
 import numpy as np
 
 
-class ObjectFormatter(dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]]],
-                      MutableMapping[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]]]):
+class ObjectFormatter(
+    dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]]],
+    MutableMapping[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]]],
+):
     """
     A dictionary that contains mappings for formatting objects. Some numpy objects
     should be cast to other types, e.g. the `decimal.Decimal` type cannot
@@ -33,11 +36,14 @@ class ObjectFormatter(dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any,
     looked up from the first element of the `np.ndarray`, i.e.
     `type(array[0]).__name__`.
     """
+
     test_array = np.arange(4)
 
-    def __setitem__(self, dtype: str,
-                    value: Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]],
-                    ) -> None:
+    def __setitem__(
+        self,
+        dtype: str,
+        value: Callable[[np.ndarray[Any, Any]], np.ndarray[Any, Any]],
+    ) -> None:
         """
         Set the dtype formatter.
         """
@@ -45,13 +51,13 @@ class ObjectFormatter(dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any,
             result = value(self.test_array)
         except Exception as e:
             raise ValueError(
-                'Must provide a function that takes an `np.ndarray` and returns '
-                'an np.ndarray.') from e
+                "Must provide a function that takes an `np.ndarray` and returns an np.ndarray."
+            ) from e
 
         if not isinstance(result, np.ndarray):
             raise ValueError(
-                'Must provide a function that takes an `np.ndarray` and returns '
-                'an np.ndarray.')
+                "Must provide a function that takes an `np.ndarray` and returns an np.ndarray."
+            )
 
         dict.__setitem__(self, dtype, value)
 
@@ -72,8 +78,8 @@ class ObjectFormatter(dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any,
 
     def __str__(self) -> str:
         if self.__len__() < 1:
-            return r'{}'
-        return '{' + '\n'.join(f'{c}: {v}' for c, v in self.items()) + '}'
+            return r"{}"
+        return "{" + "\n".join(f"{c}: {v}" for c, v in self.items()) + "}"
 
     def __iter__(self) -> Iterator[Any]:
         yield from dict.__iter__(self)
@@ -98,7 +104,7 @@ class ObjectFormatter(dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any,
         value, modified: Tuple(np.ndarray, bool)
             The `np.ndarray` and whether it was modified or not.
         """
-        if value.dtype.kind != 'O':
+        if value.dtype.kind != "O":
             return None
 
         type_name = type(value[0]).__name__
@@ -107,7 +113,7 @@ class ObjectFormatter(dict[str, Callable[[np.ndarray[Any, Any]], np.ndarray[Any,
             return value
 
         # convert object arrays of strings to StringDType
-        if type_name == 'str':
+        if type_name == "str":
             return value.astype(np.dtypes.StringDType(na_object=None))  # type: ignore[call-arg]
 
         return None

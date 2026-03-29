@@ -14,7 +14,8 @@ Created on April 25, 2020
 """
 
 from importlib.metadata import version as _version
-__version__ = _version('tafra')
+
+__version__ = _version("tafra")
 
 from .base import Tafra, object_formatter
 from .group import Union, GroupBy, Transform, IterateBy, InnerJoin, LeftJoin, CrossJoin
