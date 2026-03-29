@@ -1,8 +1,12 @@
 /*
- * tafra/_accel.c — Minimal C extension for hot-path acceleration.
+ * tafra/_accel.c — C extension for hot-path acceleration (v3).
  *
- * Provides single-pass grouped aggregation and hash-based join index
- * construction, eliminating multiple numpy passes and temporary arrays.
+ * Performance improvements over v1:
+ *   - Power-of-2 hash tables with bitmask probing (no division)
+ *   - CSR (flat contiguous) layout for join hash tables (no linked lists)
+ *   - Slot-caching two-pass joins (no re-probing, exact pre-allocation)
+ *   - Unrolled composite_key for 1-3 column fast paths
+ *   - Reduced redundant initialization
  *
  * All functions accept and return numpy arrays. Falls back gracefully
  * if this module fails to compile — pure-Python paths remain available.
@@ -14,6 +18,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <math.h>
+#include <string.h>
 
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <numpy/arrayobject.h>
@@ -21,9 +26,21 @@
 #include <numpy/npy_math.h>
 
 /* Golden ratio constant for multiplicative hashing (Knuth).
- * phi = (sqrt(5)-1)/2 * 2^64 ≈ 0x9E3779B97F4A7C15 */
+ * phi = (sqrt(5)-1)/2 * 2^64 ~ 0x9E3779B97F4A7C15 */
 #define GOLDEN_HASH 0x9E3779B97F4A7C15ULL
-#define HASH_KEY(k, sz) ((npy_intp)(((npy_uint64)(k) * GOLDEN_HASH) >> 1) % (sz))
+
+/* Power-of-2 hash: multiply then mask. table_size must be power of 2. */
+#define HASH_KEY(k, mask) ((npy_intp)(((npy_uint64)(k) * GOLDEN_HASH) >> 1) & (mask))
+
+
+/* Round up to next power of 2 (minimum 16). */
+static npy_intp
+next_pow2(npy_intp n)
+{
+    npy_intp p = 16;
+    while (p < n) p <<= 1;
+    return p;
+}
 
 
 /* Helper: coerce to contiguous array of given type. Caller must Py_DECREF. */
@@ -32,55 +49,6 @@ as_contig(PyObject *obj, int typenum)
 {
     return (PyArrayObject *)PyArray_FROM_OTF(
         obj, typenum, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_ALIGNED);
-}
-
-
-/* ================================================================
- * Generic hash table probing
- *
- * Callbacks return: 1 = yes, 0 = no, -1 = error (for fallible comparisons).
- * The probe function uses void* so a single implementation covers all
- * entry types; per-type static callbacks cast back to the concrete struct.
- * ================================================================ */
-
-typedef int (*ht_occupied_fn)(const void *entry);
-typedef int (*ht_equal_fn)(const void *entry, npy_int64 hash_key, void *ctx);
-
-/*
- * Linear-probe to find either the slot matching hash_key or the first
- * empty slot.  On return:
- *   *found = 1 if an occupied matching slot was found, 0 if empty slot
- *   *err   = 1 if keys_equal returned -1 (comparison error), else 0
- */
-static inline npy_intp
-ht_probe(const void *table, npy_intp entry_size, npy_intp table_size,
-         npy_int64 hash_key, void *ctx, int *found, int *err,
-         ht_occupied_fn is_occupied, ht_equal_fn keys_equal)
-{
-    npy_intp slot = HASH_KEY(hash_key, table_size);
-    const char *base = (const char *)table;
-    *err = 0;
-    for (;;) {
-        const void *entry = base + slot * entry_size;
-        if (!is_occupied(entry)) {
-            *found = 0;
-            return slot;
-        }
-        int eq = keys_equal(entry, hash_key, ctx);
-        if (eq < 0) { *found = 0; *err = 1; return slot; }
-        if (eq) { *found = 1; return slot; }
-        slot = (slot + 1) % table_size;
-    }
-}
-
-/* Convenience: alloc a zero-initialized hash table with 2x headroom. */
-static inline void *
-ht_alloc(npy_intp n_items, npy_intp entry_size, npy_intp *out_table_size)
-{
-    npy_intp sz = n_items * 2;
-    if (sz < 16) sz = 16;
-    *out_table_size = sz;
-    return calloc(sz, entry_size);
 }
 
 
@@ -354,7 +322,7 @@ accel_groupby_max(PyObject *self, PyObject *args)
  *   cardinalities: tuple of ints (max value + 1 for each column)
  *
  * Computes: key[i] = col0[i]*card1*card2*... + col1[i]*card2*... + ...
- * Single pass, no temporaries.
+ * Unrolled fast paths for 1-3 columns (common case).
  * ================================================================ */
 
 static PyObject *
@@ -424,9 +392,9 @@ accel_composite_key(PyObject *self, PyObject *args)
     for (Py_ssize_t c = n_cols - 2; c >= 0; c--)
         mult[c] = mult[c + 1] * cards[c + 1];
 
-    /* Build output in single pass */
+    /* Build output */
     npy_intp dims[1] = {n_rows};
-    PyArrayObject *out = (PyArrayObject *)PyArray_ZEROS(1, dims, NPY_INT64, 0);
+    PyArrayObject *out = (PyArrayObject *)PyArray_EMPTY(1, dims, NPY_INT64, 0);
     if (!out) {
         for (Py_ssize_t c = 0; c < n_cols; c++) Py_DECREF(col_arrs[c]);
         free(col_arrs); free(cards); free(mult);
@@ -434,27 +402,46 @@ accel_composite_key(PyObject *self, PyObject *args)
     }
     npy_int64 *result = (npy_int64 *)PyArray_DATA(out);
 
-    /* Get data pointers */
-    const npy_int64 **col_data = (const npy_int64 **)malloc(n_cols * sizeof(npy_int64 *));
-    if (!col_data) {
-        for (Py_ssize_t c = 0; c < n_cols; c++) Py_DECREF(col_arrs[c]);
-        free(col_arrs); free(cards); free(mult);
-        Py_DECREF(out);
-        return PyErr_NoMemory();
-    }
-    for (Py_ssize_t c = 0; c < n_cols; c++)
-        col_data[c] = (const npy_int64 *)PyArray_DATA(col_arrs[c]);
-
-    /* Single pass: result[i] = sum(col_data[c][i] * mult[c]) */
-    for (npy_intp i = 0; i < n_rows; i++) {
-        npy_int64 key = 0;
+    /* Unrolled fast paths for common column counts */
+    if (n_cols == 1) {
+        const npy_int64 *d0 = (const npy_int64 *)PyArray_DATA(col_arrs[0]);
+        memcpy(result, d0, n_rows * sizeof(npy_int64));
+    } else if (n_cols == 2) {
+        const npy_int64 *d0 = (const npy_int64 *)PyArray_DATA(col_arrs[0]);
+        const npy_int64 *d1 = (const npy_int64 *)PyArray_DATA(col_arrs[1]);
+        npy_int64 m0 = mult[0];
+        for (npy_intp i = 0; i < n_rows; i++)
+            result[i] = d0[i] * m0 + d1[i];
+    } else if (n_cols == 3) {
+        const npy_int64 *d0 = (const npy_int64 *)PyArray_DATA(col_arrs[0]);
+        const npy_int64 *d1 = (const npy_int64 *)PyArray_DATA(col_arrs[1]);
+        const npy_int64 *d2 = (const npy_int64 *)PyArray_DATA(col_arrs[2]);
+        npy_int64 m0 = mult[0], m1 = mult[1];
+        for (npy_intp i = 0; i < n_rows; i++)
+            result[i] = d0[i] * m0 + d1[i] * m1 + d2[i];
+    } else {
+        /* General case */
+        const npy_int64 **col_data = (const npy_int64 **)malloc(n_cols * sizeof(npy_int64 *));
+        if (!col_data) {
+            for (Py_ssize_t c = 0; c < n_cols; c++) Py_DECREF(col_arrs[c]);
+            free(col_arrs); free(cards); free(mult);
+            Py_DECREF(out);
+            return PyErr_NoMemory();
+        }
         for (Py_ssize_t c = 0; c < n_cols; c++)
-            key += col_data[c][i] * mult[c];
-        result[i] = key;
+            col_data[c] = (const npy_int64 *)PyArray_DATA(col_arrs[c]);
+
+        for (npy_intp i = 0; i < n_rows; i++) {
+            npy_int64 key = 0;
+            for (Py_ssize_t c = 0; c < n_cols; c++)
+                key += col_data[c][i] * mult[c];
+            result[i] = key;
+        }
+        free((void *)col_data);
     }
 
     for (Py_ssize_t c = 0; c < n_cols; c++) Py_DECREF(col_arrs[c]);
-    free(col_arrs); free(cards); free(mult); free((void *)col_data);
+    free(col_arrs); free(cards); free(mult);
     return (PyObject *)out;
 }
 
@@ -469,26 +456,15 @@ accel_composite_key(PyObject *self, PyObject *args)
  *   codes:    int64 array of integer codes (0..n_unique-1), first-seen order
  *   n_unique: int
  *
- * Replaces np.unique(return_inverse=True) which is O(n log n).
+ * Power-of-2 table with bitmask probing.
  * ================================================================ */
 
 typedef struct {
     Py_hash_t hash;
-    PyObject *obj;      /* borrowed ref; NULL = unoccupied */
+    PyObject *obj;      /* borrowed reference to the original object */
     npy_intp code;
+    int occupied;
 } StrHashEntry;
-
-static int str_occupied(const void *entry)
-    { return ((const StrHashEntry *)entry)->obj != NULL; }
-
-/* ctx carries the PyObject* being looked up.  Returns -1/0/1
- * matching PyObject_RichCompareBool's convention. */
-static int str_equal(const void *entry, npy_int64 hash_key, void *ctx)
-{
-    const StrHashEntry *e = (const StrHashEntry *)entry;
-    if (e->hash != (Py_hash_t)hash_key) return 0;
-    return PyObject_RichCompareBool(e->obj, (PyObject *)ctx, Py_EQ);
-}
 
 static PyObject *
 accel_encode_strings(PyObject *self, PyObject *args)
@@ -504,10 +480,10 @@ accel_encode_strings(PyObject *self, PyObject *args)
     npy_intp n = PyArray_SIZE(arr);
     PyObject **data = (PyObject **)PyArray_DATA(arr);
 
-    /* Hash table */
-    npy_intp table_size;
-    StrHashEntry *table = (StrHashEntry *)ht_alloc(n, sizeof(StrHashEntry),
-                                                   &table_size);
+    /* Power-of-2 hash table at ~50% load factor */
+    npy_intp table_size = next_pow2(n * 2);
+    npy_intp mask = table_size - 1;
+    StrHashEntry *table = (StrHashEntry *)calloc(table_size, sizeof(StrHashEntry));
     if (!table) { Py_DECREF(arr); return PyErr_NoMemory(); }
 
     /* Output codes */
@@ -526,19 +502,25 @@ accel_encode_strings(PyObject *self, PyObject *args)
             return NULL;
         }
 
-        int found, err;
-        npy_intp slot = ht_probe(table, sizeof(StrHashEntry), table_size,
-                                 (npy_int64)h, obj, &found, &err,
-                                 str_occupied, str_equal);
-        if (err) {
-            free(table); Py_DECREF(arr); Py_DECREF(codes_out);
-            return NULL;
+        npy_intp slot = (npy_intp)(((npy_uint64)h * GOLDEN_HASH) >> 1) & mask;
+
+        while (table[slot].occupied) {
+            if (table[slot].hash == h) {
+                int eq = PyObject_RichCompareBool(table[slot].obj, obj, Py_EQ);
+                if (eq < 0) {
+                    free(table); Py_DECREF(arr); Py_DECREF(codes_out);
+                    return NULL;
+                }
+                if (eq) break;
+            }
+            slot = (slot + 1) & mask;
         }
 
-        if (!found) {
+        if (!table[slot].occupied) {
             table[slot].hash = h;
-            table[slot].obj = obj;  /* borrowed ref, arr keeps it alive */
+            table[slot].obj = obj;
             table[slot].code = n_unique;
+            table[slot].occupied = 1;
             n_unique++;
         }
         codes[i] = table[slot].code;
@@ -559,24 +541,14 @@ accel_encode_strings(PyObject *self, PyObject *args)
  * group_indices(key_array) -> (first_seen_indices, group_row_lists, n_groups)
  *   key_array:  int64 array (composite or single-column key)
  *
- * Returns:
- *   first_seen_indices: int64 array of length n_groups
- *   group_row_lists:    Python list of int64 arrays (row indices per group)
- *   n_groups:           int
- *
- * Replaces np.unique + argsort + split with a single O(n) pass.
+ * Power-of-2 table with bitmask probing.
  * ================================================================ */
 
 typedef struct {
     npy_int64 key;
-    npy_intp label;     /* assigned group label */
+    npy_intp label;
     int occupied;
 } GroupHashEntry;
-
-static int group_occupied(const void *entry)
-    { return ((const GroupHashEntry *)entry)->occupied; }
-static int group_equal(const void *entry, npy_int64 hash_key, void *ctx)
-    { (void)ctx; return ((const GroupHashEntry *)entry)->key == hash_key; }
 
 static PyObject *
 accel_group_indices(PyObject *self, PyObject *args)
@@ -591,10 +563,10 @@ accel_group_indices(PyObject *self, PyObject *args)
     npy_intp n = PyArray_SIZE(key_arr);
     const npy_int64 *keys = (const npy_int64 *)PyArray_DATA(key_arr);
 
-    /* Allocate hash table */
-    npy_intp table_size;
-    GroupHashEntry *table = (GroupHashEntry *)ht_alloc(
-        n, sizeof(GroupHashEntry), &table_size);
+    /* Power-of-2 hash table */
+    npy_intp table_size = next_pow2(n * 2);
+    npy_intp mask = table_size - 1;
+    GroupHashEntry *table = (GroupHashEntry *)calloc(table_size, sizeof(GroupHashEntry));
     if (!table) { Py_DECREF(key_arr); return PyErr_NoMemory(); }
 
     /* Pass 1: assign labels, count per group */
@@ -609,14 +581,13 @@ accel_group_indices(PyObject *self, PyObject *args)
     }
     npy_intp n_groups = 0;
 
-    int found, err;  /* err always 0 — group callbacks are infallible */
     for (npy_intp i = 0; i < n; i++) {
         npy_int64 k = keys[i];
-        npy_intp h = ht_probe(table, sizeof(GroupHashEntry), table_size,
-                               k, NULL, &found, &err,
-                               group_occupied, group_equal);
+        npy_intp h = HASH_KEY(k, mask);
+        while (table[h].occupied && table[h].key != k)
+            h = (h + 1) & mask;
 
-        if (!found) {
+        if (!table[h].occupied) {
             table[h].key = k;
             table[h].occupied = 1;
             table[h].label = n_groups;
@@ -671,7 +642,7 @@ accel_group_indices(PyObject *self, PyObject *args)
             return NULL;
         }
         group_data[g] = (npy_intp *)PyArray_DATA(arr);
-        PyList_SET_ITEM(group_list, g, (PyObject *)arr);  /* steals ref */
+        PyList_SET_ITEM(group_list, g, (PyObject *)arr);
     }
     free(counts);
 
@@ -688,9 +659,7 @@ accel_group_indices(PyObject *self, PyObject *args)
     npy_intp fs_dims[1] = {n_groups};
     PyArrayObject *fs_out = (PyArrayObject *)PyArray_EMPTY(1, fs_dims, NPY_INTP, 0);
     if (!fs_out) { free(first_seen); Py_DECREF(group_list); return NULL; }
-    npy_intp *fs_data = (npy_intp *)PyArray_DATA(fs_out);
-    for (npy_intp g = 0; g < n_groups; g++)
-        fs_data[g] = first_seen[g];
+    memcpy(PyArray_DATA(fs_out), first_seen, n_groups * sizeof(npy_intp));
     free(first_seen);
 
     PyObject *result = Py_BuildValue("(OOn)", fs_out, group_list, (Py_ssize_t)n_groups);
@@ -701,83 +670,82 @@ accel_group_indices(PyObject *self, PyObject *args)
 
 
 /* ================================================================
- * Hash join: build (left_indices, right_indices) for equi-join
+ * Hash join v3: CSR layout + slot-caching two-pass
  *
- * CSR layout: two-pass build produces contiguous per-key storage.
- * Pass 1 counts right-side rows per key, prefix sum computes offsets,
- * Pass 2 scatters row indices into a flat rows[] array.
- * Emit phase does sequential reads — no pointer chasing.
+ * Build phase (right side):
+ *   1. Hash right keys into power-of-2 table, count per bucket.
+ *   2. Prefix sum -> offsets into flat contiguous row buffer.
+ *   3. Scatter right row indices into flat buffer.
  *
- * Input arrays are coerced to contiguous int64.
+ * Probe phase (left side):
+ *   Pass 1: probe each left key, cache the slot index, sum counts
+ *           for exact output pre-allocation.
+ *   Pass 2: emit pairs using cached slots — no re-probing,
+ *           sequential reads from rows[offset..offset+count].
  * ================================================================ */
 
 typedef struct {
     npy_int64 key;
-    npy_intp count;     /* number of right-side rows for this key */
-    npy_intp offset;    /* index into flat rows[] array */
-} JoinHashEntry;
-
-static int join_occupied(const void *entry)
-    { return ((const JoinHashEntry *)entry)->count > 0; }
-static int join_equal(const void *entry, npy_int64 hash_key, void *ctx)
-    { (void)ctx; return ((const JoinHashEntry *)entry)->key == hash_key; }
+    npy_intp offset;    /* start index into flat row buffer */
+    npy_intp count;     /* number of right rows with this key */
+} CSRHashEntry;
 
 
-/* Build CSR hash table on right-side keys. Returns 0 on success, -1 on error.
- * Caller must free(*out_table) and free(*out_rows). */
+/* Build CSR hash table on right-side keys.
+ * Returns 0 on success, -1 on error.
+ * Caller must free *out_table and *out_rows. */
 static int
-build_join_table(const npy_int64 *right, npy_intp right_n,
-                 JoinHashEntry **out_table, npy_intp *out_table_size,
-                 npy_intp **out_rows)
+build_csr_hash_table(const npy_int64 *right, npy_intp right_n,
+                     CSRHashEntry **out_table, npy_intp *out_mask,
+                     npy_intp **out_rows)
 {
-    npy_intp table_size;
-    JoinHashEntry *table = (JoinHashEntry *)ht_alloc(
-        right_n, sizeof(JoinHashEntry), &table_size);
+    npy_intp table_size = next_pow2(right_n * 2);
+    npy_intp mask = table_size - 1;
+
+    /* calloc zeros count and offset to 0; count==0 means empty slot */
+    CSRHashEntry *table = (CSRHashEntry *)calloc(table_size, sizeof(CSRHashEntry));
     if (!table) { PyErr_NoMemory(); return -1; }
 
-    /* Pass 1: probe + count */
-    int found, err;
+    /* Pass 1: count occurrences per key */
     for (npy_intp i = 0; i < right_n; i++) {
-        npy_intp h = ht_probe(table, sizeof(JoinHashEntry), table_size,
-                               right[i], NULL, &found, &err,
-                               join_occupied, join_equal);
-        if (!found)
-            table[h].key = right[i];
+        npy_int64 k = right[i];
+        npy_intp h = HASH_KEY(k, mask);
+        while (table[h].count > 0 && table[h].key != k)
+            h = (h + 1) & mask;
+        table[h].key = k;
         table[h].count++;
     }
 
-    /* Exclusive prefix sum over occupied slots to fill offset */
+    /* Pass 2: prefix sum to compute offsets */
     npy_intp running = 0;
-    for (npy_intp i = 0; i < table_size; i++) {
-        if (table[i].count > 0) {
-            table[i].offset = running;
-            running += table[i].count;
+    for (npy_intp h = 0; h < table_size; h++) {
+        if (table[h].count > 0) {
+            table[h].offset = running;
+            running += table[h].count;
         }
     }
 
-    /* Allocate flat rows array */
+    /* Allocate flat row buffer */
     npy_intp *rows = (npy_intp *)malloc(right_n * sizeof(npy_intp));
-    /* Temporary write positions (copy of offsets, bumped during scatter) */
-    npy_intp *wpos = (npy_intp *)malloc(table_size * sizeof(npy_intp));
-    if (!rows || !wpos) {
-        free(table); free(rows); free(wpos);
-        PyErr_NoMemory();
-        return -1;
-    }
-    for (npy_intp i = 0; i < table_size; i++)
-        wpos[i] = table[i].offset;
+    if (!rows) { free(table); PyErr_NoMemory(); return -1; }
 
-    /* Pass 2: probe + scatter row indices */
+    /* Temporary write positions */
+    npy_intp *write_pos = (npy_intp *)calloc(table_size, sizeof(npy_intp));
+    if (!write_pos) { free(table); free(rows); PyErr_NoMemory(); return -1; }
+
+    /* Pass 3: scatter right row indices into flat buffer */
     for (npy_intp i = 0; i < right_n; i++) {
-        npy_intp h = ht_probe(table, sizeof(JoinHashEntry), table_size,
-                               right[i], NULL, &found, &err,
-                               join_occupied, join_equal);
-        rows[wpos[h]++] = i;
+        npy_int64 k = right[i];
+        npy_intp h = HASH_KEY(k, mask);
+        while (table[h].count > 0 && table[h].key != k)
+            h = (h + 1) & mask;
+        rows[table[h].offset + write_pos[h]] = i;
+        write_pos[h]++;
     }
-    free(wpos);
+    free(write_pos);
 
     *out_table = table;
-    *out_table_size = table_size;
+    *out_mask = mask;
     *out_rows = rows;
     return 0;
 }
@@ -800,15 +768,15 @@ accel_inner_join(PyObject *self, PyObject *args)
     npy_intp left_n = PyArray_SIZE(left_arr);
     npy_intp right_n = PyArray_SIZE(right_arr);
     const npy_int64 *left = (const npy_int64 *)PyArray_DATA(left_arr);
-    const npy_int64 *right_data = (const npy_int64 *)PyArray_DATA(right_arr);
+    const npy_int64 *right = (const npy_int64 *)PyArray_DATA(right_arr);
 
-    JoinHashEntry *table; npy_intp table_size; npy_intp *rows;
-    if (build_join_table(right_data, right_n, &table, &table_size, &rows) < 0) {
+    CSRHashEntry *table; npy_intp mask; npy_intp *rows;
+    if (build_csr_hash_table(right, right_n, &table, &mask, &rows) < 0) {
         Py_DECREF(left_arr); Py_DECREF(right_arr);
         return NULL;
     }
 
-    /* Count pass: probe each left key, cache slot, sum counts */
+    /* Probe pass 1: cache slot per left key, sum total output rows */
     npy_intp *slots = (npy_intp *)malloc(left_n * sizeof(npy_intp));
     if (!slots) {
         free(table); free(rows);
@@ -816,13 +784,12 @@ accel_inner_join(PyObject *self, PyObject *args)
         return PyErr_NoMemory();
     }
 
-    int found, err;
     npy_intp total = 0;
     for (npy_intp i = 0; i < left_n; i++) {
-        npy_intp h = ht_probe(table, sizeof(JoinHashEntry), table_size,
-                               left[i], NULL, &found, &err,
-                               join_occupied, join_equal);
-        if (found) {
+        npy_intp h = HASH_KEY(left[i], mask);
+        while (table[h].count > 0 && table[h].key != left[i])
+            h = (h + 1) & mask;
+        if (table[h].count > 0 && table[h].key == left[i]) {
             slots[i] = h;
             total += table[h].count;
         } else {
@@ -840,7 +807,7 @@ accel_inner_join(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    /* Emit pass: sequential scan of rows[offset..offset+count] */
+    /* Emit pass 2: sequential reads from cached slots */
     npy_intp *li = (npy_intp *)PyArray_DATA(li_arr);
     npy_intp *ri = (npy_intp *)PyArray_DATA(ri_arr);
     npy_intp pos = 0;
@@ -884,15 +851,15 @@ accel_left_join(PyObject *self, PyObject *args)
     npy_intp left_n = PyArray_SIZE(left_arr);
     npy_intp right_n = PyArray_SIZE(right_arr);
     const npy_int64 *left = (const npy_int64 *)PyArray_DATA(left_arr);
-    const npy_int64 *right_data = (const npy_int64 *)PyArray_DATA(right_arr);
+    const npy_int64 *right = (const npy_int64 *)PyArray_DATA(right_arr);
 
-    JoinHashEntry *table; npy_intp table_size; npy_intp *rows;
-    if (build_join_table(right_data, right_n, &table, &table_size, &rows) < 0) {
+    CSRHashEntry *table; npy_intp mask; npy_intp *rows;
+    if (build_csr_hash_table(right, right_n, &table, &mask, &rows) < 0) {
         Py_DECREF(left_arr); Py_DECREF(right_arr);
         return NULL;
     }
 
-    /* Count pass: probe each left key, cache slot, sum counts */
+    /* Probe pass 1: cache slot per left key, sum total output rows */
     npy_intp *slots = (npy_intp *)malloc(left_n * sizeof(npy_intp));
     if (!slots) {
         free(table); free(rows);
@@ -900,14 +867,13 @@ accel_left_join(PyObject *self, PyObject *args)
         return PyErr_NoMemory();
     }
 
-    int found, err;
     npy_intp total = 0;
     int has_null = 0;
     for (npy_intp i = 0; i < left_n; i++) {
-        npy_intp h = ht_probe(table, sizeof(JoinHashEntry), table_size,
-                               left[i], NULL, &found, &err,
-                               join_occupied, join_equal);
-        if (found) {
+        npy_intp h = HASH_KEY(left[i], mask);
+        while (table[h].count > 0 && table[h].key != left[i])
+            h = (h + 1) & mask;
+        if (table[h].count > 0 && table[h].key == left[i]) {
             slots[i] = h;
             total += table[h].count;
         } else {
@@ -927,7 +893,7 @@ accel_left_join(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    /* Emit pass: sequential scan of rows[offset..offset+count] */
+    /* Emit pass 2: sequential reads from cached slots */
     npy_intp *li = (npy_intp *)PyArray_DATA(li_arr);
     npy_intp *ri = (npy_intp *)PyArray_DATA(ri_arr);
     npy_intp pos = 0;
@@ -987,13 +953,13 @@ static PyMethodDef AccelMethods[] = {
      "Hash inner join: inner_join(left_key, right_key) -> (li, ri)"},
     {"left_join", accel_left_join, METH_VARARGS,
      "Hash left join: left_join(left_key, right_key) -> (li, ri, has_null)"},
-{NULL, NULL, 0, NULL}
+    {NULL, NULL, 0, NULL}
 };
 
 static struct PyModuleDef accelmodule = {
     PyModuleDef_HEAD_INIT,
     "_accel",
-    "C acceleration for tafra hot paths",
+    "C acceleration for tafra hot paths (v3: bitmask hashing, CSR joins, slot caching)",
     -1,
     AccelMethods
 };
