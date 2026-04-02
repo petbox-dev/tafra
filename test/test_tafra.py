@@ -2851,6 +2851,35 @@ class TestInnerJoin:
 
         assert _tafra_to_row_set(t_c) == _tafra_to_row_set(t_py)
 
+    def test_inner_join_asymmetric_cardinality(self) -> None:
+        """Multi-column join where left has fewer unique values than right.
+
+        Regression test: _build_composite_key must use shared cardinalities
+        so that positional encoding is consistent across both sides.
+        """
+        right = Tafra(
+            {
+                "a": np.array(["X", "X", "Y", "Y"], dtype=object),
+                "b": np.array(["P", "Q", "P", "Q"], dtype=object),
+                "val": np.array([10, 20, 30, 40]),
+            }
+        )
+        # Left has only one unique value per column — different max codes
+        left = Tafra(
+            {
+                "a": np.array(["Y"], dtype=object),
+                "b": np.array(["Q"], dtype=object),
+                "id": np.array([0]),
+            }
+        )
+        t = left.inner_join(
+            right,
+            [("a", "a", "=="), ("b", "b", "==")],
+            select=["a", "b", "id", "val"],
+        )
+        assert len(t) == 1
+        assert t["val"][0] == 40
+
 
 class TestLeftJoin:
     def test_left_join_equi(self) -> None:
@@ -3455,6 +3484,34 @@ class TestLeftJoin:
         c_rows = sorted([(t_c["k"][i], t_c["lv"][i]) for i in range(len(t_c))])
         py_rows = sorted([(t_py["k"][i], t_py["lv"][i]) for i in range(len(t_py))])
         assert c_rows == py_rows
+
+    def test_left_join_asymmetric_cardinality(self) -> None:
+        """Multi-column left join where left has fewer unique values than right.
+
+        Regression test: _build_composite_key must use shared cardinalities
+        so that positional encoding is consistent across both sides.
+        """
+        right = Tafra(
+            {
+                "a": np.array(["X", "X", "Y", "Y"], dtype=object),
+                "b": np.array(["P", "Q", "P", "Q"], dtype=object),
+                "val": np.array([10, 20, 30, 40]),
+            }
+        )
+        left = Tafra(
+            {
+                "a": np.array(["Y"], dtype=object),
+                "b": np.array(["Q"], dtype=object),
+                "id": np.array([0]),
+            }
+        )
+        t = left.left_join(
+            right,
+            [("a", "a", "=="), ("b", "b", "==")],
+            select=["a", "b", "id", "val"],
+        )
+        assert len(t) == 1
+        assert t["val"][0] == 40
 
 
 class TestCrossJoin:

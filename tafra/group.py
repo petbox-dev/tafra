@@ -1267,7 +1267,7 @@ class InnerJoin(Join):
             l_enc, r_enc = GroupSet._encode_columns_paired(left_cols_filt, right_cols_filt)
             # Shared cardinalities: max over both sides so positional encoding
             # is consistent between left and right keys.
-            if len(l_enc) > 1:
+            if len(l_enc) > 1 and len(l_enc[0]) > 0 and len(r_enc[0]) > 0:
                 cards: list[int] | None = [
                     max(int(lc.max()), int(rc.max())) + 1
                     for lc, rc in zip(l_enc, r_enc)
@@ -1549,7 +1549,7 @@ class LeftJoin(Join):
             l_enc, r_enc = GroupSet._encode_columns_paired(left_cols_filt, right_cols_filt)
             # Shared cardinalities: max over both sides so positional encoding
             # is consistent between left and right keys.
-            if len(l_enc) > 1:
+            if len(l_enc) > 1 and len(l_enc[0]) > 0 and len(r_enc[0]) > 0:
                 cards: list[int] | None = [
                     max(int(lc.max()), int(rc.max())) + 1
                     for lc, rc in zip(l_enc, r_enc)
