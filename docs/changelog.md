@@ -1,5 +1,13 @@
 # Version History
 
+## 2.2.2
+
+* **Fix**: Multi-column join composite key collision when left and right sides
+  have different numbers of unique values. `_build_composite_key` now uses
+  shared cardinalities (max over both sides) so positional encoding is
+  consistent between left and right keys.
+* **Perf**: `_accel.c` v3 — combine bitmask hashing with slot-caching joins.
+
 ## 2.2.1
 
 * **Fix**: Join and Union dtype validation now compares `_dtypes` metadata
