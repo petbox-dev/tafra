@@ -6,6 +6,10 @@
   have different numbers of unique values. `_build_composite_key` now uses
   shared cardinalities (max over both sides) so positional encoding is
   consistent between left and right keys.
+* **Fix**: Constructor no longer auto-converts object arrays of strings to
+  `StringDType`. This preserves the caller's dtype and prevents `union()`
+  mismatches when one Tafra comes from an external source with object dtype.
+  Use `parse_object_dtypes_inplace()` for explicit conversion.
 * **Perf**: `_accel.c` v3 — combine bitmask hashing with slot-caching joins.
 
 ## 2.2.1

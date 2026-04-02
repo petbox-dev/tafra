@@ -2122,13 +2122,17 @@ class TestStringDtype:
         t2["label"] = "constant"
         assert t2["label"].dtype.kind == "T"
 
-    def test_object_string_array_converted_to_stringdtype(
+    def test_object_string_array_preserves_dtype(
         self,
     ) -> None:
-        """Object arrays of strings should be auto-converted to
-        StringDType."""
+        """Object arrays of strings should preserve object dtype.
+        Use parse_object_dtypes_inplace() for explicit StringDType conversion."""
         obj_arr = np.array(["a", "b", "c"], dtype=object)
         t = Tafra({"s": obj_arr})
+        assert t["s"].dtype.kind == "O"
+
+        # Explicit conversion should still work
+        t.parse_object_dtypes_inplace()
         assert t["s"].dtype.kind == "T"
 
     def test_drop_duplicates_string(self) -> None:
