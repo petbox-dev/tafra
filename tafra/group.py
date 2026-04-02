@@ -540,11 +540,19 @@ class GroupSet:
         return left_enc, right_enc
 
     @staticmethod
-    def _build_composite_key(encoded: list[np.ndarray[Any, Any]]) -> np.ndarray[Any, Any]:
+    def _build_composite_key(
+        encoded: list[np.ndarray[Any, Any]],
+        cards: list[int] | None = None,
+    ) -> np.ndarray[Any, Any]:
         """
         Combine multiple integer-coded columns into a single flat key.
         Uses positional encoding: key = c0 * N1*N2*... + c1 * N2*... + c2 * ...
         Raises ValueError if the product of cardinalities would overflow int64.
+
+        If *cards* is provided it is used directly; otherwise cardinalities are
+        inferred from the per-column max.  For joins, callers MUST pass shared
+        cardinalities (max over both sides) so left and right keys use the same
+        positional encoding.
         """
         if len(encoded) == 1:
             return encoded[0]
@@ -557,7 +565,8 @@ class GroupSet:
         # Callers _encode_columns (GroupBy/Transform) and _encode_columns_paired
         # (joins) ensure this by encoding strings via np.unique and shifting
         # negative integers to non-negative range.
-        cards = [int(c.max()) + 1 for c in encoded]
+        if cards is None:
+            cards = [int(c.max()) + 1 for c in encoded]
 
         # check for overflow: product of all cardinalities must fit int64
         product = 1
@@ -1066,7 +1075,10 @@ class Join(GroupSet):
                 raise TypeError(f"The operator {op} is not valid.")
 
     @staticmethod
-    def _build_composite_key(cols: list[np.ndarray[Any, Any]]) -> np.ndarray[Any, Any]:
+    def _build_composite_key(
+        cols: list[np.ndarray[Any, Any]],
+        cards: list[int] | None = None,
+    ) -> np.ndarray[Any, Any]:
         """Build a single sortable key array from multiple columns."""
         if len(cols) == 1:
             return cols[0]
@@ -1253,8 +1265,17 @@ class InnerJoin(Join):
                 right_cols_filt = right_cols_data
 
             l_enc, r_enc = GroupSet._encode_columns_paired(left_cols_filt, right_cols_filt)
-            left_key = GroupSet._build_composite_key(l_enc)
-            right_key = GroupSet._build_composite_key(r_enc)
+            # Shared cardinalities: max over both sides so positional encoding
+            # is consistent between left and right keys.
+            if len(l_enc) > 1:
+                cards: list[int] | None = [
+                    max(int(lc.max()), int(rc.max())) + 1
+                    for lc, rc in zip(l_enc, r_enc)
+                ]
+            else:
+                cards = None
+            left_key = GroupSet._build_composite_key(l_enc, cards)
+            right_key = GroupSet._build_composite_key(r_enc, cards)
 
             if _HAS_ACCEL:
                 li, ri = _c_inner_join(
@@ -1526,8 +1547,17 @@ class LeftJoin(Join):
                 left_null_idx = np.array([], dtype=np.intp)
 
             l_enc, r_enc = GroupSet._encode_columns_paired(left_cols_filt, right_cols_filt)
-            left_key = GroupSet._build_composite_key(l_enc)
-            right_key = GroupSet._build_composite_key(r_enc)
+            # Shared cardinalities: max over both sides so positional encoding
+            # is consistent between left and right keys.
+            if len(l_enc) > 1:
+                cards: list[int] | None = [
+                    max(int(lc.max()), int(rc.max())) + 1
+                    for lc, rc in zip(l_enc, r_enc)
+                ]
+            else:
+                cards = None
+            left_key = GroupSet._build_composite_key(l_enc, cards)
+            right_key = GroupSet._build_composite_key(r_enc, cards)
 
             if _HAS_ACCEL:
                 li, ri, has_null = _c_left_join(
