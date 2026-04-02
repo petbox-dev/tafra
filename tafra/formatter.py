@@ -109,10 +109,10 @@ class ObjectFormatter(
 
         Returns
         -------
-        value, modified: Tuple(np.ndarray, bool)
-            The `np.ndarray` and whether it was modified or not.
+        np.ndarray or None
+            The converted array, or None if no conversion was applied.
         """
-        if value.dtype.kind != "O":
+        if value.dtype.kind != "O" or len(value) == 0:
             return None
 
         type_name = type(value[0]).__name__

@@ -2135,6 +2135,14 @@ class TestStringDtype:
         t.parse_object_dtypes_inplace()
         assert t["s"].dtype.kind == "T"
 
+    def test_empty_object_array_no_crash(self) -> None:
+        """Empty object arrays must not crash parse_dtype (value[0] guard)."""
+        t = Tafra({"s": np.array([], dtype=object), "v": np.array([], dtype=float)})
+        assert t["s"].dtype.kind == "O"
+        # parse_object_dtypes_inplace should also be safe
+        t.parse_object_dtypes_inplace()
+        assert t["s"].dtype.kind == "O"
+
     def test_drop_duplicates_string(self) -> None:
         """drop_duplicates works with StringDType columns."""
         t = Tafra(
