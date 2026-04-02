@@ -767,6 +767,22 @@ accel_inner_join(PyObject *self, PyObject *args)
 
     npy_intp left_n = PyArray_SIZE(left_arr);
     npy_intp right_n = PyArray_SIZE(right_arr);
+
+    /* Empty input on either side → empty inner join result */
+    if (left_n == 0 || right_n == 0) {
+        Py_DECREF(left_arr); Py_DECREF(right_arr);
+        npy_intp dims[1] = {0};
+        PyArrayObject *li_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
+        PyArrayObject *ri_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
+        if (!li_arr || !ri_arr) {
+            Py_XDECREF(li_arr); Py_XDECREF(ri_arr);
+            return NULL;
+        }
+        PyObject *result = PyTuple_Pack(2, (PyObject *)li_arr, (PyObject *)ri_arr);
+        Py_DECREF(li_arr); Py_DECREF(ri_arr);
+        return result;
+    }
+
     const npy_int64 *left = (const npy_int64 *)PyArray_DATA(left_arr);
     const npy_int64 *right = (const npy_int64 *)PyArray_DATA(right_arr);
 
@@ -850,6 +866,43 @@ accel_left_join(PyObject *self, PyObject *args)
 
     npy_intp left_n = PyArray_SIZE(left_arr);
     npy_intp right_n = PyArray_SIZE(right_arr);
+
+    /* Empty left → empty result; empty right → all left rows unmatched */
+    if (left_n == 0) {
+        Py_DECREF(left_arr); Py_DECREF(right_arr);
+        npy_intp dims[1] = {0};
+        PyArrayObject *li_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
+        PyArrayObject *ri_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
+        if (!li_arr || !ri_arr) {
+            Py_XDECREF(li_arr); Py_XDECREF(ri_arr);
+            return NULL;
+        }
+        PyObject *result = PyTuple_Pack(3, (PyObject *)li_arr, (PyObject *)ri_arr, Py_False);
+        Py_DECREF(li_arr); Py_DECREF(ri_arr);
+        return result;
+    }
+    if (right_n == 0) {
+        npy_intp dims[1] = {left_n};
+        PyArrayObject *li_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
+        PyArrayObject *ri_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
+        if (!li_arr || !ri_arr) {
+            Py_XDECREF(li_arr); Py_XDECREF(ri_arr);
+            Py_DECREF(left_arr); Py_DECREF(right_arr);
+            return NULL;
+        }
+        npy_intp *li = (npy_intp *)PyArray_DATA(li_arr);
+        npy_intp *ri = (npy_intp *)PyArray_DATA(ri_arr);
+        for (npy_intp i = 0; i < left_n; i++) {
+            li[i] = i;
+            ri[i] = -1;
+        }
+        Py_DECREF(left_arr); Py_DECREF(right_arr);
+        PyObject *result = PyTuple_Pack(3, (PyObject *)li_arr, (PyObject *)ri_arr,
+                                        left_n > 0 ? Py_True : Py_False);
+        Py_DECREF(li_arr); Py_DECREF(ri_arr);
+        return result;
+    }
+
     const npy_int64 *left = (const npy_int64 *)PyArray_DATA(left_arr);
     const npy_int64 *right = (const npy_int64 *)PyArray_DATA(right_arr);
 
