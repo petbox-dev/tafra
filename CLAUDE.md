@@ -67,7 +67,7 @@ The library has one core abstraction and a set of aggregation/partitioning opera
 
 **Supporting modules:**
 - `protocol.py` — Typing protocols for duck-typing compatibility (Series, DataFrame, Cursor)
-- `formatter.py` — `ObjectFormatter` for custom dtype parsing (e.g., Decimal → float); auto-converts object arrays of strings to `StringDType(na_object=None)` for nullable string support
+- `formatter.py` — `ObjectFormatter` for custom dtype parsing (e.g., Decimal → float); string conversion from object to `StringDType(na_object=None)` is opt-in via `parse_object_dtypes_inplace()`
 - `csvreader.py` — CSV reader with type inference; string columns produce `StringDType(na_object=None)` for nullable string support
 
 ## Testing

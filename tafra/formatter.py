@@ -90,7 +90,11 @@ class ObjectFormatter(
     def copy(self) -> dict[str, Any]:
         return {k: dict.__getitem__(self, k) for k in self}
 
-    def parse_dtype(self, value: np.ndarray[Any, Any]) -> np.ndarray[Any, Any] | None:
+    def parse_dtype(
+        self,
+        value: np.ndarray[Any, Any],
+        convert_strings: bool = False,
+    ) -> np.ndarray[Any, Any] | None:
         """
         Parse an object dtype.
 
@@ -98,13 +102,17 @@ class ObjectFormatter(
         ----------
         value: np.ndarray
             The `np.ndarray` to be parsed.
+        convert_strings: bool
+            If True, convert object arrays of strings to
+            ``StringDType(na_object=None)``.  Default False — callers must
+            opt in (e.g. ``parse_object_dtypes_inplace``).
 
         Returns
         -------
-        value, modified: Tuple(np.ndarray, bool)
-            The `np.ndarray` and whether it was modified or not.
+        np.ndarray or None
+            The converted array, or None if no conversion was applied.
         """
-        if value.dtype.kind != "O":
+        if value.dtype.kind != "O" or len(value) == 0:
             return None
 
         type_name = type(value[0]).__name__
@@ -112,8 +120,8 @@ class ObjectFormatter(
             value = self[type_name](value)
             return value
 
-        # convert object arrays of strings to StringDType
-        if type_name == "str":
+        # convert object arrays of strings to StringDType (opt-in only)
+        if convert_strings and type_name == "str":
             return value.astype(np.dtypes.StringDType(na_object=None))  # type: ignore[call-arg]
 
         return None

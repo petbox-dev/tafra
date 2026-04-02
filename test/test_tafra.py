@@ -2122,14 +2122,26 @@ class TestStringDtype:
         t2["label"] = "constant"
         assert t2["label"].dtype.kind == "T"
 
-    def test_object_string_array_converted_to_stringdtype(
+    def test_object_string_array_preserves_dtype(
         self,
     ) -> None:
-        """Object arrays of strings should be auto-converted to
-        StringDType."""
+        """Object arrays of strings should preserve object dtype.
+        Use parse_object_dtypes_inplace() for explicit StringDType conversion."""
         obj_arr = np.array(["a", "b", "c"], dtype=object)
         t = Tafra({"s": obj_arr})
+        assert t["s"].dtype.kind == "O"
+
+        # Explicit conversion should still work
+        t.parse_object_dtypes_inplace()
         assert t["s"].dtype.kind == "T"
+
+    def test_empty_object_array_no_crash(self) -> None:
+        """Empty object arrays must not crash parse_dtype (value[0] guard)."""
+        t = Tafra({"s": np.array([], dtype=object), "v": np.array([], dtype=float)})
+        assert t["s"].dtype.kind == "O"
+        # parse_object_dtypes_inplace should also be safe
+        t.parse_object_dtypes_inplace()
+        assert t["s"].dtype.kind == "O"
 
     def test_drop_duplicates_string(self) -> None:
         """drop_duplicates works with StringDType columns."""
@@ -2851,6 +2863,35 @@ class TestInnerJoin:
 
         assert _tafra_to_row_set(t_c) == _tafra_to_row_set(t_py)
 
+    def test_inner_join_asymmetric_cardinality(self) -> None:
+        """Multi-column join where left has fewer unique values than right.
+
+        Regression test: _build_composite_key must use shared cardinalities
+        so that positional encoding is consistent across both sides.
+        """
+        right = Tafra(
+            {
+                "a": np.array(["X", "X", "Y", "Y"], dtype=object),
+                "b": np.array(["P", "Q", "P", "Q"], dtype=object),
+                "val": np.array([10, 20, 30, 40]),
+            }
+        )
+        # Left has only one unique value per column — different max codes
+        left = Tafra(
+            {
+                "a": np.array(["Y"], dtype=object),
+                "b": np.array(["Q"], dtype=object),
+                "id": np.array([0]),
+            }
+        )
+        t = left.inner_join(
+            right,
+            [("a", "a", "=="), ("b", "b", "==")],
+            select=["a", "b", "id", "val"],
+        )
+        assert len(t) == 1
+        assert t["val"][0] == 40
+
 
 class TestLeftJoin:
     def test_left_join_equi(self) -> None:
@@ -3455,6 +3496,34 @@ class TestLeftJoin:
         c_rows = sorted([(t_c["k"][i], t_c["lv"][i]) for i in range(len(t_c))])
         py_rows = sorted([(t_py["k"][i], t_py["lv"][i]) for i in range(len(t_py))])
         assert c_rows == py_rows
+
+    def test_left_join_asymmetric_cardinality(self) -> None:
+        """Multi-column left join where left has fewer unique values than right.
+
+        Regression test: _build_composite_key must use shared cardinalities
+        so that positional encoding is consistent across both sides.
+        """
+        right = Tafra(
+            {
+                "a": np.array(["X", "X", "Y", "Y"], dtype=object),
+                "b": np.array(["P", "Q", "P", "Q"], dtype=object),
+                "val": np.array([10, 20, 30, 40]),
+            }
+        )
+        left = Tafra(
+            {
+                "a": np.array(["Y"], dtype=object),
+                "b": np.array(["Q"], dtype=object),
+                "id": np.array([0]),
+            }
+        )
+        t = left.left_join(
+            right,
+            [("a", "a", "=="), ("b", "b", "==")],
+            select=["a", "b", "id", "val"],
+        )
+        assert len(t) == 1
+        assert t["val"][0] == 40
 
 
 class TestCrossJoin:

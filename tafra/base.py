@@ -836,7 +836,7 @@ class Tafra:
         Parse the object dtypes using the `ObjectFormatter` instance.
         """
         for column, value in self._data.items():
-            parsed_value = object_formatter.parse_dtype(value)
+            parsed_value = object_formatter.parse_dtype(value, convert_strings=True)
             if parsed_value is not None:
                 self._data[column] = parsed_value
                 self._dtypes[column] = self._format_dtype(parsed_value.dtype)
