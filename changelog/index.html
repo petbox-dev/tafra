@@ -916,6 +916,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#222" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2.2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#221" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1126,6 +1137,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#222" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2.2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#221" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1322,6 +1344,18 @@
 
 
 <h1 id="version-history">Version History</h1>
+<h2 id="222">2.2.2</h2>
+<ul>
+<li><strong>Fix</strong>: Multi-column join composite key collision when left and right sides
+  have different numbers of unique values. <code>_build_composite_key</code> now uses
+  shared cardinalities (max over both sides) so positional encoding is
+  consistent between left and right keys.</li>
+<li><strong>Fix</strong>: Constructor no longer auto-converts object arrays of strings to
+  <code>StringDType</code>. This preserves the caller's dtype and prevents <code>union()</code>
+  mismatches when one Tafra comes from an external source with object dtype.
+  Use <code>parse_object_dtypes_inplace()</code> for explicit conversion.</li>
+<li><strong>Perf</strong>: <code>_accel.c</code> v3 — combine bitmask hashing with slot-caching joins.</li>
+</ul>
 <h2 id="221">2.2.1</h2>
 <ul>
 <li><strong>Fix</strong>: Join and Union dtype validation now compares <code>_dtypes</code> metadata
