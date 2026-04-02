@@ -567,6 +567,7 @@ class GroupSet:
         # negative integers to non-negative range.
         if cards is None:
             cards = [int(c.max()) + 1 for c in encoded]
+        assert len(cards) == len(encoded), "cards length must match encoded columns"
 
         # check for overflow: product of all cardinalities must fit int64
         product = 1
