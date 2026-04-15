@@ -123,7 +123,7 @@ def check_tafra(t: Tafra, check_rows: bool = True) -> bool:
     df = t.to_pandas()
     df = t.to_pandas(columns=columns)
     assert isinstance(df, pd.DataFrame)
-    write_path = Path("test/test_to_csv.csv")
+    write_path = Path(__file__).parent / "test_to_csv.csv"
     t.to_csv(write_path)
     # t.to_csv(write_path, columns=columns)
 
@@ -493,7 +493,7 @@ class TestDestructors:
         _ = t.to_pandas(columns=["x"])
         _ = t.to_pandas(columns=["x", "y"])
 
-        filepath = Path("test/test_to_csv.csv")
+        filepath = Path(__file__).parent / "test_to_csv.csv"
         t.to_csv(filepath)
         t.to_csv(filepath, columns="x")
         t.to_csv(filepath, columns=["x"])
@@ -1292,7 +1292,8 @@ class TestDatetime:
 
 class TestCSV:
     def test_csv(self) -> None:
-        write_path = "test/test_to_csv.csv"
+        test_dir = Path(__file__).parent
+        write_path = str(test_dir / "test_to_csv.csv")
 
         def write_reread(t: Tafra) -> None:
             t.to_csv(write_path)
@@ -1302,7 +1303,7 @@ class TestCSV:
                 assert np.array_equal(t.data[c1], t2.data[c2])
                 assert np.array_equal(t.dtypes[c1], t2.dtypes[c2])
 
-        path = Path("test/ex1.csv")
+        path = test_dir / "ex1.csv"
         t = Tafra.read_csv(path)
         assert t.dtypes["a"] == "int32"
         assert t.dtypes["b"] == "bool"
@@ -1312,7 +1313,7 @@ class TestCSV:
         check_tafra(t)
         write_reread(t)
 
-        with open("test/ex1.csv", "r") as f:
+        with open(test_dir / "ex1.csv", "r") as f:
             t = Tafra.read_csv(f)
         assert t.dtypes["a"] == "int32"
         assert t.dtypes["b"] == "bool"
@@ -1328,7 +1329,7 @@ class TestCSV:
             with open(write_path) as f:
                 t.to_csv(f)
 
-        t = Tafra.read_csv("test/ex2.csv")
+        t = Tafra.read_csv(test_dir / "ex2.csv")
         assert t.dtypes["a"] == "int32"
         assert t.dtypes["b"] == "bool"
         assert t.dtypes["c"] == "float64"
@@ -1337,7 +1338,7 @@ class TestCSV:
         check_tafra(t)
         write_reread(t)
 
-        t = Tafra.read_csv("test/ex3.csv")
+        t = Tafra.read_csv(test_dir / "ex3.csv")
         assert t.dtypes["a"] == "int32"
         assert t.dtypes["b"] == "str"
         assert t.dtypes["b (2)"] == "float64"
@@ -1346,7 +1347,7 @@ class TestCSV:
         check_tafra(t)
         write_reread(t)
 
-        t = Tafra.read_csv("test/ex4.csv")
+        t = Tafra.read_csv(test_dir / "ex4.csv")
         assert t.dtypes["a"] == "int32"
         assert t.dtypes["b"] == "str"
         assert t.dtypes["b (2)"] == "float64"
@@ -1356,12 +1357,12 @@ class TestCSV:
         write_reread(t)
 
         with pytest.raises(ValueError) as e:
-            t = Tafra.read_csv("test/ex5.csv")
+            t = Tafra.read_csv(test_dir / "ex5.csv")
 
         with pytest.raises(ValueError) as e:
-            t = Tafra.read_csv("test/ex5.csv", guess_rows=2)
+            t = Tafra.read_csv(test_dir / "ex5.csv", guess_rows=2)
 
-        t = Tafra.read_csv("test/ex6.csv")
+        t = Tafra.read_csv(test_dir / "ex6.csv")
         assert t.dtypes["dp"] == "float64"
         assert t.dtypes["dp_prime"] == "float64"
         assert t.dtypes["dp_prime_te"] == "float64"
@@ -1369,7 +1370,7 @@ class TestCSV:
         assert t.dtypes["te"] == "float64"
         check_tafra(t)
 
-        t = Tafra.read_csv("test/ex6.csv", missing=None)
+        t = Tafra.read_csv(test_dir / "ex6.csv", missing=None)
         assert t.dtypes["dp"] == "float64"
         assert t.dtypes["dp_prime"] == "str"
         assert t.dtypes["dp_prime_te"] == "str"
@@ -1383,7 +1384,7 @@ class TestCSV:
         check_tafra(t)
 
         t = Tafra.read_csv(
-            "test/ex6.csv",
+            test_dir / "ex6.csv",
             missing=None,
             dtypes={
                 "dp_prime": np.float64,
@@ -1397,7 +1398,7 @@ class TestCSV:
         assert t.dtypes["te"] == "float64"
         check_tafra(t)
 
-        t = Tafra.read_csv("test/ex4.csv", dtypes={"a": "float32"})
+        t = Tafra.read_csv(test_dir / "ex4.csv", dtypes={"a": "float32"})
         assert t.dtypes["a"] == "float32"
         assert t.dtypes["b"] == "str"
         assert t.dtypes["b (2)"] == "float64"
