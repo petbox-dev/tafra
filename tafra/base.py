@@ -1025,8 +1025,8 @@ class Tafra:
         params: Sequence[Any] | None = None,
     ) -> "Tafra":
         """
-        Execute a SQL SELECT statement using a `pyodbc.Cursor` and return a Tuple
-        of column names and an Iterator of records.
+        Execute a SQL SELECT statement using a `pyodbc.Cursor` and return a
+        `Tafra` of the result set.
 
         Parameters
         ----------
@@ -1067,8 +1067,8 @@ class Tafra:
         params: Sequence[Any] | None = None,
     ) -> Iterator["Tafra"]:
         """
-        Execute a SQL SELECT statement using a `pyodbc.Cursor` and return a Tuple
-        of column names and an Iterator of records.
+        Execute a SQL SELECT statement using a `pyodbc.Cursor` and yield
+        chunks of the result set as `Tafra` instances.
 
         Parameters
         ----------
@@ -1085,10 +1085,10 @@ class Tafra:
             Optional sequence of parameter values to bind to ``?`` placeholders
             in the query.  Passed unchanged to ``cur.execute``.
 
-        Returns
-        -------
+        Yields
+        ------
         tafra: Tafra
-            The constructed `Tafra`.
+            A `Tafra` containing up to `chunksize` rows of the result set.
         """
         if params is None:
             cur.execute(query)

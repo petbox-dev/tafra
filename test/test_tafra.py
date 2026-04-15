@@ -447,17 +447,16 @@ class TestSQL:
     def test_read_sql_with_params(self) -> None:
         """read_sql passes params to cur.execute when provided."""
         cur = Cursor()
-        t = Tafra.read_sql(  # type: ignore
-            "SELECT * FROM [Table] WHERE [Fruit]=? AND [Amount]>?",
-            cur,
-            params=["Apples", 3],
-        )
+        query = "SELECT * FROM [Table] WHERE [Fruit]=? AND [Amount]>?"
+        t = Tafra.read_sql(query, cur, params=["Apples", 3])  # type: ignore
         check_tafra(t)
+        assert cur.last_sql == query
         assert cur.last_params == (["Apples", 3],)
 
         # No params → execute called without extra args
         cur = Cursor()
         Tafra.read_sql("SELECT * FROM [Table]", cur)  # type: ignore
+        assert cur.last_sql == "SELECT * FROM [Table]"
         assert cur.last_params == ()
 
         # Tuple params also accepted
@@ -472,12 +471,10 @@ class TestSQL:
     def test_read_sql_chunks_with_params(self) -> None:
         """read_sql_chunks passes params to cur.execute when provided."""
         cur = Cursor()
-        for t in Tafra.read_sql_chunks(  # type: ignore
-            "SELECT * FROM [Table] WHERE [Fruit]=?",
-            cur,
-            params=["Apples"],
-        ):
+        query = "SELECT * FROM [Table] WHERE [Fruit]=?"
+        for t in Tafra.read_sql_chunks(query, cur, params=["Apples"]):  # type: ignore
             check_tafra(t)
+        assert cur.last_sql == query
         assert cur.last_params == (["Apples"],)
 
         cur = Cursor()
@@ -486,6 +483,7 @@ class TestSQL:
             cur,
         ):
             check_tafra(t)
+        assert cur.last_sql == "SELECT * FROM [Table]"
         assert cur.last_params == ()
 
 
