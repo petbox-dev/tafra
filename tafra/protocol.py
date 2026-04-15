@@ -58,7 +58,7 @@ class Cursor(Protocol):
     def __next__(self) -> tuple[Any, ...]:
         raise NotImplementedError
 
-    def execute(self, sql: str) -> None:
+    def execute(self, sql: str, *params: Any) -> None:
         raise NotImplementedError
 
     def fetchone(self) -> tuple[Any, ...] | None:

@@ -58,7 +58,12 @@ class Cursor:
         self.idx += 1
         return item
 
-    def execute(self, sql: str) -> None: ...
+    last_sql: str | None = None
+    last_params: tuple[Any, ...] | None = None
+
+    def execute(self, sql: str, *params: Any) -> None:
+        self.last_sql = sql
+        self.last_params = params
 
     def fetchone(self) -> tuple[Any, ...] | None:
         try:
@@ -438,6 +443,50 @@ class TestSQL:
             cur,
         ):
             check_tafra(t)
+
+    def test_read_sql_with_params(self) -> None:
+        """read_sql passes params to cur.execute when provided."""
+        cur = Cursor()
+        t = Tafra.read_sql(  # type: ignore
+            "SELECT * FROM [Table] WHERE [Fruit]=? AND [Amount]>?",
+            cur,
+            params=["Apples", 3],
+        )
+        check_tafra(t)
+        assert cur.last_params == (["Apples", 3],)
+
+        # No params → execute called without extra args
+        cur = Cursor()
+        Tafra.read_sql("SELECT * FROM [Table]", cur)  # type: ignore
+        assert cur.last_params == ()
+
+        # Tuple params also accepted
+        cur = Cursor()
+        Tafra.read_sql(  # type: ignore
+            "SELECT * FROM [Table] WHERE [Fruit]=?",
+            cur,
+            params=("Apples",),
+        )
+        assert cur.last_params == (("Apples",),)
+
+    def test_read_sql_chunks_with_params(self) -> None:
+        """read_sql_chunks passes params to cur.execute when provided."""
+        cur = Cursor()
+        for t in Tafra.read_sql_chunks(  # type: ignore
+            "SELECT * FROM [Table] WHERE [Fruit]=?",
+            cur,
+            params=["Apples"],
+        ):
+            check_tafra(t)
+        assert cur.last_params == (["Apples"],)
+
+        cur = Cursor()
+        for t in Tafra.read_sql_chunks(  # type: ignore
+            "SELECT * FROM [Table]",
+            cur,
+        ):
+            check_tafra(t)
+        assert cur.last_params == ()
 
 
 class TestDestructors:
