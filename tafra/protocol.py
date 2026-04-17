@@ -50,7 +50,7 @@ class Cursor(Protocol):
     A fake class to satisfy typing of a ``pyodbc.Cursor`` without a dependency.
     """
 
-    description: tuple[tuple[str, type[Any], int | None, int, int, int, bool]]
+    description: tuple[tuple[str, type[Any], int | None, int, int, int, bool], ...]
 
     def __iter__(self) -> Iterator[tuple[Any, ...]]:
         raise NotImplementedError
