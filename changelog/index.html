@@ -916,6 +916,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#224" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2.4
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#223" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1148,6 +1159,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#224" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2.4
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#223" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1366,6 +1388,13 @@
 
 
 <h1 id="version-history">Version History</h1>
+<h2 id="224">2.2.4</h2>
+<ul>
+<li><strong>Fix</strong>: Restore <code>MANIFEST.in</code> so test CSV fixtures (<code>test/ex*.csv</code>) are
+  included in the PyPI sdist.  Removing <code>MANIFEST.in</code> in 2.2.1 silently
+  broke the conda-forge test stage for 2.2.1, 2.2.2, and 2.2.3 because
+  <code>source_files: test</code> could not find the CSVs.  No code changes.</li>
+</ul>
 <h2 id="223">2.2.3</h2>
 <ul>
 <li><strong>Feature</strong>: <code>read_sql</code> and <code>read_sql_chunks</code> accept an optional
