@@ -1,5 +1,16 @@
 # Version History
 
+## 2.2.3
+
+* **Feature**: `read_sql` and `read_sql_chunks` accept an optional
+  ``params: Sequence[Any] | None`` argument for parameterized queries using
+  ``?`` placeholders.  Passed unchanged to ``cur.execute``.  The `Cursor`
+  protocol's ``execute`` signature is updated to match pyodbc's variadic form.
+* **Fix**: CSV fixture paths in `test_csv` now resolve relative to
+  `Path(__file__).parent` instead of a hardcoded `"test/"` prefix. This fixes
+  `FileNotFoundError` in conda-forge builds where pytest's cwd is not the
+  repo root.
+
 ## 2.2.2
 
 * **Fix**: Multi-column join composite key collision when left and right sides

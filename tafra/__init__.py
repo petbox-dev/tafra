@@ -25,3 +25,22 @@ read_sql = Tafra.read_sql
 read_sql_chunks = Tafra.read_sql_chunks
 read_csv = Tafra.read_csv
 as_tafra = Tafra.as_tafra
+
+__all__ = [
+    "Tafra",
+    "object_formatter",
+    "Union",
+    "GroupBy",
+    "Transform",
+    "IterateBy",
+    "InnerJoin",
+    "LeftJoin",
+    "CrossJoin",
+    "percentile",
+    "geomean",
+    "harmean",
+    "read_sql",
+    "read_sql_chunks",
+    "read_csv",
+    "as_tafra",
+]

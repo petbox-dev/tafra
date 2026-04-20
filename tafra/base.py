@@ -1018,25 +1018,37 @@ class Tafra:
         )
 
     @classmethod
-    def read_sql(cls, query: str, cur: Cursor) -> "Tafra":
+    def read_sql(
+        cls,
+        query: str,
+        cur: Cursor,
+        params: Sequence[Any] | None = None,
+    ) -> "Tafra":
         """
-        Execute a SQL SELECT statement using a `pyodbc.Cursor` and return a Tuple
-        of column names and an Iterator of records.
+        Execute a SQL SELECT statement using a `pyodbc.Cursor` and return a
+        `Tafra` of the result set.
 
         Parameters
         ----------
         query: str
-            The SQL query.
+            The SQL query, optionally containing ``?`` placeholders.
 
         cur: pyodbc.Cursor
             The `pyodbc` cursor.
+
+        params: Sequence[Any] | None
+            Optional sequence of parameter values to bind to ``?`` placeholders
+            in the query.  Passed unchanged to ``cur.execute``.
 
         Returns
         -------
         tafra: Tafra
             The constructed `Tafra`.
         """
-        cur.execute(query)
+        if params is None:
+            cur.execute(query)
+        else:
+            cur.execute(query, params)
 
         columns, dtypes = zip(*((d[0], d[1]) for d in cur.description))
 
@@ -1047,25 +1059,41 @@ class Tafra:
         return Tafra.from_records(chain([head], cur.fetchall()), columns, dtypes)
 
     @classmethod
-    def read_sql_chunks(cls, query: str, cur: Cursor, chunksize: int = 100) -> Iterator["Tafra"]:
+    def read_sql_chunks(
+        cls,
+        query: str,
+        cur: Cursor,
+        chunksize: int = 100,
+        params: Sequence[Any] | None = None,
+    ) -> Iterator["Tafra"]:
         """
-        Execute a SQL SELECT statement using a `pyodbc.Cursor` and return a Tuple
-        of column names and an Iterator of records.
+        Execute a SQL SELECT statement using a `pyodbc.Cursor` and yield
+        chunks of the result set as `Tafra` instances.
 
         Parameters
         ----------
         query: str
-            The SQL query.
+            The SQL query, optionally containing ``?`` placeholders.
 
         cur: pyodbc.Cursor
             The `pyodbc` cursor.
 
-        Returns
-        -------
+        chunksize: int
+            Number of rows to yield per chunk.
+
+        params: Sequence[Any] | None
+            Optional sequence of parameter values to bind to ``?`` placeholders
+            in the query.  Passed unchanged to ``cur.execute``.
+
+        Yields
+        ------
         tafra: Tafra
-            The constructed `Tafra`.
+            A `Tafra` containing up to `chunksize` rows of the result set.
         """
-        cur.execute(query)
+        if params is None:
+            cur.execute(query)
+        else:
+            cur.execute(query, params)
 
         columns, dtypes = zip(*((d[0], d[1]) for d in cur.description))
 
