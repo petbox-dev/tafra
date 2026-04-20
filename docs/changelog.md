@@ -1,5 +1,12 @@
 # Version History
 
+## 2.2.4
+
+* **Fix**: Restore `MANIFEST.in` so test CSV fixtures (`test/ex*.csv`) are
+  included in the PyPI sdist.  Removing `MANIFEST.in` in 2.2.1 silently
+  broke the conda-forge test stage for 2.2.1, 2.2.2, and 2.2.3 because
+  `source_files: test` could not find the CSVs.  No code changes.
+
 ## 2.2.3
 
 * **Feature**: `read_sql` and `read_sql_chunks` accept an optional
