@@ -916,6 +916,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#223" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2.3
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#222" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1137,6 +1148,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#223" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2.3
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#222" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1344,6 +1366,17 @@
 
 
 <h1 id="version-history">Version History</h1>
+<h2 id="223">2.2.3</h2>
+<ul>
+<li><strong>Feature</strong>: <code>read_sql</code> and <code>read_sql_chunks</code> accept an optional
+  <code>params: Sequence[Any] | None</code> argument for parameterized queries using
+  <code>?</code> placeholders.  Passed unchanged to <code>cur.execute</code>.  The <code>Cursor</code>
+  protocol's <code>execute</code> signature is updated to match pyodbc's variadic form.</li>
+<li><strong>Fix</strong>: CSV fixture paths in <code>test_csv</code> now resolve relative to
+  <code>Path(__file__).parent</code> instead of a hardcoded <code>"test/"</code> prefix. This fixes
+  <code>FileNotFoundError</code> in conda-forge builds where pytest's cwd is not the
+  repo root.</li>
+</ul>
 <h2 id="222">2.2.2</h2>
 <ul>
 <li><strong>Fix</strong>: Multi-column join composite key collision when left and right sides
