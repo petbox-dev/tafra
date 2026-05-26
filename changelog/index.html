@@ -916,6 +916,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#225" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2.5
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#224" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1159,6 +1170,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#225" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2.5
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#224" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1388,6 +1410,15 @@
 
 
 <h1 id="version-history">Version History</h1>
+<h2 id="225">2.2.5</h2>
+<ul>
+<li><strong>Fix</strong>: Join and <code>group_by</code> on <code>object</code>-dtype key columns containing mixed
+  Python types (e.g., <code>str</code> and <code>int</code> across sides, or mixed within one side)
+  no longer raise <code>TypeError: '&lt;' not supported between instances of ...</code>.
+  The pure-Python encoding path now uses a hash-based codebook for object
+  arrays, matching the C accelerator's semantics. Previously, <code>np.unique</code>'s
+  internal <code>argsort</code> failed on cross-type comparisons.</li>
+</ul>
 <h2 id="224">2.2.4</h2>
 <ul>
 <li><strong>Fix</strong>: Restore <code>MANIFEST.in</code> so test CSV fixtures (<code>test/ex*.csv</code>) are

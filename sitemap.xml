@@ -2,58 +2,58 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://petbox-dev.github.io/tafra/</loc>
-         <lastmod>2026-04-20</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://petbox-dev.github.io/tafra/api/</loc>
-         <lastmod>2026-04-20</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://petbox-dev.github.io/tafra/benchmarks/</loc>
-         <lastmod>2026-04-20</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://petbox-dev.github.io/tafra/changelog/</loc>
-         <lastmod>2026-04-20</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://petbox-dev.github.io/tafra/getting-started/</loc>
-         <lastmod>2026-04-20</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://petbox-dev.github.io/tafra/guide/chunking/</loc>
-         <lastmod>2026-04-20</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://petbox-dev.github.io/tafra/guide/column-ops/</loc>
-         <lastmod>2026-04-20</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://petbox-dev.github.io/tafra/guide/construction/</loc>
-         <lastmod>2026-04-20</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://petbox-dev.github.io/tafra/guide/groupby-partition/</loc>
-         <lastmod>2026-04-20</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://petbox-dev.github.io/tafra/guide/joins/</loc>
-         <lastmod>2026-04-20</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://petbox-dev.github.io/tafra/tutorials/</loc>
-         <lastmod>2026-04-20</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://petbox-dev.github.io/tafra/tutorials/iris/</loc>
-         <lastmod>2026-04-20</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://petbox-dev.github.io/tafra/tutorials/timeseries/</loc>
-         <lastmod>2026-04-20</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://petbox-dev.github.io/tafra/tutorials/titanic/</loc>
-         <lastmod>2026-04-20</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
 </urlset>
