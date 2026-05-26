@@ -1972,6 +1972,56 @@ class TestStringDtype:
         with pytest.raises(TypeError):
             left.inner_join(right, on=[("k", "k", "==")])
 
+    def test_join_on_object_dtype_mixed_python_types_across_sides(self) -> None:
+        # Regression: np.unique on the concatenated key array used to call
+        # argsort, which raises TypeError when object arrays mix str and int.
+        left = Tafra(
+            {
+                "k": np.array(["a", "b", "c"], dtype=object),
+                "lv": np.array([1, 2, 3]),
+            }
+        )
+        right = Tafra(
+            {
+                "k": np.array([1, 2, 3], dtype=object),
+                "rv": np.array([10, 20, 30]),
+            }
+        )
+        t = left.left_join(right, on=[("k", "k", "==")])
+        assert len(t) == 3
+        # No matches since 'a' != 1 etc.; rv falls back to object/None
+        assert list(t["rv"]) == [None, None, None]
+
+    def test_join_on_object_dtype_mixed_within_side(self) -> None:
+        left = Tafra(
+            {
+                "k": np.array(["a", 1, "c"], dtype=object),
+                "lv": np.array([1, 2, 3]),
+            }
+        )
+        right = Tafra(
+            {
+                "k": np.array(["a", 1, "d"], dtype=object),
+                "rv": np.array([10, 20, 30]),
+            }
+        )
+        t = left.left_join(right, on=[("k", "k", "==")])
+        assert len(t) == 3
+        assert list(t["rv"]) == [10, 20, None]
+
+    def test_group_by_object_dtype_mixed_python_types(self) -> None:
+        t = Tafra(
+            {
+                "k": np.array(["a", 1, "a", 1, "b"], dtype=object),
+                "v": np.array([1.0, 2.0, 3.0, 4.0, 5.0]),
+            }
+        )
+        g = t.group_by(["k"], {"v_sum": (sum, "v")})
+        assert len(g) == 3
+        # Hash-based encoding preserves insertion order: 'a', 1, 'b'
+        result = dict(zip(g["k"].tolist(), g["v_sum"].tolist()))
+        assert result == {"a": 4.0, 1: 6.0, "b": 5.0}
+
     def test_concat_stringdtype_and_fixed_u(self) -> None:
         t1 = Tafra(
             {
