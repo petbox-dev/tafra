@@ -82,3 +82,11 @@ The library has one core abstraction and a set of aggregation/partitioning opera
 ## Configuration
 
 - `pyproject.toml` — ruff (max-line-length=100), mypy (strict), pytest addopts, coverage
+
+## Version bump
+
+Update the version in all three places (they must stay in sync — conda-forge pulls from `meta.yaml`, PyPI from `pyproject.toml`):
+
+1. `pyproject.toml` — `version = "X.Y.Z"`
+2. `recipe/meta.yaml` — `{% set version = "X.Y.Z" %}`
+3. `docs/changelog.md` — add a new `## X.Y.Z` section at the top with bulleted `**Fix**:` / `**Feature**:` entries

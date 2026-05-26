@@ -2250,8 +2250,15 @@ class Tafra:
                 columns = [columns]
             self._validate_columns(columns)
 
-        return pd.DataFrame(
-            {column: pd.Series(value) for column, value in self._data.items() if column in columns}
+        return cast(
+            DataFrame,
+            pd.DataFrame(
+                {
+                    column: pd.Series(value)
+                    for column, value in self._data.items()
+                    if column in columns
+                }
+            ),
         )
 
     def to_csv(

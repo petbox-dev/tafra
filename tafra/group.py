@@ -450,6 +450,22 @@ class GroupSet:
     """
 
     @staticmethod
+    def _hash_encode_object(arr: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
+        # np.unique sorts via argsort, which raises TypeError on object arrays
+        # containing mixed Python types (e.g., str and int). Use a dict codebook
+        # — semantics match _c_encode_strings (hash equality, not ordering).
+        codebook: dict[Any, int] = {}
+        codes = np.empty(len(arr), dtype=np.int64)
+        for i in range(len(arr)):
+            v = arr[i]
+            code = codebook.get(v)
+            if code is None:
+                code = len(codebook)
+                codebook[v] = code
+            codes[i] = code
+        return codes
+
+    @staticmethod
     def _encode_columns(
         col_arrays: list[np.ndarray[Any, Any]],
     ) -> tuple[list[np.ndarray[Any, Any]], list[np.ndarray[Any, Any] | None]]:
@@ -469,6 +485,9 @@ class GroupSet:
                     obj_arr = c.astype(object)
                     codes, _ = _c_encode_strings(obj_arr)
                     encoded.append(codes)
+                    codebooks.append(None)
+                elif c.dtype.kind == "O":
+                    encoded.append(GroupSet._hash_encode_object(c))
                     codebooks.append(None)
                 else:
                     uniq, codes = np.unique(c, return_inverse=True)
@@ -516,6 +535,8 @@ class GroupSet:
                 combined = np.concatenate([lc, rc])
                 if _HAS_ACCEL and len(combined) >= 50_000:
                     codes, _ = _c_encode_strings(combined.astype(object))
+                elif combined.dtype.kind == "O":
+                    codes = GroupSet._hash_encode_object(combined)
                 else:
                     _, codes = np.unique(combined, return_inverse=True)
                 left_enc.append(codes[: len(lc)])

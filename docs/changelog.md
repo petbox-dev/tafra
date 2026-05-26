@@ -1,5 +1,14 @@
 # Version History
 
+## 2.2.5
+
+* **Fix**: Join and `group_by` on `object`-dtype key columns containing mixed
+  Python types (e.g., `str` and `int` across sides, or mixed within one side)
+  no longer raise `TypeError: '<' not supported between instances of ...`.
+  The pure-Python encoding path now uses a hash-based codebook for object
+  arrays, matching the C accelerator's semantics. Previously, `np.unique`'s
+  internal `argsort` failed on cross-type comparisons.
+
 ## 2.2.4
 
 * **Fix**: Restore `MANIFEST.in` so test CSV fixtures (`test/ex*.csv`) are
