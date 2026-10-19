@@ -229,7 +229,6 @@ class _PercentileAgg:
     def __init__(self, q: float) -> None:
         self.q = q
         self._vec_fn = _make_vec_percentile(q)
-        _VECTORIZED_AGGS[id(self)] = self._vec_fn
 
     def __call__(self, data: np.ndarray[Any, Any]) -> Any:
         return np.percentile(data, self.q)
@@ -258,6 +257,20 @@ def percentile(q: float) -> _PercentileAgg:
     >>> tf.group_by(['g'], {'p90': (percentile(90), 'value')})
     """
     return _PercentileAgg(q)
+
+
+def _vectorized_aggregation(
+    fn: Callable[..., Any],
+) -> Callable[..., np.ndarray[Any, Any]] | None:
+    """
+    Return the vectorized fast path for `fn`, or None. `_VECTORIZED_AGGS` holds
+    only module-level functions, which are never freed, so their ids are never
+    reused. A `_PercentileAgg` carries its own fast path because its id can be
+    reused by another object after it is freed.
+    """
+    if isinstance(fn, _PercentileAgg):
+        return fn._vec_fn
+    return _VECTORIZED_AGGS.get(id(fn))
 
 
 def geomean(data: np.ndarray[Any, Any]) -> Any:
@@ -835,8 +848,11 @@ class GroupBy(AggMethod):
         )
 
         # check if all aggregations can be vectorized
+        vectorized_functions = {
+            rename: _vectorized_aggregation(fn) for rename, (fn, _) in self._aggregation.items()
+        }
         all_vectorized = not self.iter_fn and all(
-            id(fn) in _VECTORIZED_AGGS for fn, _ in self._aggregation.values()
+            vec_fn is not None for vec_fn in vectorized_functions.values()
         )
 
         if all_vectorized and self._aggregation:
@@ -854,7 +870,8 @@ class GroupBy(AggMethod):
                 result[col] = vals[first_occurrence]
 
             for rename, (fn, col) in self._aggregation.items():
-                vec_fn = _VECTORIZED_AGGS[id(fn)]
+                vec_fn = vectorized_functions[rename]
+                assert vec_fn is not None
                 result[rename] = vec_fn(tafra._data[col], labels, n_groups)
 
             return Tafra(result)
@@ -923,8 +940,11 @@ class Transform(AggMethod):
         )
 
         # check if all aggregations can be vectorized
+        vectorized_functions = {
+            rename: _vectorized_aggregation(fn) for rename, (fn, _) in self._aggregation.items()
+        }
         all_vectorized = not self.iter_fn and all(
-            id(fn) in _VECTORIZED_AGGS for fn, _ in self._aggregation.values()
+            vec_fn is not None for vec_fn in vectorized_functions.values()
         )
 
         if all_vectorized and self._aggregation:
@@ -938,7 +958,8 @@ class Transform(AggMethod):
                 result[col] = tafra._data[col].copy()
 
             for rename, (fn, col) in self._aggregation.items():
-                vec_fn = _VECTORIZED_AGGS[id(fn)]
+                vec_fn = vectorized_functions[rename]
+                assert vec_fn is not None
                 group_values = vec_fn(tafra._data[col], labels, n_groups)
                 result[rename] = group_values[labels]
 

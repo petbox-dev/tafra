@@ -1117,6 +1117,30 @@ class TestGroupBy:
             np.percentile([10.0, 20.0, 30.0, 40.0, 50.0], 90),
         )
 
+    def test_percentile_agg_freed_id_not_reused(self) -> None:
+        """A callable allocated at a freed percentile()'s address must not hit its fast path."""
+        from tafra import percentile
+
+        class Spread:
+            __slots__ = ("q", "_vec_fn")  # same layout as _PercentileAgg: pymalloc reuses the block
+
+            def __call__(self, data: np.ndarray[Any, Any]) -> float:
+                return float(data.max() - data.min())
+
+        t = Tafra({"g": np.array([0, 0, 1, 1]), "v": np.array([1.0, 5.0, 2.0, 10.0])})
+        for _ in range(100):
+            freed_id = id(percentile(50))
+            spread = Spread()
+            if id(spread) == freed_id:
+                break
+        else:
+            pytest.skip("allocator did not reuse the freed percentile() address")
+
+        gb = t.group_by(["g"], {"spread": (spread, "v")})
+        np.testing.assert_array_equal(gb["spread"], [4.0, 8.0])
+        gb = t.transform(["g"], {"spread": (spread, "v")})
+        np.testing.assert_array_equal(gb["spread"], [4.0, 4.0, 8.0, 8.0])
+
     def test_geomean_harmean(self) -> None:
         from tafra import geomean, harmean
 

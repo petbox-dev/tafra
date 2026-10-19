@@ -1,5 +1,5 @@
 {% set name = "tafra" %}
-{% set version = "2.2.5" %}
+{% set version = "2.3.0" %}
 
 
 package:
@@ -12,7 +12,7 @@ source:
 
 build:
   number: 0
-  skip: true  # [py<39]
+  skip: true  # [py<310]
   script: {{ PYTHON }} -m pip install . -vv
 
 requirements:
@@ -41,6 +41,8 @@ test:
   commands:
     - pip check
     - python -c "from tafra._accel import groupby_sum; print('C extension OK')"
+    # On a free-threaded (cp314t) build, importing _accel must not re-enable the GIL
+    - python -W error -c "import sys, tafra._accel; assert not getattr(sys, '_is_gil_enabled', lambda: False)()"
     - pytest --cov=tafra --cov-report=term-missing --hypothesis-show-statistics -v test
   requires:
     - pip
@@ -60,7 +62,7 @@ about:
     pandas backed by numpy arrays. Provides SQL-style group-by, transform,
     and join operations with optional C acceleration for single-pass
     aggregation and hash-based equi-joins.
-  doc_url: https://tafra.readthedocs.io/
+  doc_url: https://petbox-dev.github.io/tafra/
   dev_url: https://github.com/petbox-dev/tafra
 
 extra:

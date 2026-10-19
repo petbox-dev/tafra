@@ -461,7 +461,10 @@ accel_composite_key(PyObject *self, PyObject *args)
 
 typedef struct {
     Py_hash_t hash;
-    PyObject *obj;      /* borrowed reference to the original object */
+    /* Borrowed reference into the input array. Safe on free-threaded builds
+     * only because callers pass a private copy (arr.astype(object)) that no
+     * other thread can mutate while the table is alive. */
+    PyObject *obj;
     npy_intp code;
     int occupied;
 } StrHashEntry;
@@ -1021,5 +1024,11 @@ PyMODINIT_FUNC
 PyInit__accel(void)
 {
     import_array();
-    return PyModule_Create(&accelmodule);
+    PyObject *module = PyModule_Create(&accelmodule);
+    if (!module) return NULL;
+#ifdef Py_GIL_DISABLED
+    /* No module-level mutable state: every buffer is allocated per call. */
+    PyUnstable_Module_SetGIL(module, Py_MOD_GIL_NOT_USED);
+#endif
+    return module;
 }

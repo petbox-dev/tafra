@@ -1,5 +1,22 @@
 # Version History
 
+## 2.3.0
+
+* **Feature**: Wheels for Python 3.14 and 3.15, including the free-threaded
+  (no-GIL) builds `cp314t` and `cp315t`. The C extension declares that it
+  runs without the GIL, so importing it no longer re-enables the GIL on a
+  free-threaded interpreter. CI tests all eight interpreters (3.10 to 3.15,
+  plus 3.14t and 3.15t), and a new test runs `group_by` and joins on one
+  shared `Tafra` from several threads. A new
+  [Thread Safety](guide/thread-safety.md) guide states which concurrent
+  operations are safe.
+* **Fix**: A callable that Python allocated at the address of a freed
+  `percentile(q)` object was routed to that percentile's vectorized fast
+  path, so `group_by` and `transform` silently returned percentiles in place
+  of the callable's result. `percentile` objects now carry their own fast
+  path and are no longer registered by `id()`, which also removes a registry
+  entry that leaked for each `percentile` call.
+
 ## 2.2.5
 
 * **Fix**: Join and `group_by` on `object`-dtype key columns containing mixed

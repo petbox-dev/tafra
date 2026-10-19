@@ -22,13 +22,16 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14", "3.14t", "3.15", "3.15t"]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[test]" 2>/dev/null || pip install -e . && pip install pytest pytest-cov hypothesis pandas
+      - name: Verify C extension keeps the GIL disabled
+        if: endsWith(matrix.python-version, 't')
+        run: python -W error -c "import sys, tafra._accel; assert not sys._is_gil_enabled()"
       - run: pytest
       - name: Upload coverage to Coveralls
         if: matrix.python-version == '3.12'
