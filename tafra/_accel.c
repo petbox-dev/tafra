@@ -1,18 +1,20 @@
 /*
- * tafra/_accel.c — C extension for hot-path acceleration (v3).
+ * tafra/_accel.c — C extension for hot-path acceleration (v4).
  *
- * Performance improvements over v1:
- *   - Power-of-2 hash tables with bitmask probing (no division)
- *   - CSR (flat contiguous) layout for join hash tables (no linked lists)
- *   - Slot-caching two-pass joins (no re-probing, exact pre-allocation)
- *   - Unrolled composite_key for 1-3 column fast paths
- *   - Reduced redundant initialization
+ *   - Power-of-2 hash tables, Fibonacci hashing on the HIGH product bits
+ *     (keys that share trailing zero bits, such as datetime64[ns] dates,
+ *     still spread over the whole table)
+ *   - CSR (flat contiguous) layout for join hash tables
+ *   - Each key is read once: slots are cached between passes, so a key
+ *     array that another thread writes cannot corrupt the table
+ *   - The GIL is released around every loop that touches no Python object
  *
  * All functions accept and return numpy arrays. Falls back gracefully
  * if this module fails to compile — pure-Python paths remain available.
  *
- * All input arrays are coerced to contiguous layout via PyArray_FROM_OTF.
- * Callers guarantee n_groups > 0 and all label values in [0, n_groups).
+ * Every array argument must be one-dimensional; it is coerced to a
+ * contiguous array of the expected type. Group labels are validated to be
+ * in [0, group_count); a label outside that range raises ValueError.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -29,68 +31,208 @@
  * phi = (sqrt(5)-1)/2 * 2^64 ~ 0x9E3779B97F4A7C15 */
 #define GOLDEN_HASH 0x9E3779B97F4A7C15ULL
 
-/* Power-of-2 hash: multiply then mask. table_size must be power of 2. */
-#define HASH_KEY(k, mask) ((npy_intp)(((npy_uint64)(k) * GOLDEN_HASH) >> 1) & (mask))
+/* Fibonacci hashing: the top log2(table size) bits of key * GOLDEN_HASH.
+ * The low bits of a product depend only on the low bits of the key, so
+ * masking them clusters keys that end in zero bits; the high bits mix
+ * every key bit. */
+#define HASH_SLOT(key, shift) ((npy_intp)(((npy_uint64)(key) * GOLDEN_HASH) >> (shift)))
 
 
-/* Round up to next power of 2 (minimum 16). */
-static npy_intp
-next_pow2(npy_intp n)
+/* Size, probe mask and hash shift of a power-of-2 open-addressing table. */
+typedef struct {
+    npy_intp size;
+    npy_intp mask;
+    int shift;
+} HashGeometry;
+
+
+/* Table for key_count keys at a load factor of at most 50% (minimum 16). */
+static HashGeometry
+hash_geometry(npy_intp key_count)
 {
-    npy_intp p = 16;
-    while (p < n) p <<= 1;
-    return p;
+    HashGeometry geometry = {16, 15, 60};
+    while (geometry.size < key_count * 2) {
+        geometry.size <<= 1;
+        geometry.shift--;
+    }
+    geometry.mask = geometry.size - 1;
+    return geometry;
 }
 
 
-/* Helper: coerce to contiguous array of given type. Caller must Py_DECREF. */
-static PyArrayObject *
-as_contig(PyObject *obj, int typenum)
+/* malloc that never asks for 0 bytes: malloc(0) may return NULL, which
+ * would be reported as a false MemoryError. */
+static void *
+malloc_nonzero(size_t byte_count)
 {
-    return (PyArrayObject *)PyArray_FROM_OTF(
+    return malloc(byte_count ? byte_count : 1);
+}
+
+
+/* Coerce to a contiguous one-dimensional array of the given type.
+ * Caller must Py_DECREF. */
+static PyArrayObject *
+as_contiguous_vector(PyObject *obj, int typenum)
+{
+    PyArrayObject *array = (PyArrayObject *)PyArray_FROM_OTF(
         obj, typenum, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_ALIGNED);
+    if (array && PyArray_NDIM(array) != 1) {
+        PyErr_SetString(PyExc_ValueError, "expected a one-dimensional array");
+        Py_DECREF(array);
+        return NULL;
+    }
+    return array;
 }
 
 
 /* ================================================================
  * GroupBy aggregations: single pass over (labels, data)
  *
- * All groupby functions expect:
- *   labels: int64 array of group indices in [0, n_groups)
- *   data:   float64 array of values (same length as labels)
- *   n_groups: number of groups (Py_ssize_t)
+ * All groupby functions take:
+ *   labels:      int64 array of group indices in [0, group_count)
+ *   data:        float64 array of values (int64 for the *_int64 kernels),
+ *                the same length as labels
+ *   group_count: number of groups
+ *   skip_nan:    optional bool; True ignores NaN (np.nansum and friends).
+ *                A group with no non-NaN value gives NaN (0 for sum).
+ *                For groupby_min_int64 / groupby_max_int64 the same slot
+ *                is unsigned_values: compare the data as uint64.
  * ================================================================ */
+
+typedef struct {
+    PyArrayObject *labels_array;
+    PyArrayObject *data_array;      /* NULL for groupby_count */
+    const npy_int64 *labels;
+    const void *data;
+    npy_intp row_count;
+    npy_intp group_count;
+    int skip_nan;
+} GroupbyInput;
+
+
+static void
+release_groupby_input(GroupbyInput *input)
+{
+    Py_XDECREF(input->labels_array);
+    Py_XDECREF(input->data_array);
+}
+
+
+/* Parse (labels, data, group_count[, skip_nan]), or (labels, group_count)
+ * when data_typenum < 0. Returns 0, or -1 with an exception set. */
+static int
+parse_groupby_input(PyObject *args, int data_typenum, GroupbyInput *input)
+{
+    PyObject *labels_obj = NULL, *data_obj = NULL;
+    Py_ssize_t group_count = 0;
+    int skip_nan = 0;
+
+    memset(input, 0, sizeof(*input));
+    if (data_typenum < 0) {
+        if (!PyArg_ParseTuple(args, "On", &labels_obj, &group_count))
+            return -1;
+    } else {
+        if (!PyArg_ParseTuple(args, "OOn|p", &labels_obj, &data_obj, &group_count, &skip_nan))
+            return -1;
+    }
+    if (group_count < 0) {
+        PyErr_SetString(PyExc_ValueError, "group_count must be non-negative");
+        return -1;
+    }
+
+    input->labels_array = as_contiguous_vector(labels_obj, NPY_INT64);
+    if (!input->labels_array) return -1;
+    input->row_count = PyArray_SIZE(input->labels_array);
+    input->labels = (const npy_int64 *)PyArray_DATA(input->labels_array);
+
+    if (data_typenum >= 0) {
+        input->data_array = as_contiguous_vector(data_obj, data_typenum);
+        if (!input->data_array) { release_groupby_input(input); return -1; }
+        if (PyArray_SIZE(input->data_array) != input->row_count) {
+            PyErr_SetString(PyExc_ValueError, "labels and data must have the same length");
+            release_groupby_input(input);
+            return -1;
+        }
+        input->data = PyArray_DATA(input->data_array);
+    }
+    input->group_count = (npy_intp)group_count;
+    input->skip_nan = skip_nan;
+    return 0;
+}
+
+
+/* True when label is outside [0, group_count). */
+#define LABEL_OUT_OF_RANGE(label, group_count) \
+    ((npy_uint64)(label) >= (npy_uint64)(group_count))
+
+
+static PyObject *
+raise_label_out_of_range(void)
+{
+    PyErr_SetString(PyExc_ValueError, "group label outside [0, group_count)");
+    return NULL;
+}
+
 
 static PyObject *
 accel_groupby_sum(PyObject *self, PyObject *args)
 {
-    PyObject *labels_obj, *data_obj;
-    Py_ssize_t n_groups;
+    GroupbyInput input;
+    if (parse_groupby_input(args, NPY_FLOAT64, &input) < 0) return NULL;
 
-    if (!PyArg_ParseTuple(args, "OOn", &labels_obj, &data_obj, &n_groups))
-        return NULL;
-
-    PyArrayObject *labels_arr = as_contig(labels_obj, NPY_INT64);
-    PyArrayObject *data_arr = as_contig(data_obj, NPY_FLOAT64);
-    if (!labels_arr || !data_arr) {
-        Py_XDECREF(labels_arr); Py_XDECREF(data_arr);
-        return NULL;
-    }
-
-    npy_intp n = PyArray_SIZE(labels_arr);
-    npy_intp dims[1] = {(npy_intp)n_groups};
+    npy_intp dims[1] = {input.group_count};
     PyArrayObject *out = (PyArrayObject *)PyArray_ZEROS(1, dims, NPY_FLOAT64, 0);
-    if (!out) { Py_DECREF(labels_arr); Py_DECREF(data_arr); return NULL; }
+    if (!out) { release_groupby_input(&input); return NULL; }
 
-    const npy_int64 *labels = (const npy_int64 *)PyArray_DATA(labels_arr);
-    const npy_float64 *data = (const npy_float64 *)PyArray_DATA(data_arr);
+    const npy_int64 *labels = input.labels;
+    const npy_float64 *data = (const npy_float64 *)input.data;
     npy_float64 *result = (npy_float64 *)PyArray_DATA(out);
+    int invalid_label = 0;
 
-    for (npy_intp i = 0; i < n; i++)
-        result[labels[i]] += data[i];
+    Py_BEGIN_ALLOW_THREADS
+    for (npy_intp i = 0; i < input.row_count; i++) {
+        npy_int64 group = labels[i];
+        if (LABEL_OUT_OF_RANGE(group, input.group_count)) { invalid_label = 1; break; }
+        npy_float64 value = data[i];
+        if (!input.skip_nan || value == value)
+            result[group] += value;
+    }
+    Py_END_ALLOW_THREADS
 
-    Py_DECREF(labels_arr);
-    Py_DECREF(data_arr);
+    release_groupby_input(&input);
+    if (invalid_label) { Py_DECREF(out); return raise_label_out_of_range(); }
+    return (PyObject *)out;
+}
+
+
+/* Exact integer sum. Wraps modulo 2^64 like numpy; a uint64 sum is the
+ * same bit pattern, so callers pass uint64 data viewed as int64. */
+static PyObject *
+accel_groupby_sum_int64(PyObject *self, PyObject *args)
+{
+    GroupbyInput input;
+    if (parse_groupby_input(args, NPY_INT64, &input) < 0) return NULL;
+
+    npy_intp dims[1] = {input.group_count};
+    PyArrayObject *out = (PyArrayObject *)PyArray_ZEROS(1, dims, NPY_INT64, 0);
+    if (!out) { release_groupby_input(&input); return NULL; }
+
+    const npy_int64 *labels = input.labels;
+    const npy_int64 *data = (const npy_int64 *)input.data;
+    npy_uint64 *result = (npy_uint64 *)PyArray_DATA(out);
+    int invalid_label = 0;
+
+    Py_BEGIN_ALLOW_THREADS
+    for (npy_intp i = 0; i < input.row_count; i++) {
+        npy_int64 group = labels[i];
+        if (LABEL_OUT_OF_RANGE(group, input.group_count)) { invalid_label = 1; break; }
+        /* unsigned arithmetic: overflow wraps instead of being undefined */
+        result[group] += (npy_uint64)data[i];
+    }
+    Py_END_ALLOW_THREADS
+
+    release_groupby_input(&input);
+    if (invalid_label) { Py_DECREF(out); return raise_label_out_of_range(); }
     return (PyObject *)out;
 }
 
@@ -98,27 +240,27 @@ accel_groupby_sum(PyObject *self, PyObject *args)
 static PyObject *
 accel_groupby_count(PyObject *self, PyObject *args)
 {
-    PyObject *labels_obj;
-    Py_ssize_t n_groups;
+    GroupbyInput input;
+    if (parse_groupby_input(args, -1, &input) < 0) return NULL;
 
-    if (!PyArg_ParseTuple(args, "On", &labels_obj, &n_groups))
-        return NULL;
-
-    PyArrayObject *labels_arr = as_contig(labels_obj, NPY_INT64);
-    if (!labels_arr) return NULL;
-
-    npy_intp n = PyArray_SIZE(labels_arr);
-    npy_intp dims[1] = {(npy_intp)n_groups};
+    npy_intp dims[1] = {input.group_count};
     PyArrayObject *out = (PyArrayObject *)PyArray_ZEROS(1, dims, NPY_INT64, 0);
-    if (!out) { Py_DECREF(labels_arr); return NULL; }
+    if (!out) { release_groupby_input(&input); return NULL; }
 
-    const npy_int64 *labels = (const npy_int64 *)PyArray_DATA(labels_arr);
+    const npy_int64 *labels = input.labels;
     npy_int64 *result = (npy_int64 *)PyArray_DATA(out);
+    int invalid_label = 0;
 
-    for (npy_intp i = 0; i < n; i++)
-        result[labels[i]]++;
+    Py_BEGIN_ALLOW_THREADS
+    for (npy_intp i = 0; i < input.row_count; i++) {
+        npy_int64 group = labels[i];
+        if (LABEL_OUT_OF_RANGE(group, input.group_count)) { invalid_label = 1; break; }
+        result[group]++;
+    }
+    Py_END_ALLOW_THREADS
 
-    Py_DECREF(labels_arr);
+    release_groupby_input(&input);
+    if (invalid_label) { Py_DECREF(out); return raise_label_out_of_range(); }
     return (PyObject *)out;
 }
 
@@ -126,191 +268,218 @@ accel_groupby_count(PyObject *self, PyObject *args)
 static PyObject *
 accel_groupby_mean(PyObject *self, PyObject *args)
 {
-    PyObject *labels_obj, *data_obj;
-    Py_ssize_t n_groups;
+    GroupbyInput input;
+    if (parse_groupby_input(args, NPY_FLOAT64, &input) < 0) return NULL;
 
-    if (!PyArg_ParseTuple(args, "OOn", &labels_obj, &data_obj, &n_groups))
-        return NULL;
-
-    PyArrayObject *labels_arr = as_contig(labels_obj, NPY_INT64);
-    PyArrayObject *data_arr = as_contig(data_obj, NPY_FLOAT64);
-    if (!labels_arr || !data_arr) {
-        Py_XDECREF(labels_arr); Py_XDECREF(data_arr);
-        return NULL;
-    }
-
-    npy_intp n = PyArray_SIZE(labels_arr);
-    npy_intp dims[1] = {(npy_intp)n_groups};
+    npy_intp dims[1] = {input.group_count};
     PyArrayObject *sums = (PyArrayObject *)PyArray_ZEROS(1, dims, NPY_FLOAT64, 0);
     PyArrayObject *counts = (PyArrayObject *)PyArray_ZEROS(1, dims, NPY_INT64, 0);
     if (!sums || !counts) {
         Py_XDECREF(sums); Py_XDECREF(counts);
-        Py_DECREF(labels_arr); Py_DECREF(data_arr);
+        release_groupby_input(&input);
         return NULL;
     }
 
-    const npy_int64 *labels = (const npy_int64 *)PyArray_DATA(labels_arr);
-    const npy_float64 *data = (const npy_float64 *)PyArray_DATA(data_arr);
-    npy_float64 *s = (npy_float64 *)PyArray_DATA(sums);
-    npy_int64 *c = (npy_int64 *)PyArray_DATA(counts);
+    const npy_int64 *labels = input.labels;
+    const npy_float64 *data = (const npy_float64 *)input.data;
+    npy_float64 *sum = (npy_float64 *)PyArray_DATA(sums);
+    npy_int64 *count = (npy_int64 *)PyArray_DATA(counts);
+    int invalid_label = 0;
 
-    for (npy_intp i = 0; i < n; i++) {
-        npy_int64 g = labels[i];
-        s[g] += data[i];
-        c[g]++;
+    Py_BEGIN_ALLOW_THREADS
+    for (npy_intp i = 0; i < input.row_count; i++) {
+        npy_int64 group = labels[i];
+        if (LABEL_OUT_OF_RANGE(group, input.group_count)) { invalid_label = 1; break; }
+        npy_float64 value = data[i];
+        if (input.skip_nan && value != value) continue;
+        sum[group] += value;
+        count[group]++;
     }
-
-    for (Py_ssize_t g = 0; g < n_groups; g++) {
-        if (c[g] > 0)
-            s[g] /= (npy_float64)c[g];
-        else
-            s[g] = NPY_NAN;
-    }
+    for (npy_intp group = 0; group < input.group_count; group++)
+        sum[group] = count[group] > 0 ? sum[group] / (npy_float64)count[group] : NPY_NAN;
+    Py_END_ALLOW_THREADS
 
     Py_DECREF(counts);
-    Py_DECREF(labels_arr);
-    Py_DECREF(data_arr);
+    release_groupby_input(&input);
+    if (invalid_label) { Py_DECREF(sums); return raise_label_out_of_range(); }
     return (PyObject *)sums;
 }
 
 
-/* Welford's online algorithm for numerically stable variance */
+/* Welford's online algorithm for numerically stable population variance */
 static PyObject *
 accel_groupby_var(PyObject *self, PyObject *args)
 {
-    PyObject *labels_obj, *data_obj;
-    Py_ssize_t n_groups;
+    GroupbyInput input;
+    if (parse_groupby_input(args, NPY_FLOAT64, &input) < 0) return NULL;
 
-    if (!PyArg_ParseTuple(args, "OOn", &labels_obj, &data_obj, &n_groups))
-        return NULL;
-
-    PyArrayObject *labels_arr = as_contig(labels_obj, NPY_INT64);
-    PyArrayObject *data_arr = as_contig(data_obj, NPY_FLOAT64);
-    if (!labels_arr || !data_arr) {
-        Py_XDECREF(labels_arr); Py_XDECREF(data_arr);
-        return NULL;
-    }
-
-    npy_intp n = PyArray_SIZE(labels_arr);
-    npy_intp dims[1] = {(npy_intp)n_groups};
-
-    /* Welford accumulators: count, mean, M2 */
+    npy_intp dims[1] = {input.group_count};
     PyArrayObject *counts = (PyArrayObject *)PyArray_ZEROS(1, dims, NPY_INT64, 0);
     PyArrayObject *means = (PyArrayObject *)PyArray_ZEROS(1, dims, NPY_FLOAT64, 0);
-    PyArrayObject *m2s = (PyArrayObject *)PyArray_ZEROS(1, dims, NPY_FLOAT64, 0);
-    if (!counts || !means || !m2s) {
-        Py_XDECREF(counts); Py_XDECREF(means); Py_XDECREF(m2s);
-        Py_DECREF(labels_arr); Py_DECREF(data_arr);
+    PyArrayObject *squared_deviations = (PyArrayObject *)PyArray_ZEROS(1, dims, NPY_FLOAT64, 0);
+    if (!counts || !means || !squared_deviations) {
+        Py_XDECREF(counts); Py_XDECREF(means); Py_XDECREF(squared_deviations);
+        release_groupby_input(&input);
         return NULL;
     }
 
-    const npy_int64 *labels = (const npy_int64 *)PyArray_DATA(labels_arr);
-    const npy_float64 *data = (const npy_float64 *)PyArray_DATA(data_arr);
-    npy_int64 *cnt = (npy_int64 *)PyArray_DATA(counts);
+    const npy_int64 *labels = input.labels;
+    const npy_float64 *data = (const npy_float64 *)input.data;
+    npy_int64 *count = (npy_int64 *)PyArray_DATA(counts);
     npy_float64 *mean = (npy_float64 *)PyArray_DATA(means);
-    npy_float64 *m2 = (npy_float64 *)PyArray_DATA(m2s);
+    npy_float64 *m2 = (npy_float64 *)PyArray_DATA(squared_deviations);  /* Welford M2 */
+    int invalid_label = 0;
 
-    for (npy_intp i = 0; i < n; i++) {
-        npy_int64 g = labels[i];
-        npy_float64 x = data[i];
-        cnt[g]++;
-        npy_float64 delta = x - mean[g];
-        mean[g] += delta / (npy_float64)cnt[g];
-        npy_float64 delta2 = x - mean[g];
-        m2[g] += delta * delta2;
+    Py_BEGIN_ALLOW_THREADS
+    for (npy_intp i = 0; i < input.row_count; i++) {
+        npy_int64 group = labels[i];
+        if (LABEL_OUT_OF_RANGE(group, input.group_count)) { invalid_label = 1; break; }
+        npy_float64 value = data[i];
+        if (input.skip_nan && value != value) continue;
+        count[group]++;
+        npy_float64 delta = value - mean[group];
+        mean[group] += delta / (npy_float64)count[group];
+        m2[group] += delta * (value - mean[group]);
     }
-
-    /* Convert M2 to population variance, reuse means array for output */
-    for (Py_ssize_t g = 0; g < n_groups; g++) {
-        if (cnt[g] > 0)
-            mean[g] = m2[g] / (npy_float64)cnt[g];
-        else
-            mean[g] = NPY_NAN;
-    }
+    /* Convert M2 to population variance, reusing the means array for output */
+    for (npy_intp group = 0; group < input.group_count; group++)
+        mean[group] = count[group] > 0 ? m2[group] / (npy_float64)count[group] : NPY_NAN;
+    Py_END_ALLOW_THREADS
 
     Py_DECREF(counts);
-    Py_DECREF(m2s);
-    Py_DECREF(labels_arr);
-    Py_DECREF(data_arr);
+    Py_DECREF(squared_deviations);
+    release_groupby_input(&input);
+    if (invalid_label) { Py_DECREF(means); return raise_label_out_of_range(); }
     return (PyObject *)means;
+}
+
+
+/* Grouped min or max with numpy NaN semantics.
+ *   skip_nan false (np.min):    any NaN in a group makes the result NaN.
+ *   skip_nan true  (np.nanmin): NaN is ignored; an all-NaN group gives NaN. */
+static PyObject *
+groupby_extreme(PyObject *args, int want_maximum)
+{
+    GroupbyInput input;
+    if (parse_groupby_input(args, NPY_FLOAT64, &input) < 0) return NULL;
+
+    npy_intp dims[1] = {input.group_count};
+    PyArrayObject *out = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_FLOAT64);
+    if (!out) { release_groupby_input(&input); return NULL; }
+
+    const npy_int64 *labels = input.labels;
+    const npy_float64 *data = (const npy_float64 *)input.data;
+    npy_float64 *result = (npy_float64 *)PyArray_DATA(out);
+    const int skip_nan = input.skip_nan;
+    int invalid_label = 0;
+
+    Py_BEGIN_ALLOW_THREADS
+    npy_float64 initial = skip_nan ? NPY_NAN : (want_maximum ? -NPY_INFINITY : NPY_INFINITY);
+    for (npy_intp group = 0; group < input.group_count; group++)
+        result[group] = initial;
+
+    for (npy_intp i = 0; i < input.row_count; i++) {
+        npy_int64 group = labels[i];
+        if (LABEL_OUT_OF_RANGE(group, input.group_count)) { invalid_label = 1; break; }
+        npy_float64 value = data[i];
+        npy_float64 current = result[group];
+        if (skip_nan) {
+            /* current is NaN until the first non-NaN value arrives */
+            if (value == value
+                && (current != current || (want_maximum ? value > current : value < current)))
+                result[group] = value;
+        } else {
+            /* once NaN, stay NaN; a NaN value fails every comparison */
+            if (current == current
+                && !(want_maximum ? value <= current : value >= current))
+                result[group] = value;
+        }
+    }
+    Py_END_ALLOW_THREADS
+
+    release_groupby_input(&input);
+    if (invalid_label) { Py_DECREF(out); return raise_label_out_of_range(); }
+    return (PyObject *)out;
+}
+
+
+/* Grouped exact integer min or max. unsigned_values compares the int64
+ * data as uint64 (callers pass uint64 data viewed as int64). Groups are
+ * assumed non-empty; an empty group keeps the initial extreme. */
+static PyObject *
+groupby_integer_extreme(PyObject *args, int want_maximum)
+{
+    GroupbyInput input;
+    if (parse_groupby_input(args, NPY_INT64, &input) < 0) return NULL;
+    /* the optional fourth argument means unsigned_values here */
+    const int unsigned_values = input.skip_nan;
+
+    npy_intp dims[1] = {input.group_count};
+    PyArrayObject *out = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INT64);
+    if (!out) { release_groupby_input(&input); return NULL; }
+
+    const npy_int64 *labels = input.labels;
+    const npy_int64 *data = (const npy_int64 *)input.data;
+    npy_int64 *result = (npy_int64 *)PyArray_DATA(out);
+    int invalid_label = 0;
+
+    Py_BEGIN_ALLOW_THREADS
+    npy_int64 initial;
+    if (unsigned_values)
+        initial = want_maximum ? 0 : (npy_int64)NPY_MAX_UINT64;
+    else
+        initial = want_maximum ? NPY_MIN_INT64 : NPY_MAX_INT64;
+    for (npy_intp group = 0; group < input.group_count; group++)
+        result[group] = initial;
+
+    for (npy_intp i = 0; i < input.row_count; i++) {
+        npy_int64 group = labels[i];
+        if (LABEL_OUT_OF_RANGE(group, input.group_count)) { invalid_label = 1; break; }
+        npy_int64 value = data[i];
+        int replace;
+        if (unsigned_values) {
+            npy_uint64 unsigned_value = (npy_uint64)value;
+            npy_uint64 unsigned_current = (npy_uint64)result[group];
+            replace = want_maximum ? unsigned_value > unsigned_current
+                                   : unsigned_value < unsigned_current;
+        } else {
+            replace = want_maximum ? value > result[group] : value < result[group];
+        }
+        if (replace) result[group] = value;
+    }
+    Py_END_ALLOW_THREADS
+
+    release_groupby_input(&input);
+    if (invalid_label) { Py_DECREF(out); return raise_label_out_of_range(); }
+    return (PyObject *)out;
+}
+
+
+static PyObject *
+accel_groupby_min_int64(PyObject *self, PyObject *args)
+{
+    return groupby_integer_extreme(args, 0);
+}
+
+
+static PyObject *
+accel_groupby_max_int64(PyObject *self, PyObject *args)
+{
+    return groupby_integer_extreme(args, 1);
 }
 
 
 static PyObject *
 accel_groupby_min(PyObject *self, PyObject *args)
 {
-    PyObject *labels_obj, *data_obj;
-    Py_ssize_t n_groups;
-
-    if (!PyArg_ParseTuple(args, "OOn", &labels_obj, &data_obj, &n_groups))
-        return NULL;
-
-    PyArrayObject *labels_arr = as_contig(labels_obj, NPY_INT64);
-    PyArrayObject *data_arr = as_contig(data_obj, NPY_FLOAT64);
-    if (!labels_arr || !data_arr) {
-        Py_XDECREF(labels_arr); Py_XDECREF(data_arr);
-        return NULL;
-    }
-
-    npy_intp n = PyArray_SIZE(labels_arr);
-    npy_intp dims[1] = {(npy_intp)n_groups};
-    PyArrayObject *out = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_FLOAT64);
-    if (!out) { Py_DECREF(labels_arr); Py_DECREF(data_arr); return NULL; }
-
-    npy_float64 *result = (npy_float64 *)PyArray_DATA(out);
-    for (Py_ssize_t g = 0; g < n_groups; g++)
-        result[g] = NPY_INFINITY;
-
-    const npy_int64 *labels = (const npy_int64 *)PyArray_DATA(labels_arr);
-    const npy_float64 *data = (const npy_float64 *)PyArray_DATA(data_arr);
-
-    for (npy_intp i = 0; i < n; i++) {
-        npy_int64 g = labels[i];
-        if (data[i] < result[g]) result[g] = data[i];
-    }
-
-    Py_DECREF(labels_arr);
-    Py_DECREF(data_arr);
-    return (PyObject *)out;
+    return groupby_extreme(args, 0);
 }
 
 
 static PyObject *
 accel_groupby_max(PyObject *self, PyObject *args)
 {
-    PyObject *labels_obj, *data_obj;
-    Py_ssize_t n_groups;
-
-    if (!PyArg_ParseTuple(args, "OOn", &labels_obj, &data_obj, &n_groups))
-        return NULL;
-
-    PyArrayObject *labels_arr = as_contig(labels_obj, NPY_INT64);
-    PyArrayObject *data_arr = as_contig(data_obj, NPY_FLOAT64);
-    if (!labels_arr || !data_arr) {
-        Py_XDECREF(labels_arr); Py_XDECREF(data_arr);
-        return NULL;
-    }
-
-    npy_intp n = PyArray_SIZE(labels_arr);
-    npy_intp dims[1] = {(npy_intp)n_groups};
-    PyArrayObject *out = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_FLOAT64);
-    if (!out) { Py_DECREF(labels_arr); Py_DECREF(data_arr); return NULL; }
-
-    npy_float64 *result = (npy_float64 *)PyArray_DATA(out);
-    for (Py_ssize_t g = 0; g < n_groups; g++)
-        result[g] = -NPY_INFINITY;
-
-    const npy_int64 *labels = (const npy_int64 *)PyArray_DATA(labels_arr);
-    const npy_float64 *data = (const npy_float64 *)PyArray_DATA(data_arr);
-
-    for (npy_intp i = 0; i < n; i++) {
-        npy_int64 g = labels[i];
-        if (data[i] > result[g]) result[g] = data[i];
-    }
-
-    Py_DECREF(labels_arr);
-    Py_DECREF(data_arr);
-    return (PyObject *)out;
+    return groupby_extreme(args, 1);
 }
 
 
@@ -318,156 +487,138 @@ accel_groupby_max(PyObject *self, PyObject *args)
  * Composite key: positional encoding of multiple int64 columns
  *
  * composite_key(arrays, cardinalities) -> int64 array
- *   arrays:        tuple of int64 arrays (encoded columns)
+ *   arrays:        tuple of int64 arrays (codes in [0, cardinality))
  *   cardinalities: tuple of ints (max value + 1 for each column)
  *
  * Computes: key[i] = col0[i]*card1*card2*... + col1[i]*card2*... + ...
- * Unrolled fast paths for 1-3 columns (common case).
+ * Raises ValueError if the product of the cardinalities exceeds int64.
  * ================================================================ */
 
 static PyObject *
 accel_composite_key(PyObject *self, PyObject *args)
 {
-    PyObject *arrays_obj, *cards_obj;
-    if (!PyArg_ParseTuple(args, "OO", &arrays_obj, &cards_obj))
+    PyObject *arrays_obj, *cardinalities_obj;
+    if (!PyArg_ParseTuple(args, "OO", &arrays_obj, &cardinalities_obj))
         return NULL;
 
-    if (!PyTuple_Check(arrays_obj) || !PyTuple_Check(cards_obj)) {
+    if (!PyTuple_Check(arrays_obj) || !PyTuple_Check(cardinalities_obj)) {
         PyErr_SetString(PyExc_TypeError, "Expected two tuples");
         return NULL;
     }
 
-    Py_ssize_t n_cols = PyTuple_GET_SIZE(arrays_obj);
-    if (n_cols != PyTuple_GET_SIZE(cards_obj) || n_cols < 1) {
+    Py_ssize_t column_count = PyTuple_GET_SIZE(arrays_obj);
+    if (column_count != PyTuple_GET_SIZE(cardinalities_obj) || column_count < 1) {
         PyErr_SetString(PyExc_ValueError, "arrays and cardinalities must have same positive length");
         return NULL;
     }
 
-    /* Coerce all arrays to contiguous int64 */
-    PyArrayObject **col_arrs = (PyArrayObject **)malloc(n_cols * sizeof(PyArrayObject *));
-    if (!col_arrs) return PyErr_NoMemory();
+    PyArrayObject **column_arrays = (PyArrayObject **)calloc(column_count, sizeof(PyArrayObject *));
+    const npy_int64 **column_data = (const npy_int64 **)calloc(column_count, sizeof(npy_int64 *));
+    npy_uint64 *multipliers = (npy_uint64 *)calloc(column_count, sizeof(npy_uint64));
+    PyArrayObject *out = NULL;
+    if (!column_arrays || !column_data || !multipliers) {
+        PyErr_NoMemory();
+        goto cleanup;
+    }
 
-    npy_intp n_rows = 0;
-    for (Py_ssize_t c = 0; c < n_cols; c++) {
-        col_arrs[c] = as_contig(PyTuple_GET_ITEM(arrays_obj, c), NPY_INT64);
-        if (!col_arrs[c]) {
-            for (Py_ssize_t j = 0; j < c; j++) Py_DECREF(col_arrs[j]);
-            free(col_arrs);
-            return NULL;
-        }
-        npy_intp sz = PyArray_SIZE(col_arrs[c]);
-        if (c == 0) n_rows = sz;
-        else if (sz != n_rows) {
+    npy_intp row_count = 0;
+    for (Py_ssize_t column = 0; column < column_count; column++) {
+        column_arrays[column] = as_contiguous_vector(PyTuple_GET_ITEM(arrays_obj, column), NPY_INT64);
+        if (!column_arrays[column]) goto cleanup;
+        npy_intp size = PyArray_SIZE(column_arrays[column]);
+        if (column == 0) row_count = size;
+        else if (size != row_count) {
             PyErr_SetString(PyExc_ValueError, "All arrays must have the same length");
-            for (Py_ssize_t j = 0; j <= c; j++) Py_DECREF(col_arrs[j]);
-            free(col_arrs);
-            return NULL;
+            goto cleanup;
         }
+        column_data[column] = (const npy_int64 *)PyArray_DATA(column_arrays[column]);
     }
 
-    /* Read cardinalities */
-    npy_int64 *cards = (npy_int64 *)malloc(n_cols * sizeof(npy_int64));
-    if (!cards) {
-        for (Py_ssize_t c = 0; c < n_cols; c++) Py_DECREF(col_arrs[c]);
-        free(col_arrs);
-        return PyErr_NoMemory();
-    }
-    for (Py_ssize_t c = 0; c < n_cols; c++) {
-        cards[c] = PyLong_AsLongLong(PyTuple_GET_ITEM(cards_obj, c));
-        if (cards[c] == -1 && PyErr_Occurred()) {
-            for (Py_ssize_t j = 0; j < n_cols; j++) Py_DECREF(col_arrs[j]);
-            free(col_arrs); free(cards);
-            return NULL;
+    /* multipliers[c] = product of cardinalities[c+1 .. n-1], checked for overflow */
+    npy_uint64 product = 1;
+    for (Py_ssize_t column = column_count - 1; column >= 0; column--) {
+        multipliers[column] = product;
+        long long cardinality = PyLong_AsLongLong(PyTuple_GET_ITEM(cardinalities_obj, column));
+        if (cardinality == -1 && PyErr_Occurred()) goto cleanup;
+        if (cardinality < 1 || product > (npy_uint64)NPY_MAX_INT64 / (npy_uint64)cardinality) {
+            PyErr_SetString(PyExc_ValueError,
+                            "cardinalities must be positive and their product must fit int64");
+            goto cleanup;
         }
+        product *= (npy_uint64)cardinality;
     }
 
-    /* Precompute multipliers: mult[c] = product of cards[c+1..n-1] */
-    npy_int64 *mult = (npy_int64 *)malloc(n_cols * sizeof(npy_int64));
-    if (!mult) {
-        for (Py_ssize_t c = 0; c < n_cols; c++) Py_DECREF(col_arrs[c]);
-        free(col_arrs); free(cards);
-        return PyErr_NoMemory();
-    }
-    mult[n_cols - 1] = 1;
-    for (Py_ssize_t c = n_cols - 2; c >= 0; c--)
-        mult[c] = mult[c + 1] * cards[c + 1];
+    npy_intp dims[1] = {row_count};
+    out = (PyArrayObject *)PyArray_EMPTY(1, dims, NPY_INT64, 0);
+    if (!out) goto cleanup;
+    npy_uint64 *result = (npy_uint64 *)PyArray_DATA(out);
 
-    /* Build output */
-    npy_intp dims[1] = {n_rows};
-    PyArrayObject *out = (PyArrayObject *)PyArray_EMPTY(1, dims, NPY_INT64, 0);
-    if (!out) {
-        for (Py_ssize_t c = 0; c < n_cols; c++) Py_DECREF(col_arrs[c]);
-        free(col_arrs); free(cards); free(mult);
-        return NULL;
-    }
-    npy_int64 *result = (npy_int64 *)PyArray_DATA(out);
-
-    /* Unrolled fast paths for common column counts */
-    if (n_cols == 1) {
-        const npy_int64 *d0 = (const npy_int64 *)PyArray_DATA(col_arrs[0]);
-        memcpy(result, d0, n_rows * sizeof(npy_int64));
-    } else if (n_cols == 2) {
-        const npy_int64 *d0 = (const npy_int64 *)PyArray_DATA(col_arrs[0]);
-        const npy_int64 *d1 = (const npy_int64 *)PyArray_DATA(col_arrs[1]);
-        npy_int64 m0 = mult[0];
-        for (npy_intp i = 0; i < n_rows; i++)
-            result[i] = d0[i] * m0 + d1[i];
-    } else if (n_cols == 3) {
-        const npy_int64 *d0 = (const npy_int64 *)PyArray_DATA(col_arrs[0]);
-        const npy_int64 *d1 = (const npy_int64 *)PyArray_DATA(col_arrs[1]);
-        const npy_int64 *d2 = (const npy_int64 *)PyArray_DATA(col_arrs[2]);
-        npy_int64 m0 = mult[0], m1 = mult[1];
-        for (npy_intp i = 0; i < n_rows; i++)
-            result[i] = d0[i] * m0 + d1[i] * m1 + d2[i];
+    /* unsigned arithmetic: a code outside its cardinality wraps instead of
+     * being undefined behavior */
+    Py_BEGIN_ALLOW_THREADS
+    if (column_count == 1) {
+        memcpy(result, column_data[0], row_count * sizeof(npy_int64));
+    } else if (column_count == 2) {
+        const npy_int64 *first = column_data[0], *second = column_data[1];
+        npy_uint64 first_multiplier = multipliers[0];
+        for (npy_intp i = 0; i < row_count; i++)
+            result[i] = (npy_uint64)first[i] * first_multiplier + (npy_uint64)second[i];
+    } else if (column_count == 3) {
+        const npy_int64 *first = column_data[0], *second = column_data[1], *third = column_data[2];
+        npy_uint64 first_multiplier = multipliers[0], second_multiplier = multipliers[1];
+        for (npy_intp i = 0; i < row_count; i++)
+            result[i] = (npy_uint64)first[i] * first_multiplier
+                      + (npy_uint64)second[i] * second_multiplier
+                      + (npy_uint64)third[i];
     } else {
-        /* General case */
-        const npy_int64 **col_data = (const npy_int64 **)malloc(n_cols * sizeof(npy_int64 *));
-        if (!col_data) {
-            for (Py_ssize_t c = 0; c < n_cols; c++) Py_DECREF(col_arrs[c]);
-            free(col_arrs); free(cards); free(mult);
-            Py_DECREF(out);
-            return PyErr_NoMemory();
-        }
-        for (Py_ssize_t c = 0; c < n_cols; c++)
-            col_data[c] = (const npy_int64 *)PyArray_DATA(col_arrs[c]);
-
-        for (npy_intp i = 0; i < n_rows; i++) {
-            npy_int64 key = 0;
-            for (Py_ssize_t c = 0; c < n_cols; c++)
-                key += col_data[c][i] * mult[c];
+        for (npy_intp i = 0; i < row_count; i++) {
+            npy_uint64 key = 0;
+            for (Py_ssize_t column = 0; column < column_count; column++)
+                key += (npy_uint64)column_data[column][i] * multipliers[column];
             result[i] = key;
         }
-        free((void *)col_data);
     }
+    Py_END_ALLOW_THREADS
 
-    for (Py_ssize_t c = 0; c < n_cols; c++) Py_DECREF(col_arrs[c]);
-    free(col_arrs); free(cards); free(mult);
+cleanup:
+    if (column_arrays) {
+        for (Py_ssize_t column = 0; column < column_count; column++)
+            Py_XDECREF(column_arrays[column]);
+    }
+    free(column_arrays);
+    free((void *)column_data);
+    free(multipliers);
+    if (PyErr_Occurred()) {
+        Py_XDECREF(out);
+        return NULL;
+    }
     return (PyObject *)out;
 }
 
 
 /* ================================================================
- * encode_strings: O(n) hash-based string -> integer encoding
+ * encode_strings: O(n) hash-based object -> integer encoding
  *
- * encode_strings(array) -> (codes, n_unique)
- *   array: numpy array of hashable objects (strings, etc.)
+ * encode_strings(array) -> (codes, unique_count)
+ *   array: numpy array of hashable objects (strings, None, etc.)
  *
  * Returns:
- *   codes:    int64 array of integer codes (0..n_unique-1), first-seen order
- *   n_unique: int
+ *   codes:        int64 array of integer codes (0..unique_count-1), first-seen order
+ *   unique_count: int
  *
- * Power-of-2 table with bitmask probing.
+ * Equal hashes are confirmed with PyObject_RichCompareBool, so a hash
+ * collision never merges two different values.
  * ================================================================ */
 
 typedef struct {
-    Py_hash_t hash;
-    /* Borrowed reference into the input array. Safe on free-threaded builds
-     * only because callers pass a private copy (arr.astype(object)) that no
-     * other thread can mutate while the table is alive. */
+    /* Borrowed reference into the input array; NULL marks an empty slot.
+     * Safe on free-threaded builds only because callers pass a private
+     * copy (arr.astype(object)) that no other thread can mutate while the
+     * table is alive. */
     PyObject *obj;
+    Py_hash_t hash;
     npy_intp code;
-    int occupied;
-} StrHashEntry;
+} StringHashEntry;
 
 static PyObject *
 accel_encode_strings(PyObject *self, PyObject *args)
@@ -480,51 +631,45 @@ accel_encode_strings(PyObject *self, PyObject *args)
         arr_obj, NPY_OBJECT, NPY_ARRAY_C_CONTIGUOUS);
     if (!arr) return NULL;
 
-    npy_intp n = PyArray_SIZE(arr);
+    npy_intp row_count = PyArray_SIZE(arr);
     PyObject **data = (PyObject **)PyArray_DATA(arr);
 
-    /* Power-of-2 hash table at ~50% load factor */
-    npy_intp table_size = next_pow2(n * 2);
-    npy_intp mask = table_size - 1;
-    StrHashEntry *table = (StrHashEntry *)calloc(table_size, sizeof(StrHashEntry));
+    HashGeometry geometry = hash_geometry(row_count);
+    StringHashEntry *table = (StringHashEntry *)calloc(geometry.size, sizeof(StringHashEntry));
     if (!table) { Py_DECREF(arr); return PyErr_NoMemory(); }
 
-    /* Output codes */
-    npy_intp dims[1] = {n};
+    npy_intp dims[1] = {row_count};
     PyArrayObject *codes_out = (PyArrayObject *)PyArray_EMPTY(1, dims, NPY_INT64, 0);
     if (!codes_out) { free(table); Py_DECREF(arr); return NULL; }
     npy_int64 *codes = (npy_int64 *)PyArray_DATA(codes_out);
 
-    npy_intp n_unique = 0;
+    npy_intp unique_count = 0;
 
-    for (npy_intp i = 0; i < n; i++) {
+    for (npy_intp i = 0; i < row_count; i++) {
         PyObject *obj = data[i];
-        Py_hash_t h = PyObject_Hash(obj);
-        if (h == -1 && PyErr_Occurred()) {
+        Py_hash_t hash = PyObject_Hash(obj);
+        if (hash == -1 && PyErr_Occurred()) {
             free(table); Py_DECREF(arr); Py_DECREF(codes_out);
             return NULL;
         }
 
-        npy_intp slot = (npy_intp)(((npy_uint64)h * GOLDEN_HASH) >> 1) & mask;
-
-        while (table[slot].occupied) {
-            if (table[slot].hash == h) {
-                int eq = PyObject_RichCompareBool(table[slot].obj, obj, Py_EQ);
-                if (eq < 0) {
+        npy_intp slot = HASH_SLOT(hash, geometry.shift);
+        while (table[slot].obj) {
+            if (table[slot].hash == hash) {
+                int equal = PyObject_RichCompareBool(table[slot].obj, obj, Py_EQ);
+                if (equal < 0) {
                     free(table); Py_DECREF(arr); Py_DECREF(codes_out);
                     return NULL;
                 }
-                if (eq) break;
+                if (equal) break;
             }
-            slot = (slot + 1) & mask;
+            slot = (slot + 1) & geometry.mask;
         }
 
-        if (!table[slot].occupied) {
-            table[slot].hash = h;
+        if (!table[slot].obj) {
             table[slot].obj = obj;
-            table[slot].code = n_unique;
-            table[slot].occupied = 1;
-            n_unique++;
+            table[slot].hash = hash;
+            table[slot].code = unique_count++;
         }
         codes[i] = table[slot].code;
     }
@@ -532,7 +677,87 @@ accel_encode_strings(PyObject *self, PyObject *args)
     free(table);
     Py_DECREF(arr);
 
-    PyObject *result = Py_BuildValue("(On)", codes_out, (Py_ssize_t)n_unique);
+    PyObject *result = Py_BuildValue("(On)", codes_out, (Py_ssize_t)unique_count);
+    Py_DECREF(codes_out);
+    return result;
+}
+
+
+/* ================================================================
+ * Integer key hash table (shared by encode_int64 and group_indices)
+ * ================================================================ */
+
+typedef struct {
+    npy_int64 key;
+    /* label + 1, so that 0 marks an empty slot and a calloc'd table is
+     * empty without touching every page */
+    npy_intp label_plus_one;
+} IntegerHashEntry;
+
+
+/* Assign first-seen labels 0..group_count-1 to keys. Pure C, no GIL.
+ * table must hold geometry.size zeroed entries; first_seen (optional)
+ * receives the first row of each group. Returns group_count. */
+static npy_intp
+label_integer_keys(const npy_int64 *keys, npy_intp row_count, HashGeometry geometry,
+                   IntegerHashEntry *table, npy_int64 *labels, npy_intp *first_seen)
+{
+    npy_intp group_count = 0;
+    for (npy_intp i = 0; i < row_count; i++) {
+        npy_int64 key = keys[i];
+        npy_intp slot = HASH_SLOT(key, geometry.shift);
+        while (table[slot].label_plus_one != 0 && table[slot].key != key)
+            slot = (slot + 1) & geometry.mask;
+        if (table[slot].label_plus_one == 0) {
+            table[slot].key = key;
+            table[slot].label_plus_one = group_count + 1;
+            if (first_seen) first_seen[group_count] = i;
+            group_count++;
+        }
+        labels[i] = table[slot].label_plus_one - 1;
+    }
+    return group_count;
+}
+
+
+/* ================================================================
+ * encode_int64: O(n) hash-based dense encoding of int64 keys
+ *
+ * encode_int64(keys) -> (codes, unique_count)
+ *   codes: int64 array of first-seen codes 0..unique_count-1
+ * ================================================================ */
+
+static PyObject *
+accel_encode_int64(PyObject *self, PyObject *args)
+{
+    PyObject *keys_obj;
+    if (!PyArg_ParseTuple(args, "O", &keys_obj))
+        return NULL;
+
+    PyArrayObject *keys_array = as_contiguous_vector(keys_obj, NPY_INT64);
+    if (!keys_array) return NULL;
+    npy_intp row_count = PyArray_SIZE(keys_array);
+
+    HashGeometry geometry = hash_geometry(row_count);
+    IntegerHashEntry *table = (IntegerHashEntry *)calloc(geometry.size, sizeof(IntegerHashEntry));
+    if (!table) { Py_DECREF(keys_array); return PyErr_NoMemory(); }
+
+    npy_intp dims[1] = {row_count};
+    PyArrayObject *codes_out = (PyArrayObject *)PyArray_EMPTY(1, dims, NPY_INT64, 0);
+    if (!codes_out) { free(table); Py_DECREF(keys_array); return NULL; }
+
+    const npy_int64 *keys = (const npy_int64 *)PyArray_DATA(keys_array);
+    npy_int64 *codes = (npy_int64 *)PyArray_DATA(codes_out);
+    npy_intp unique_count;
+
+    Py_BEGIN_ALLOW_THREADS
+    unique_count = label_integer_keys(keys, row_count, geometry, table, codes, NULL);
+    Py_END_ALLOW_THREADS
+
+    free(table);
+    Py_DECREF(keys_array);
+
+    PyObject *result = Py_BuildValue("(On)", codes_out, (Py_ssize_t)unique_count);
     Py_DECREF(codes_out);
     return result;
 }
@@ -541,17 +766,9 @@ accel_encode_strings(PyObject *self, PyObject *args)
 /* ================================================================
  * group_indices: O(n) hash-based group index construction
  *
- * group_indices(key_array) -> (first_seen_indices, group_row_lists, n_groups)
+ * group_indices(key_array) -> (first_seen_indices, group_row_lists, group_count)
  *   key_array:  int64 array (composite or single-column key)
- *
- * Power-of-2 table with bitmask probing.
  * ================================================================ */
-
-typedef struct {
-    npy_int64 key;
-    npy_intp label;
-    int occupied;
-} GroupHashEntry;
 
 static PyObject *
 accel_group_indices(PyObject *self, PyObject *args)
@@ -560,425 +777,298 @@ accel_group_indices(PyObject *self, PyObject *args)
     if (!PyArg_ParseTuple(args, "O", &key_obj))
         return NULL;
 
-    PyArrayObject *key_arr = as_contig(key_obj, NPY_INT64);
-    if (!key_arr) return NULL;
+    PyArrayObject *key_array = as_contiguous_vector(key_obj, NPY_INT64);
+    if (!key_array) return NULL;
 
-    npy_intp n = PyArray_SIZE(key_arr);
-    const npy_int64 *keys = (const npy_int64 *)PyArray_DATA(key_arr);
+    npy_intp row_count = PyArray_SIZE(key_array);
+    const npy_int64 *keys = (const npy_int64 *)PyArray_DATA(key_array);
 
-    /* Power-of-2 hash table */
-    npy_intp table_size = next_pow2(n * 2);
-    npy_intp mask = table_size - 1;
-    GroupHashEntry *table = (GroupHashEntry *)calloc(table_size, sizeof(GroupHashEntry));
-    if (!table) { Py_DECREF(key_arr); return PyErr_NoMemory(); }
-
-    /* Pass 1: assign labels, count per group */
-    npy_intp *labels = (npy_intp *)malloc(n * sizeof(npy_intp));
-    npy_intp groups_cap = 256;
-    npy_intp *first_seen = (npy_intp *)malloc(groups_cap * sizeof(npy_intp));
-    npy_intp *counts = (npy_intp *)calloc(groups_cap, sizeof(npy_intp));
-    if (!labels || !first_seen || !counts) {
-        free(labels); free(first_seen); free(counts); free(table);
-        Py_DECREF(key_arr);
-        return PyErr_NoMemory();
-    }
-    npy_intp n_groups = 0;
-
-    for (npy_intp i = 0; i < n; i++) {
-        npy_int64 k = keys[i];
-        npy_intp h = HASH_KEY(k, mask);
-        while (table[h].occupied && table[h].key != k)
-            h = (h + 1) & mask;
-
-        if (!table[h].occupied) {
-            table[h].key = k;
-            table[h].occupied = 1;
-            table[h].label = n_groups;
-            if (n_groups >= groups_cap) {
-                npy_intp new_cap = groups_cap * 2;
-                npy_intp *tmp_fs = (npy_intp *)realloc(first_seen, new_cap * sizeof(npy_intp));
-                npy_intp *tmp_ct = (npy_intp *)realloc(counts, new_cap * sizeof(npy_intp));
-                if (!tmp_fs || !tmp_ct) {
-                    free(tmp_fs ? tmp_fs : first_seen);
-                    free(tmp_ct ? tmp_ct : counts);
-                    free(labels); free(table); Py_DECREF(key_arr);
-                    return PyErr_NoMemory();
-                }
-                first_seen = tmp_fs;
-                counts = tmp_ct;
-                memset(counts + groups_cap, 0, (new_cap - groups_cap) * sizeof(npy_intp));
-                groups_cap = new_cap;
-            }
-            first_seen[n_groups] = i;
-            n_groups++;
-        }
-        npy_intp lbl = table[h].label;
-        labels[i] = lbl;
-        counts[lbl]++;
-    }
-    free(table);
-    Py_DECREF(key_arr);
-
-    /* Allocate per-group output arrays */
-    PyObject *group_list = PyList_New(n_groups);
-    if (!group_list) {
-        free(labels); free(first_seen); free(counts);
-        return NULL;
+    HashGeometry geometry = hash_geometry(row_count);
+    IntegerHashEntry *table = (IntegerHashEntry *)calloc(geometry.size, sizeof(IntegerHashEntry));
+    /* group_count <= row_count, so per-group buffers sized by rows never grow */
+    npy_int64 *labels = (npy_int64 *)malloc_nonzero(row_count * sizeof(npy_int64));
+    npy_intp *first_seen = (npy_intp *)malloc_nonzero(row_count * sizeof(npy_intp));
+    npy_intp *group_sizes = (npy_intp *)calloc(row_count ? row_count : 1, sizeof(npy_intp));
+    npy_intp **group_data = NULL;
+    PyObject *group_list = NULL;
+    if (!table || !labels || !first_seen || !group_sizes) {
+        PyErr_NoMemory();
+        goto error;
     }
 
-    npy_intp **group_data = (npy_intp **)malloc(n_groups * sizeof(npy_intp *));
-    npy_intp *group_pos = (npy_intp *)calloc(n_groups, sizeof(npy_intp));
-    if (!group_data || !group_pos) {
-        free(group_data); free(group_pos);
-        free(labels); free(first_seen); free(counts);
-        Py_DECREF(group_list);
-        return PyErr_NoMemory();
+    npy_intp group_count;
+    Py_BEGIN_ALLOW_THREADS
+    group_count = label_integer_keys(keys, row_count, geometry, table, labels, first_seen);
+    for (npy_intp i = 0; i < row_count; i++)
+        group_sizes[labels[i]]++;
+    Py_END_ALLOW_THREADS
+    free(table); table = NULL;
+
+    group_list = PyList_New(group_count);
+    group_data = (npy_intp **)malloc_nonzero(group_count * sizeof(npy_intp *));
+    if (!group_list || !group_data) {
+        if (!PyErr_Occurred()) PyErr_NoMemory();
+        goto error;
+    }
+    for (npy_intp group = 0; group < group_count; group++) {
+        npy_intp dims[1] = {group_sizes[group]};
+        PyArrayObject *rows = (PyArrayObject *)PyArray_EMPTY(1, dims, NPY_INTP, 0);
+        if (!rows) goto error;
+        group_data[group] = (npy_intp *)PyArray_DATA(rows);
+        PyList_SET_ITEM(group_list, group, (PyObject *)rows);
     }
 
-    for (npy_intp g = 0; g < n_groups; g++) {
-        npy_intp dims[1] = {counts[g]};
-        PyArrayObject *arr = (PyArrayObject *)PyArray_EMPTY(1, dims, NPY_INTP, 0);
-        if (!arr) {
-            free(group_data); free(group_pos);
-            free(labels); free(first_seen); free(counts);
-            Py_DECREF(group_list);
-            return NULL;
-        }
-        group_data[g] = (npy_intp *)PyArray_DATA(arr);
-        PyList_SET_ITEM(group_list, g, (PyObject *)arr);
+    /* Scatter row indices into per-group arrays; group_sizes becomes the
+     * write position of each group. */
+    Py_BEGIN_ALLOW_THREADS
+    memset(group_sizes, 0, group_count * sizeof(npy_intp));
+    for (npy_intp i = 0; i < row_count; i++) {
+        npy_int64 group = labels[i];
+        group_data[group][group_sizes[group]++] = i;
     }
-    free(counts);
+    Py_END_ALLOW_THREADS
 
-    /* Pass 2: scatter row indices into per-group arrays */
-    for (npy_intp i = 0; i < n; i++) {
-        npy_intp lbl = labels[i];
-        group_data[lbl][group_pos[lbl]++] = i;
-    }
-    free(labels);
-    free(group_data);
-    free(group_pos);
+    npy_intp first_seen_dims[1] = {group_count};
+    PyArrayObject *first_seen_out = (PyArrayObject *)PyArray_EMPTY(1, first_seen_dims, NPY_INTP, 0);
+    if (!first_seen_out) goto error;
+    memcpy(PyArray_DATA(first_seen_out), first_seen, group_count * sizeof(npy_intp));
 
-    /* Build first_seen output array */
-    npy_intp fs_dims[1] = {n_groups};
-    PyArrayObject *fs_out = (PyArrayObject *)PyArray_EMPTY(1, fs_dims, NPY_INTP, 0);
-    if (!fs_out) { free(first_seen); Py_DECREF(group_list); return NULL; }
-    memcpy(PyArray_DATA(fs_out), first_seen, n_groups * sizeof(npy_intp));
-    free(first_seen);
+    free(labels); free(first_seen); free(group_sizes); free(group_data);
+    Py_DECREF(key_array);
 
-    PyObject *result = Py_BuildValue("(OOn)", fs_out, group_list, (Py_ssize_t)n_groups);
-    Py_DECREF(fs_out);
+    PyObject *result = Py_BuildValue("(OOn)", first_seen_out, group_list, (Py_ssize_t)group_count);
+    Py_DECREF(first_seen_out);
     Py_DECREF(group_list);
     return result;
+
+error:
+    free(table); free(labels); free(first_seen); free(group_sizes); free(group_data);
+    Py_XDECREF(group_list);
+    Py_DECREF(key_array);
+    return NULL;
 }
 
 
 /* ================================================================
- * Hash join v3: CSR layout + slot-caching two-pass
+ * Hash join: CSR layout + slot caching
  *
  * Build phase (right side):
- *   1. Hash right keys into power-of-2 table, count per bucket.
- *   2. Prefix sum -> offsets into flat contiguous row buffer.
- *   3. Scatter right row indices into flat buffer.
+ *   1. Probe each right key once, count per bucket, cache its slot.
+ *   2. Prefix sum -> end offset of each bucket in a flat row buffer.
+ *   3. Scatter right rows in reverse through the cached slots; each
+ *      bucket's offset decrements to its start and rows stay ascending.
  *
  * Probe phase (left side):
- *   Pass 1: probe each left key, cache the slot index, sum counts
+ *   Pass 1: probe each left key once, cache the slot, sum the counts
  *           for exact output pre-allocation.
- *   Pass 2: emit pairs using cached slots — no re-probing,
- *           sequential reads from rows[offset..offset+count].
+ *   Pass 2: emit pairs through the cached slots.
+ *
+ * No key is read twice, so another thread writing a key array during the
+ * join gives a wrong answer for that key, never an out-of-bounds write.
  * ================================================================ */
 
 typedef struct {
     npy_int64 key;
     npy_intp offset;    /* start index into flat row buffer */
-    npy_intp count;     /* number of right rows with this key */
+    npy_intp count;     /* number of right rows with this key; 0 marks empty */
 } CSRHashEntry;
 
 
-/* Build CSR hash table on right-side keys.
- * Returns 0 on success, -1 on error.
- * Caller must free *out_table and *out_rows. */
-static int
-build_csr_hash_table(const npy_int64 *right, npy_intp right_n,
-                     CSRHashEntry **out_table, npy_intp *out_mask,
-                     npy_intp **out_rows)
+typedef struct {
+    HashGeometry geometry;
+    CSRHashEntry *entries;
+    npy_intp *rows;         /* right row indices grouped by key */
+} CSRHashTable;
+
+
+static void
+free_csr_hash_table(CSRHashTable *table)
 {
-    npy_intp table_size = next_pow2(right_n * 2);
-    npy_intp mask = table_size - 1;
+    free(table->entries);
+    free(table->rows);
+    table->entries = NULL;
+    table->rows = NULL;
+}
 
-    /* calloc zeros count and offset to 0; count==0 means empty slot */
-    CSRHashEntry *table = (CSRHashEntry *)calloc(table_size, sizeof(CSRHashEntry));
-    if (!table) { PyErr_NoMemory(); return -1; }
 
-    /* Pass 1: count occurrences per key */
-    for (npy_intp i = 0; i < right_n; i++) {
-        npy_int64 k = right[i];
-        npy_intp h = HASH_KEY(k, mask);
-        while (table[h].count > 0 && table[h].key != k)
-            h = (h + 1) & mask;
-        table[h].key = k;
-        table[h].count++;
+/* Allocate (GIL held), then build without the GIL.
+ * Returns 0, or -1 with MemoryError set. */
+static int
+build_csr_hash_table(const npy_int64 *right, npy_intp right_count, CSRHashTable *table)
+{
+    table->geometry = hash_geometry(right_count);
+    table->entries = (CSRHashEntry *)calloc(table->geometry.size, sizeof(CSRHashEntry));
+    table->rows = (npy_intp *)malloc_nonzero(right_count * sizeof(npy_intp));
+    npy_intp *right_slots = (npy_intp *)malloc_nonzero(right_count * sizeof(npy_intp));
+    if (!table->entries || !table->rows || !right_slots) {
+        free(right_slots);
+        free_csr_hash_table(table);
+        PyErr_NoMemory();
+        return -1;
     }
 
-    /* Pass 2: prefix sum to compute offsets */
+    const HashGeometry geometry = table->geometry;
+    CSRHashEntry *entries = table->entries;
+    npy_intp *rows = table->rows;
+
+    Py_BEGIN_ALLOW_THREADS
+    for (npy_intp i = 0; i < right_count; i++) {
+        npy_int64 key = right[i];
+        npy_intp slot = HASH_SLOT(key, geometry.shift);
+        while (entries[slot].count > 0 && entries[slot].key != key)
+            slot = (slot + 1) & geometry.mask;
+        entries[slot].key = key;
+        entries[slot].count++;
+        right_slots[i] = slot;
+    }
+
     npy_intp running = 0;
-    for (npy_intp h = 0; h < table_size; h++) {
-        if (table[h].count > 0) {
-            table[h].offset = running;
-            running += table[h].count;
+    for (npy_intp slot = 0; slot < geometry.size; slot++) {
+        if (entries[slot].count > 0) {
+            running += entries[slot].count;
+            entries[slot].offset = running;
         }
     }
 
-    /* Allocate flat row buffer */
-    npy_intp *rows = (npy_intp *)malloc(right_n * sizeof(npy_intp));
-    if (!rows) { free(table); PyErr_NoMemory(); return -1; }
+    for (npy_intp i = right_count - 1; i >= 0; i--)
+        rows[--entries[right_slots[i]].offset] = i;
+    Py_END_ALLOW_THREADS
 
-    /* Temporary write positions */
-    npy_intp *write_pos = (npy_intp *)calloc(table_size, sizeof(npy_intp));
-    if (!write_pos) { free(table); free(rows); PyErr_NoMemory(); return -1; }
-
-    /* Pass 3: scatter right row indices into flat buffer */
-    for (npy_intp i = 0; i < right_n; i++) {
-        npy_int64 k = right[i];
-        npy_intp h = HASH_KEY(k, mask);
-        while (table[h].count > 0 && table[h].key != k)
-            h = (h + 1) & mask;
-        rows[table[h].offset + write_pos[h]] = i;
-        write_pos[h]++;
-    }
-    free(write_pos);
-
-    *out_table = table;
-    *out_mask = mask;
-    *out_rows = rows;
+    free(right_slots);
     return 0;
+}
+
+
+/* Probe pass: cache each left key's slot (-1 if absent) and return the
+ * number of output rows. An unmatched left row counts as one output row
+ * when keep_unmatched is set (left join). Pure C, no GIL. */
+static npy_intp
+probe_csr_hash_table(const CSRHashTable *table, const npy_int64 *left, npy_intp left_count,
+                     npy_intp *slots, int keep_unmatched, int *has_unmatched)
+{
+    const HashGeometry geometry = table->geometry;
+    const CSRHashEntry *entries = table->entries;
+    npy_intp total = 0;
+    for (npy_intp i = 0; i < left_count; i++) {
+        npy_int64 key = left[i];
+        npy_intp slot = HASH_SLOT(key, geometry.shift);
+        while (entries[slot].count > 0 && entries[slot].key != key)
+            slot = (slot + 1) & geometry.mask;
+        if (entries[slot].count > 0) {
+            slots[i] = slot;
+            total += entries[slot].count;
+        } else {
+            slots[i] = -1;
+            *has_unmatched = 1;
+            if (keep_unmatched) total++;
+        }
+    }
+    return total;
+}
+
+
+/* Emit pass: write (left, right) index pairs; right = -1 for an unmatched
+ * left row when keep_unmatched is set. Pure C, no GIL. */
+static void
+emit_csr_pairs(const CSRHashTable *table, const npy_intp *slots, npy_intp left_count,
+               int keep_unmatched, npy_intp *left_indices, npy_intp *right_indices)
+{
+    const CSRHashEntry *entries = table->entries;
+    const npy_intp *rows = table->rows;
+    npy_intp position = 0;
+    for (npy_intp i = 0; i < left_count; i++) {
+        npy_intp slot = slots[i];
+        if (slot >= 0) {
+            npy_intp offset = entries[slot].offset;
+            npy_intp count = entries[slot].count;
+            for (npy_intp j = 0; j < count; j++) {
+                left_indices[position] = i;
+                right_indices[position] = rows[offset + j];
+                position++;
+            }
+        } else if (keep_unmatched) {
+            left_indices[position] = i;
+            right_indices[position] = -1;
+            position++;
+        }
+    }
+}
+
+
+/* Shared body of inner_join and left_join. */
+static PyObject *
+hash_join(PyObject *args, int keep_unmatched)
+{
+    PyObject *left_obj, *right_obj;
+    if (!PyArg_ParseTuple(args, "OO", &left_obj, &right_obj))
+        return NULL;
+
+    PyArrayObject *left_array = as_contiguous_vector(left_obj, NPY_INT64);
+    PyArrayObject *right_array = left_array ? as_contiguous_vector(right_obj, NPY_INT64) : NULL;
+    if (!left_array || !right_array) {
+        Py_XDECREF(left_array); Py_XDECREF(right_array);
+        return NULL;
+    }
+
+    npy_intp left_count = PyArray_SIZE(left_array);
+    npy_intp right_count = PyArray_SIZE(right_array);
+    const npy_int64 *left = (const npy_int64 *)PyArray_DATA(left_array);
+    const npy_int64 *right = (const npy_int64 *)PyArray_DATA(right_array);
+
+    CSRHashTable table = {{0, 0, 0}, NULL, NULL};
+    npy_intp *slots = NULL;
+    PyArrayObject *left_indices_array = NULL, *right_indices_array = NULL;
+    PyObject *result = NULL;
+    int has_unmatched = 0;
+
+    if (build_csr_hash_table(right, right_count, &table) < 0) goto cleanup;
+    slots = (npy_intp *)malloc_nonzero(left_count * sizeof(npy_intp));
+    if (!slots) { PyErr_NoMemory(); goto cleanup; }
+
+    npy_intp total;
+    Py_BEGIN_ALLOW_THREADS
+    total = probe_csr_hash_table(&table, left, left_count, slots, keep_unmatched, &has_unmatched);
+    Py_END_ALLOW_THREADS
+
+    npy_intp dims[1] = {total};
+    left_indices_array = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
+    right_indices_array = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
+    if (!left_indices_array || !right_indices_array) goto cleanup;
+
+    npy_intp *left_indices = (npy_intp *)PyArray_DATA(left_indices_array);
+    npy_intp *right_indices = (npy_intp *)PyArray_DATA(right_indices_array);
+    Py_BEGIN_ALLOW_THREADS
+    emit_csr_pairs(&table, slots, left_count, keep_unmatched, left_indices, right_indices);
+    Py_END_ALLOW_THREADS
+
+    if (keep_unmatched)
+        result = PyTuple_Pack(3, (PyObject *)left_indices_array, (PyObject *)right_indices_array,
+                              has_unmatched ? Py_True : Py_False);
+    else
+        result = PyTuple_Pack(2, (PyObject *)left_indices_array, (PyObject *)right_indices_array);
+
+cleanup:
+    free(slots);
+    free_csr_hash_table(&table);
+    Py_XDECREF(left_indices_array);
+    Py_XDECREF(right_indices_array);
+    Py_DECREF(left_array);
+    Py_DECREF(right_array);
+    return result;
 }
 
 
 static PyObject *
 accel_inner_join(PyObject *self, PyObject *args)
 {
-    PyObject *left_obj, *right_obj;
-    if (!PyArg_ParseTuple(args, "OO", &left_obj, &right_obj))
-        return NULL;
-
-    PyArrayObject *left_arr = as_contig(left_obj, NPY_INT64);
-    PyArrayObject *right_arr = as_contig(right_obj, NPY_INT64);
-    if (!left_arr || !right_arr) {
-        Py_XDECREF(left_arr); Py_XDECREF(right_arr);
-        return NULL;
-    }
-
-    npy_intp left_n = PyArray_SIZE(left_arr);
-    npy_intp right_n = PyArray_SIZE(right_arr);
-
-    /* Empty input on either side → empty inner join result */
-    if (left_n == 0 || right_n == 0) {
-        Py_DECREF(left_arr); Py_DECREF(right_arr);
-        npy_intp dims[1] = {0};
-        PyArrayObject *li_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
-        PyArrayObject *ri_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
-        if (!li_arr || !ri_arr) {
-            Py_XDECREF(li_arr); Py_XDECREF(ri_arr);
-            return NULL;
-        }
-        PyObject *result = PyTuple_Pack(2, (PyObject *)li_arr, (PyObject *)ri_arr);
-        Py_DECREF(li_arr); Py_DECREF(ri_arr);
-        return result;
-    }
-
-    const npy_int64 *left = (const npy_int64 *)PyArray_DATA(left_arr);
-    const npy_int64 *right = (const npy_int64 *)PyArray_DATA(right_arr);
-
-    CSRHashEntry *table; npy_intp mask; npy_intp *rows;
-    if (build_csr_hash_table(right, right_n, &table, &mask, &rows) < 0) {
-        Py_DECREF(left_arr); Py_DECREF(right_arr);
-        return NULL;
-    }
-
-    /* Probe pass 1: cache slot per left key, sum total output rows */
-    npy_intp *slots = (npy_intp *)malloc(left_n * sizeof(npy_intp));
-    if (!slots) {
-        free(table); free(rows);
-        Py_DECREF(left_arr); Py_DECREF(right_arr);
-        return PyErr_NoMemory();
-    }
-
-    npy_intp total = 0;
-    for (npy_intp i = 0; i < left_n; i++) {
-        npy_intp h = HASH_KEY(left[i], mask);
-        while (table[h].count > 0 && table[h].key != left[i])
-            h = (h + 1) & mask;
-        if (table[h].count > 0 && table[h].key == left[i]) {
-            slots[i] = h;
-            total += table[h].count;
-        } else {
-            slots[i] = -1;
-        }
-    }
-
-    npy_intp dims[1] = {total};
-    PyArrayObject *li_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
-    PyArrayObject *ri_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
-    if (!li_arr || !ri_arr) {
-        Py_XDECREF(li_arr); Py_XDECREF(ri_arr);
-        free(slots); free(table); free(rows);
-        Py_DECREF(left_arr); Py_DECREF(right_arr);
-        return NULL;
-    }
-
-    /* Emit pass 2: sequential reads from cached slots */
-    npy_intp *li = (npy_intp *)PyArray_DATA(li_arr);
-    npy_intp *ri = (npy_intp *)PyArray_DATA(ri_arr);
-    npy_intp pos = 0;
-
-    for (npy_intp i = 0; i < left_n; i++) {
-        npy_intp h = slots[i];
-        if (h >= 0) {
-            npy_intp off = table[h].offset;
-            npy_intp cnt = table[h].count;
-            for (npy_intp j = 0; j < cnt; j++) {
-                li[pos] = i;
-                ri[pos] = rows[off + j];
-                pos++;
-            }
-        }
-    }
-
-    free(slots); free(table); free(rows);
-    Py_DECREF(left_arr); Py_DECREF(right_arr);
-
-    PyObject *result = PyTuple_Pack(2, (PyObject *)li_arr, (PyObject *)ri_arr);
-    Py_DECREF(li_arr); Py_DECREF(ri_arr);
-    return result;
+    return hash_join(args, 0);
 }
 
 
 static PyObject *
 accel_left_join(PyObject *self, PyObject *args)
 {
-    PyObject *left_obj, *right_obj;
-    if (!PyArg_ParseTuple(args, "OO", &left_obj, &right_obj))
-        return NULL;
-
-    PyArrayObject *left_arr = as_contig(left_obj, NPY_INT64);
-    PyArrayObject *right_arr = as_contig(right_obj, NPY_INT64);
-    if (!left_arr || !right_arr) {
-        Py_XDECREF(left_arr); Py_XDECREF(right_arr);
-        return NULL;
-    }
-
-    npy_intp left_n = PyArray_SIZE(left_arr);
-    npy_intp right_n = PyArray_SIZE(right_arr);
-
-    /* Empty left → empty result; empty right → all left rows unmatched */
-    if (left_n == 0) {
-        Py_DECREF(left_arr); Py_DECREF(right_arr);
-        npy_intp dims[1] = {0};
-        PyArrayObject *li_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
-        PyArrayObject *ri_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
-        if (!li_arr || !ri_arr) {
-            Py_XDECREF(li_arr); Py_XDECREF(ri_arr);
-            return NULL;
-        }
-        PyObject *result = PyTuple_Pack(3, (PyObject *)li_arr, (PyObject *)ri_arr, Py_False);
-        Py_DECREF(li_arr); Py_DECREF(ri_arr);
-        return result;
-    }
-    if (right_n == 0) {
-        npy_intp dims[1] = {left_n};
-        PyArrayObject *li_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
-        PyArrayObject *ri_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
-        if (!li_arr || !ri_arr) {
-            Py_XDECREF(li_arr); Py_XDECREF(ri_arr);
-            Py_DECREF(left_arr); Py_DECREF(right_arr);
-            return NULL;
-        }
-        npy_intp *li = (npy_intp *)PyArray_DATA(li_arr);
-        npy_intp *ri = (npy_intp *)PyArray_DATA(ri_arr);
-        for (npy_intp i = 0; i < left_n; i++) {
-            li[i] = i;
-            ri[i] = -1;
-        }
-        Py_DECREF(left_arr); Py_DECREF(right_arr);
-        PyObject *result = PyTuple_Pack(3, (PyObject *)li_arr, (PyObject *)ri_arr,
-                                        left_n > 0 ? Py_True : Py_False);
-        Py_DECREF(li_arr); Py_DECREF(ri_arr);
-        return result;
-    }
-
-    const npy_int64 *left = (const npy_int64 *)PyArray_DATA(left_arr);
-    const npy_int64 *right = (const npy_int64 *)PyArray_DATA(right_arr);
-
-    CSRHashEntry *table; npy_intp mask; npy_intp *rows;
-    if (build_csr_hash_table(right, right_n, &table, &mask, &rows) < 0) {
-        Py_DECREF(left_arr); Py_DECREF(right_arr);
-        return NULL;
-    }
-
-    /* Probe pass 1: cache slot per left key, sum total output rows */
-    npy_intp *slots = (npy_intp *)malloc(left_n * sizeof(npy_intp));
-    if (!slots) {
-        free(table); free(rows);
-        Py_DECREF(left_arr); Py_DECREF(right_arr);
-        return PyErr_NoMemory();
-    }
-
-    npy_intp total = 0;
-    int has_null = 0;
-    for (npy_intp i = 0; i < left_n; i++) {
-        npy_intp h = HASH_KEY(left[i], mask);
-        while (table[h].count > 0 && table[h].key != left[i])
-            h = (h + 1) & mask;
-        if (table[h].count > 0 && table[h].key == left[i]) {
-            slots[i] = h;
-            total += table[h].count;
-        } else {
-            slots[i] = -1;
-            total++;
-            has_null = 1;
-        }
-    }
-
-    npy_intp dims[1] = {total};
-    PyArrayObject *li_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
-    PyArrayObject *ri_arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
-    if (!li_arr || !ri_arr) {
-        Py_XDECREF(li_arr); Py_XDECREF(ri_arr);
-        free(slots); free(table); free(rows);
-        Py_DECREF(left_arr); Py_DECREF(right_arr);
-        return NULL;
-    }
-
-    /* Emit pass 2: sequential reads from cached slots */
-    npy_intp *li = (npy_intp *)PyArray_DATA(li_arr);
-    npy_intp *ri = (npy_intp *)PyArray_DATA(ri_arr);
-    npy_intp pos = 0;
-
-    for (npy_intp i = 0; i < left_n; i++) {
-        npy_intp h = slots[i];
-        if (h >= 0) {
-            npy_intp off = table[h].offset;
-            npy_intp cnt = table[h].count;
-            for (npy_intp j = 0; j < cnt; j++) {
-                li[pos] = i;
-                ri[pos] = rows[off + j];
-                pos++;
-            }
-        } else {
-            li[pos] = i;
-            ri[pos] = -1;
-            pos++;
-        }
-    }
-
-    free(slots); free(table); free(rows);
-    Py_DECREF(left_arr); Py_DECREF(right_arr);
-
-    PyObject *result = PyTuple_Pack(3,
-        (PyObject *)li_arr, (PyObject *)ri_arr,
-        has_null ? Py_True : Py_False);
-    Py_DECREF(li_arr); Py_DECREF(ri_arr);
-    return result;
+    return hash_join(args, 1);
 }
 
 
@@ -988,34 +1078,42 @@ accel_left_join(PyObject *self, PyObject *args)
 
 static PyMethodDef AccelMethods[] = {
     {"groupby_sum", accel_groupby_sum, METH_VARARGS,
-     "Single-pass grouped sum: groupby_sum(labels, data, n_groups)"},
+     "Grouped float sum: groupby_sum(labels, data, group_count, skip_nan=False)"},
+    {"groupby_sum_int64", accel_groupby_sum_int64, METH_VARARGS,
+     "Grouped exact int64 sum, wrapping like numpy: groupby_sum_int64(labels, data, group_count)"},
     {"groupby_count", accel_groupby_count, METH_VARARGS,
-     "Single-pass grouped count: groupby_count(labels, n_groups)"},
+     "Grouped count: groupby_count(labels, group_count)"},
     {"groupby_mean", accel_groupby_mean, METH_VARARGS,
-     "Single-pass grouped mean: groupby_mean(labels, data, n_groups)"},
+     "Grouped mean: groupby_mean(labels, data, group_count, skip_nan=False)"},
     {"groupby_var", accel_groupby_var, METH_VARARGS,
-     "Single-pass grouped variance (Welford): groupby_var(labels, data, n_groups)"},
+     "Grouped population variance (Welford): groupby_var(labels, data, group_count, skip_nan=False)"},
     {"groupby_min", accel_groupby_min, METH_VARARGS,
-     "Single-pass grouped min: groupby_min(labels, data, n_groups)"},
+     "Grouped min, NaN as numpy: groupby_min(labels, data, group_count, skip_nan=False)"},
     {"groupby_max", accel_groupby_max, METH_VARARGS,
-     "Single-pass grouped max: groupby_max(labels, data, n_groups)"},
+     "Grouped max, NaN as numpy: groupby_max(labels, data, group_count, skip_nan=False)"},
+    {"groupby_min_int64", accel_groupby_min_int64, METH_VARARGS,
+     "Grouped exact integer min: groupby_min_int64(labels, data, group_count, unsigned_values=False)"},
+    {"groupby_max_int64", accel_groupby_max_int64, METH_VARARGS,
+     "Grouped exact integer max: groupby_max_int64(labels, data, group_count, unsigned_values=False)"},
     {"composite_key", accel_composite_key, METH_VARARGS,
      "Positional encoding: composite_key(arrays, cardinalities) -> int64 key"},
     {"encode_strings", accel_encode_strings, METH_VARARGS,
-     "O(n) hash-based string encoding: encode_strings(array) -> (codes, n_unique)"},
+     "O(n) hash-based object encoding: encode_strings(array) -> (codes, unique_count)"},
+    {"encode_int64", accel_encode_int64, METH_VARARGS,
+     "O(n) hash-based int64 encoding: encode_int64(keys) -> (codes, unique_count)"},
     {"group_indices", accel_group_indices, METH_VARARGS,
-     "O(n) hash-based group labeling: group_indices(key) -> (labels, first_seen, n_groups)"},
+     "O(n) hash-based grouping: group_indices(key) -> (first_seen, group_rows, group_count)"},
     {"inner_join", accel_inner_join, METH_VARARGS,
-     "Hash inner join: inner_join(left_key, right_key) -> (li, ri)"},
+     "Hash inner join: inner_join(left_key, right_key) -> (left_indices, right_indices)"},
     {"left_join", accel_left_join, METH_VARARGS,
-     "Hash left join: left_join(left_key, right_key) -> (li, ri, has_null)"},
+     "Hash left join: left_join(left_key, right_key) -> (left_indices, right_indices, has_unmatched)"},
     {NULL, NULL, 0, NULL}
 };
 
 static struct PyModuleDef accelmodule = {
     PyModuleDef_HEAD_INIT,
     "_accel",
-    "C acceleration for tafra hot paths (v3: bitmask hashing, CSR joins, slot caching)",
+    "C acceleration for tafra hot paths (v4: Fibonacci hashing, CSR joins, GIL released)",
     -1,
     AccelMethods
 };
@@ -1027,7 +1125,9 @@ PyInit__accel(void)
     PyObject *module = PyModule_Create(&accelmodule);
     if (!module) return NULL;
 #ifdef Py_GIL_DISABLED
-    /* No module-level mutable state: every buffer is allocated per call. */
+    /* No module-level mutable state: every buffer is allocated per call,
+     * and each input key is read once, so a concurrent writer cannot
+     * corrupt a table. */
     PyUnstable_Module_SetGIL(module, Py_MOD_GIL_NOT_USED);
 #endif
     return module;

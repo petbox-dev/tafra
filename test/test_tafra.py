@@ -4353,14 +4353,15 @@ class TestCoverageGaps:
         # NaN row (lv=20) should NOT appear in results
         assert 20 not in list(t["lv"])
 
-    def test_composite_key_overflow(self) -> None:
-        """Composite key overflow raises ValueError."""
+    def test_composite_key_wide_columns_do_not_overflow(self) -> None:
+        """Columns whose cardinality product exceeds int64 are re-encoded densely."""
         from tafra.group import GroupSet
 
-        # Two columns with huge cardinality to trigger overflow
-        big = np.array([0, 2**31], dtype=np.int64)
-        with pytest.raises(ValueError, match="overflow"):
-            GroupSet._build_composite_key([big, big])
+        big = np.array([0, 2**62, 0], dtype=np.int64)
+        encoded = [GroupSet._encode_column(big), GroupSet._encode_column(big)]
+        key = GroupSet._build_composite_key(encoded, 3)
+        assert key[0] == key[2] != key[1]
+        assert int(key.max()) < GroupSet._dense_range_limit(3)
 
     def test_negative_int_groupby_multi_column(self) -> None:
         """GroupBy on multiple columns with negative integer keys."""

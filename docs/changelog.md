@@ -1,5 +1,59 @@
 # Version History
 
+## 2.4.0
+
+* **Fix**: An equi-join on a float key column cast the key to `int64` before
+  the C hash join, so `1.2` matched `1.7`, and `1e19`, `inf` and `-inf`
+  matched one another. A multi-column key with a float column was wrong on
+  both the C and the pure-Python paths. Float keys now match by value, and
+  `-0.0` matches `0.0`.
+* **Fix**: `group_by`, `transform` and `iterate_by` raised on key columns of
+  float, `bool`, `datetime64` with a unit other than `ns`, `uint64` above the
+  `int64` range, and `StringDType` holding `None` (below 50,000 rows). Integer
+  IDs with a wide range (for example 14-digit well numbers) raised
+  `MemoryError`, and two wide integer key columns raised `Composite key space
+  overflow`. Every key dtype that numpy compares with `==` now works, and a
+  wide key range is re-encoded to dense codes. In `group_by`, all NaN keys
+  form one group and all NaT keys form one group, as in `np.unique`.
+* **Fix**: A multi-column key with a pre-epoch `datetime64` or a negative
+  `timedelta64` produced colliding keys and joined the wrong rows.
+* **Fix**: `np.nansum`, `np.nanmean`, `np.nanstd`, `np.nanvar` and
+  `np.nanprod` used the NaN-propagating fast path and returned NaN.
+  `np.median` and `np.nanmedian` picked the middle of a sorted group with its
+  NaN values still in it, so `[1, nan, 4]` gave 4. With the C extension,
+  `np.min` / `np.max` skipped NaN, and returned `inf` for an all-NaN group.
+  The fast path now gives numpy's NaN result for every registered function.
+* **Fix**: With the C extension, `np.sum`, `np.min` and `np.max` converted the
+  column to `float64`: an `int64` sum lost precision above 2**53, and `np.min`
+  of an `int64`, `bool` or `datetime64` column returned `float64`. Results now
+  have numpy's dtype (exact `int64` / `uint64` sums, `datetime64` minimums,
+  `float32` stays `float32`). A reducer on a dtype numpy refuses (for
+  example `np.mean` of strings) takes the per-group path and raises numpy's
+  error.
+* **Fix**: The pure-Python `np.var` / `np.std` fast path used
+  `E[x^2] - E[x]^2`, which returned 2.0 for three equal values near 1e8. It
+  now subtracts the group mean first.
+* **Fix**: The C extension now raises `ValueError` for group labels outside
+  `[0, n_groups)`, for labels and data of different lengths, and for
+  multi-dimensional input, in place of reading or writing out of bounds.
+* **Perf**: The C hash tables used the low bits of `key * GOLDEN_HASH`, so
+  keys with trailing zero bits (`datetime64[ns]` dates, IDs with a
+  power-of-two step) collided in a few slots. A join on 200,000
+  `datetime64[ns]` daily keys took 4.6 to 10 s; it now takes 66 to 103 ms.
+  The tables now use the high bits (Fibonacci hashing).
+* **Perf**: Exact C kernels for integer sum, min and max. Object and string
+  keys use the C encoder at every size, in place of below 50,000 rows only.
+  For `object` and `StringDType` keys it was 2.4x to 14x faster than the dict
+  codebook and `np.unique` at every size measured (10 to 49,999 rows); for
+  `<U` keys it ranged from 1.5x slower to 3.8x faster than `np.unique`.
+* **Perf**: The C extension releases the GIL in its hashing, join and
+  aggregation loops: four threads ran four 2M x 2M joins 2.5x faster than one
+  thread on a standard interpreter.
+* **Fix**: On a free-threaded build, a thread that wrote a key column during
+  a join could make the hash-table build write past its buffer. The build
+  now reads each key once and caches its slot, which also removes a
+  table-sized scratch buffer (16.8 MB for a 1M-row right side).
+
 ## 2.3.0
 
 * **Feature**: Wheels for Python 3.14 and 3.15, including the free-threaded

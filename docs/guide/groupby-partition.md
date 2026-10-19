@@ -162,11 +162,36 @@ significantly faster for large datasets.
 
 The fast path is used automatically -- no configuration needed. If any
 aggregation function is not recognized, the entire call falls back to the
-per-group Python loop.
+per-group Python loop. The fast path also applies only to the column dtypes
+that numpy reduces with that function: for example, `np.mean` on a string
+column takes the per-group loop, which calls `np.mean` and raises the same
+error that numpy raises.
+
+The fast path gives the same result as the function applied to each group:
+
+- `np.min`, `np.max`, `np.sum`, `np.mean` and the others propagate NaN;
+  `np.nanmin`, `np.nansum`, `np.nanmean` and the others ignore it (an all-NaN
+  group gives NaN, or 0 for `np.nansum`).
+- The result dtype is numpy's: `np.sum` of an `int64` column is an exact
+  `int64`, `np.min` of a `datetime64` column is a `datetime64`, and a
+  `float32` column keeps `float32`.
 
 If the optional C extension (`_accel.c`) is compiled, `np.sum`, `np.mean`,
-`np.var`, `np.min`, and `np.max` use single-pass C implementations (Welford
-variance, etc.) for even better performance.
+`np.var`, `np.std`, `np.min`, `np.max` and their `nan` forms use single-pass
+C implementations (Welford variance, exact integer sums) for even better
+performance.
+
+## Key Columns
+
+`group_by`, `transform`, `iterate_by` and the equi-joins accept key columns
+of any dtype numpy can compare with `==`: integers of any range, `uint64`,
+`bool`, floats, `datetime64` and `timedelta64` of any unit, strings
+(`StringDType` with `None`, `<U`, `bytes`) and `object`. Keys follow numpy
+equality, with two rules from `np.unique`:
+
+- `-0.0` and `0.0` are one key.
+- Every NaN is one key in `group_by`, as is every NaT. Joins never match a
+  NaN, NaT or `None` key (SQL `NULL` semantics).
 
 ## transform
 

@@ -57,7 +57,8 @@ change a `Tafra`:
 
 A concurrent change can give wrong or mixed results, or an exception. Tafra
 does not lock a `Tafra`. This is the same rule that numpy applies to a
-shared `ndarray`.
+shared `ndarray`. The C extension reads each key value once, so a concurrent
+change to a key column cannot corrupt memory; the result is still wrong.
 
 To change data that other threads read, give each thread its own copy
 (`t.copy()`), or protect the `Tafra` with a `threading.Lock`.
@@ -68,4 +69,6 @@ On a free-threaded interpreter, threads run Python code in parallel, and
 they share memory with no serialization cost. On a standard (GIL)
 interpreter, only one thread runs Python code at a time; use
 [`partition`](groupby-partition.md) with a process pool for CPU-bound work
-per group.
+per group. The C extension releases the GIL inside its hashing, join and
+aggregation loops, so on a standard interpreter those loops in different
+threads also run in parallel.

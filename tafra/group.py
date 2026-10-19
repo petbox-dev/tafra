@@ -26,6 +26,7 @@ __all__ = [
     "harmean",
 ]
 
+import math
 import operator
 import warnings
 from itertools import chain
@@ -39,14 +40,17 @@ from typing import cast
 try:
     from ._accel import (  # type: ignore[import-not-found]
         groupby_sum as _c_sum,
+        groupby_sum_int64 as _c_sum_int64,
         groupby_mean as _c_mean,
         groupby_var as _c_var,
         groupby_min as _c_min,
         groupby_max as _c_max,
-        groupby_count as _c_count,
+        groupby_min_int64 as _c_min_int64,
+        groupby_max_int64 as _c_max_int64,
         inner_join as _c_inner_join,
         left_join as _c_left_join,
         composite_key as _c_composite_key,
+        encode_int64 as _c_encode_int64,
         group_indices as _c_group_indices,
         encode_strings as _c_encode_strings,
     )
@@ -64,9 +68,30 @@ _NULLABLE_KINDS: frozenset[str] = frozenset("fMmTO")
 # Dtype kinds that represent string-like types for encoding purposes.
 _STRING_KINDS: frozenset[str] = frozenset("TUSO")
 
+# A vectorized aggregation: (data, labels, n_groups) -> one value per group.
+VectorizedAggregation = Callable[
+    [np.ndarray[Any, Any], np.ndarray[Any, Any], int], np.ndarray[Any, Any]
+]
+
 # Vectorized aggregation functions that can bypass per-group Python loops.
-# Maps function identity to a callable(data, labels, n_groups) -> result_array.
-_VECTORIZED_AGGS: dict[int, Callable[..., np.ndarray[Any, Any]]] = {}
+# Maps function identity to (implementation, dtype kinds it accepts). A data
+# dtype outside the accepted kinds takes the per-group path, which calls the
+# function itself and so refuses exactly what numpy refuses.
+_VECTORIZED_AGGS: dict[int, tuple[VectorizedAggregation, frozenset[str]]] = {}
+
+# Kinds numpy reduces arithmetically (sum, mean, var, prod, median, ...).
+_ARITHMETIC_KINDS: frozenset[str] = frozenset("fiub")
+# Kinds with a total order that np.minimum / np.maximum accept.
+_ORDERED_KINDS: frozenset[str] = frozenset("fiubMm")
+# Kinds np.ptp accepts (it subtracts, so bool is refused).
+_RANGE_KINDS: frozenset[str] = frozenset("fiuMm")
+# Kinds for geomean, harmean and percentile.
+_SCALAR_STATISTIC_KINDS: frozenset[str] = frozenset("fiu")
+# Builtin `sum` keeps an int32 or float32 element type where np.sum widens
+# it; the two agree only for these dtypes.
+_BUILTIN_SUM_DTYPES: frozenset[np.dtype[Any]] = frozenset(
+    np.dtype(name) for name in ("float64", "int64", "uint64", "bool")
+)
 
 
 def _sorted_segments(
@@ -81,29 +106,106 @@ def _sorted_segments(
     return sorted_data, offsets, counts
 
 
+def _float_result(result: np.ndarray[Any, Any], data: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
+    """numpy keeps a float16 / float32 input at its width; other inputs give float64."""
+    if data.dtype.kind == "f":
+        return result.astype(data.dtype, copy=False)
+    return result
+
+
+def _integer_accumulator(data: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
+    """numpy sums and multiplies unsigned kinds in uint64 and int / bool in int64."""
+    return data.astype(np.uint64 if data.dtype.kind == "u" else np.int64, copy=False)
+
+
+def _float_values(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], skip_nan: bool
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+    """Data as float64 with its labels; NaN rows removed when skip_nan."""
+    values = data.astype(np.float64, copy=False)
+    if skip_nan and data.dtype.kind == "f":
+        valid = ~np.isnan(values)
+        return values[valid], labels[valid]
+    return values, labels
+
+
 def _vec_sum(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int, skip_nan: bool = False
+) -> np.ndarray[Any, Any]:
+    if data.dtype.kind == "f":
+        if _HAS_ACCEL:
+            result = _c_sum(
+                labels.astype(np.int64, copy=False),
+                data.astype(np.float64, copy=False),
+                n,
+                skip_nan,
+            )
+        else:
+            values, value_labels = _float_values(data, labels, skip_nan)
+            result = np.bincount(value_labels, weights=values, minlength=n)
+        return _float_result(result, data)
+
+    # integers sum exactly, wrapping on overflow like numpy
+    accumulator = _integer_accumulator(data)
+    if _HAS_ACCEL:
+        result = _c_sum_int64(labels.astype(np.int64, copy=False), accumulator.view(np.int64), n)
+        return cast(np.ndarray[Any, Any], result.view(accumulator.dtype))
+    sorted_data, offsets, _ = _sorted_segments(accumulator, labels, n)
+    return np.add.reduceat(sorted_data, offsets[:n])
+
+
+def _vec_nansum(
     data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
 ) -> np.ndarray[Any, Any]:
-    return np.bincount(labels, weights=data.astype(float), minlength=n)
+    return _vec_sum(data, labels, n, skip_nan=True)
 
 
 def _vec_mean(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int, skip_nan: bool = False
+) -> np.ndarray[Any, Any]:
+    if _HAS_ACCEL:
+        result = _c_mean(
+            labels.astype(np.int64, copy=False), data.astype(np.float64, copy=False), n, skip_nan
+        )
+    else:
+        values, value_labels = _float_values(data, labels, skip_nan)
+        sums = np.bincount(value_labels, weights=values, minlength=n)
+        counts = np.bincount(value_labels, minlength=n)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            result = sums / counts
+    return _float_result(result, data)
+
+
+def _vec_nanmean(
     data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
 ) -> np.ndarray[Any, Any]:
-    sums = np.bincount(labels, weights=data.astype(float), minlength=n)
-    counts = np.bincount(labels, minlength=n)
-    return sums / counts
+    return _vec_mean(data, labels, n, skip_nan=True)
 
 
 def _vec_var(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int, skip_nan: bool = False
+) -> np.ndarray[Any, Any]:
+    if _HAS_ACCEL:
+        result = _c_var(
+            labels.astype(np.int64, copy=False), data.astype(np.float64, copy=False), n, skip_nan
+        )
+    else:
+        # two-pass: subtract each group's mean before squaring, which avoids
+        # the cancellation of E[x^2] - E[x]^2 on values with a large offset
+        values, value_labels = _float_values(data, labels, skip_nan)
+        counts = np.bincount(value_labels, minlength=n)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            means = np.bincount(value_labels, weights=values, minlength=n) / counts
+            deviations = values - means[value_labels]
+            squared_sums = np.bincount(value_labels, weights=deviations * deviations, minlength=n)
+            result = squared_sums / counts
+    return _float_result(result, data)
+
+
+def _vec_nanvar(
     data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
 ) -> np.ndarray[Any, Any]:
-    fdata = data.astype(float)
-    counts = np.bincount(labels, minlength=n).astype(float)
-    sums = np.bincount(labels, weights=fdata, minlength=n)
-    sum_sq = np.bincount(labels, weights=fdata * fdata, minlength=n)
-    mean = sums / counts
-    return sum_sq / counts - mean * mean
+    return _vec_var(data, labels, n, skip_nan=True)
 
 
 def _vec_std(
@@ -112,18 +214,68 @@ def _vec_std(
     return np.sqrt(_vec_var(data, labels, n))
 
 
+def _vec_nanstd(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+) -> np.ndarray[Any, Any]:
+    return np.sqrt(_vec_var(data, labels, n, skip_nan=True))
+
+
+def _vec_extreme(
+    data: np.ndarray[Any, Any],
+    labels: np.ndarray[Any, Any],
+    n: int,
+    want_maximum: bool,
+    skip_nan: bool,
+) -> np.ndarray[Any, Any]:
+    """Grouped min / max. NaN and NaT propagate unless skip_nan, as in numpy."""
+    kind = data.dtype.kind
+    if _HAS_ACCEL and kind == "f":
+        c_function = _c_max if want_maximum else _c_min
+        result = c_function(
+            labels.astype(np.int64, copy=False), data.astype(np.float64, copy=False), n, skip_nan
+        )
+        return _float_result(result, data)
+    if _HAS_ACCEL and kind in ("i", "u", "b"):
+        # exact integer kernel; a uint64 keeps its bits and compares unsigned
+        is_unsigned_64 = kind == "u" and data.dtype.itemsize == 8
+        values = data.view(np.int64) if is_unsigned_64 else data.astype(np.int64, copy=False)
+        c_function = _c_max_int64 if want_maximum else _c_min_int64
+        result = c_function(labels.astype(np.int64, copy=False), values, n, is_unsigned_64)
+        if is_unsigned_64:
+            return cast(np.ndarray[Any, Any], result.view(np.uint64))
+        return cast(np.ndarray[Any, Any], result.astype(data.dtype, copy=False))
+    # datetime / timedelta, and the pure-numpy path
+    ufunc: np.ufunc
+    if skip_nan:
+        ufunc = np.fmax if want_maximum else np.fmin
+    else:
+        ufunc = np.maximum if want_maximum else np.minimum
+    sorted_data, offsets, _ = _sorted_segments(data, labels, n)
+    return ufunc.reduceat(sorted_data, offsets[:n])
+
+
 def _vec_min(
     data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
 ) -> np.ndarray[Any, Any]:
-    sorted_data, offsets, _ = _sorted_segments(data, labels, n)
-    return np.minimum.reduceat(sorted_data, offsets[:n])
+    return _vec_extreme(data, labels, n, want_maximum=False, skip_nan=False)
+
+
+def _vec_nanmin(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+) -> np.ndarray[Any, Any]:
+    return _vec_extreme(data, labels, n, want_maximum=False, skip_nan=True)
 
 
 def _vec_max(
     data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
 ) -> np.ndarray[Any, Any]:
-    sorted_data, offsets, _ = _sorted_segments(data, labels, n)
-    return np.maximum.reduceat(sorted_data, offsets[:n])
+    return _vec_extreme(data, labels, n, want_maximum=True, skip_nan=False)
+
+
+def _vec_nanmax(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+) -> np.ndarray[Any, Any]:
+    return _vec_extreme(data, labels, n, want_maximum=True, skip_nan=True)
 
 
 def _vec_ptp(
@@ -136,10 +288,20 @@ def _vec_ptp(
 
 
 def _vec_prod(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int, skip_nan: bool = False
+) -> np.ndarray[Any, Any]:
+    if data.dtype.kind == "f":
+        values = np.where(np.isnan(data), 1, data) if skip_nan else data
+    else:
+        values = _integer_accumulator(data)
+    sorted_data, offsets, _ = _sorted_segments(values, labels, n)
+    return np.multiply.reduceat(sorted_data, offsets[:n])
+
+
+def _vec_nanprod(
     data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
 ) -> np.ndarray[Any, Any]:
-    sorted_data, offsets, _ = _sorted_segments(data, labels, n)
-    return np.multiply.reduceat(sorted_data.astype(float), offsets[:n])
+    return _vec_prod(data, labels, n, skip_nan=True)
 
 
 def _vec_any(
@@ -165,25 +327,47 @@ def _vec_len(
 def _vec_count_nonzero(
     data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
 ) -> np.ndarray[Any, Any]:
-    return np.bincount(labels, weights=(data != 0).astype(float), minlength=n)
+    return np.bincount(labels[data != 0], minlength=n)
 
 
 def _vec_median(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int, skip_nan: bool = False
+) -> np.ndarray[Any, Any]:
+    sorted_data, offsets, _ = _sorted_segments(data, labels, n)
+    result = np.empty(n, dtype=np.float64)
+    is_float = data.dtype.kind == "f"
+    for group_index in range(n):
+        segment = np.sort(sorted_data[offsets[group_index] : offsets[group_index + 1]])
+        value_count = len(segment)
+        # np.sort places NaN last
+        if is_float and value_count > 0 and np.isnan(segment[-1]):
+            if not skip_nan:
+                result[group_index] = np.nan
+                continue
+            value_count -= int(np.count_nonzero(np.isnan(segment)))
+            if value_count == 0:
+                result[group_index] = np.nan
+                continue
+        middle = value_count // 2
+        if value_count % 2 == 1:
+            result[group_index] = float(segment[middle])
+        else:
+            result[group_index] = (float(segment[middle - 1]) + float(segment[middle])) / 2.0
+    return _float_result(result, data)
+
+
+def _vec_nanmedian(
     data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
 ) -> np.ndarray[Any, Any]:
-    sorted_data, offsets, counts = _sorted_segments(data, labels, n)
-    result = np.empty(n, dtype=float)
-    for g in range(n):
-        lo = offsets[g]
-        hi = offsets[g + 1]
-        seg = np.sort(sorted_data[lo:hi])
-        c = int(counts[g])
-        mid = c // 2
-        if c % 2 == 1:
-            result[g] = seg[mid]
-        else:
-            result[g] = (seg[mid - 1] + seg[mid]) / 2.0
-    return result
+    return _vec_median(data, labels, n, skip_nan=True)
+
+
+def _vec_builtin_sum(
+    data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
+) -> np.ndarray[Any, Any]:
+    # builtin sum keeps the element type, unlike np.sum which widens small ints;
+    # only the widths where the two agree are registered for this function
+    return _vec_sum(data, labels, n)
 
 
 def _vec_geomean(
@@ -216,7 +400,7 @@ def _make_vec_percentile(
             lo = offsets[g]
             hi = offsets[g + 1]
             result[g] = np.percentile(sorted_data[lo:hi], q)
-        return result
+        return _float_result(result, data)
 
     return _vec_pct
 
@@ -260,17 +444,26 @@ def percentile(q: float) -> _PercentileAgg:
 
 
 def _vectorized_aggregation(
-    fn: Callable[..., Any],
-) -> Callable[..., np.ndarray[Any, Any]] | None:
+    fn: Callable[..., Any], dtype: np.dtype[Any]
+) -> VectorizedAggregation | None:
     """
-    Return the vectorized fast path for `fn`, or None. `_VECTORIZED_AGGS` holds
-    only module-level functions, which are never freed, so their ids are never
-    reused. A `_PercentileAgg` carries its own fast path because its id can be
-    reused by another object after it is freed.
+    Return the vectorized fast path for `fn` applied to data of `dtype`, or
+    None if there is none. `_VECTORIZED_AGGS` holds only module-level
+    functions, which are never freed, so their ids are never reused. A
+    `_PercentileAgg` carries its own fast path because its id can be reused
+    by another object after it is freed.
     """
     if isinstance(fn, _PercentileAgg):
-        return fn._vec_fn
-    return _VECTORIZED_AGGS.get(id(fn))
+        return fn._vec_fn if dtype.kind in _SCALAR_STATISTIC_KINDS else None
+    entry = _VECTORIZED_AGGS.get(id(fn))
+    if entry is None:
+        return None
+    implementation, accepted_kinds = entry
+    if dtype.kind not in accepted_kinds:
+        return None
+    if fn is sum and dtype not in _BUILTIN_SUM_DTYPES:
+        return None
+    return implementation
 
 
 def geomean(data: np.ndarray[Any, Any]) -> Any:
@@ -285,59 +478,37 @@ def harmean(data: np.ndarray[Any, Any]) -> Any:
 
 def _register_vectorized() -> None:
     """Register known numpy reducers for vectorized GroupBy."""
-    # Use C accelerated versions when available, fall back to numpy
-    if _HAS_ACCEL:
-
-        def _wrap_c(c_fn: Callable[..., Any]) -> Callable[..., np.ndarray[Any, Any]]:
-            def _wrapped(
-                data: np.ndarray[Any, Any], labels: np.ndarray[Any, Any], n: int
-            ) -> np.ndarray[Any, Any]:
-                return c_fn(
-                    labels.astype(np.int64, copy=False), data.astype(np.float64, copy=False), n
-                )
-
-            return _wrapped
-
-        _fast_sum = _wrap_c(_c_sum)
-        _fast_mean = _wrap_c(_c_mean)
-        _fast_var = _wrap_c(_c_var)
-        _fast_min = _wrap_c(_c_min)
-        _fast_max = _wrap_c(_c_max)
-    else:
-        _fast_sum = _vec_sum
-        _fast_mean = _vec_mean
-        _fast_var = _vec_var
-        _fast_min = _vec_min
-        _fast_max = _vec_max
-
-    _fast_std = (lambda d, l, n: np.sqrt(_fast_var(d, l, n))) if _HAS_ACCEL else _vec_std
-
-    _VECTORIZED_AGGS[id(np.sum)] = _fast_sum
-    _VECTORIZED_AGGS[id(np.nansum)] = _fast_sum
-    _VECTORIZED_AGGS[id(np.mean)] = _fast_mean
-    _VECTORIZED_AGGS[id(np.nanmean)] = _fast_mean
-    _VECTORIZED_AGGS[id(np.std)] = _fast_std
-    _VECTORIZED_AGGS[id(np.nanstd)] = _fast_std
-    _VECTORIZED_AGGS[id(np.var)] = _fast_var
-    _VECTORIZED_AGGS[id(np.nanvar)] = _fast_var
-    _VECTORIZED_AGGS[id(np.min)] = _fast_min
-    _VECTORIZED_AGGS[id(np.nanmin)] = _fast_min
-    _VECTORIZED_AGGS[id(np.amin)] = _fast_min
-    _VECTORIZED_AGGS[id(np.max)] = _fast_max
-    _VECTORIZED_AGGS[id(np.nanmax)] = _fast_max
-    _VECTORIZED_AGGS[id(np.amax)] = _fast_max
-    _VECTORIZED_AGGS[id(np.ptp)] = _vec_ptp
-    _VECTORIZED_AGGS[id(np.prod)] = _vec_prod
-    _VECTORIZED_AGGS[id(np.nanprod)] = _vec_prod
-    _VECTORIZED_AGGS[id(np.any)] = _vec_any
-    _VECTORIZED_AGGS[id(np.all)] = _vec_all
-    _VECTORIZED_AGGS[id(np.median)] = _vec_median
-    _VECTORIZED_AGGS[id(np.nanmedian)] = _vec_median
-    _VECTORIZED_AGGS[id(np.count_nonzero)] = _vec_count_nonzero
-    _VECTORIZED_AGGS[id(len)] = _vec_len
-    _VECTORIZED_AGGS[id(sum)] = _vec_sum
-    _VECTORIZED_AGGS[id(geomean)] = _vec_geomean
-    _VECTORIZED_AGGS[id(harmean)] = _vec_harmean
+    all_kinds = frozenset("?biufcmMOSUVT")
+    registrations: list[tuple[Callable[..., Any], VectorizedAggregation, frozenset[str]]] = [
+        (np.sum, _vec_sum, _ARITHMETIC_KINDS),
+        (np.nansum, _vec_nansum, _ARITHMETIC_KINDS),
+        (np.mean, _vec_mean, _ARITHMETIC_KINDS),
+        (np.nanmean, _vec_nanmean, _ARITHMETIC_KINDS),
+        (np.std, _vec_std, _ARITHMETIC_KINDS),
+        (np.nanstd, _vec_nanstd, _ARITHMETIC_KINDS),
+        (np.var, _vec_var, _ARITHMETIC_KINDS),
+        (np.nanvar, _vec_nanvar, _ARITHMETIC_KINDS),
+        (np.min, _vec_min, _ORDERED_KINDS),
+        (np.amin, _vec_min, _ORDERED_KINDS),
+        (np.nanmin, _vec_nanmin, _ORDERED_KINDS),
+        (np.max, _vec_max, _ORDERED_KINDS),
+        (np.amax, _vec_max, _ORDERED_KINDS),
+        (np.nanmax, _vec_nanmax, _ORDERED_KINDS),
+        (np.ptp, _vec_ptp, _RANGE_KINDS),
+        (np.prod, _vec_prod, _ARITHMETIC_KINDS),
+        (np.nanprod, _vec_nanprod, _ARITHMETIC_KINDS),
+        (np.any, _vec_any, _ARITHMETIC_KINDS),
+        (np.all, _vec_all, _ARITHMETIC_KINDS),
+        (np.median, _vec_median, _ARITHMETIC_KINDS),
+        (np.nanmedian, _vec_nanmedian, _ARITHMETIC_KINDS),
+        (np.count_nonzero, _vec_count_nonzero, _ARITHMETIC_KINDS),
+        (len, _vec_len, all_kinds),
+        (sum, _vec_builtin_sum, _ARITHMETIC_KINDS),
+        (geomean, _vec_geomean, _SCALAR_STATISTIC_KINDS),
+        (harmean, _vec_harmean, _SCALAR_STATISTIC_KINDS),
+    ]
+    for function, implementation, accepted_kinds in registrations:
+        _VECTORIZED_AGGS[id(function)] = (implementation, accepted_kinds)
 
 
 _register_vectorized()
@@ -462,11 +633,23 @@ class GroupSet:
     A `GroupSet` is the set of columns by which we construct our groups.
     """
 
+    # Key columns are encoded as (codes, cardinality): non-negative int64 codes
+    # in [0, cardinality). Equal codes mean equal values under numpy `==`,
+    # except that every NaN (and every NaT) is one key, as in np.unique. A
+    # code range wider than _dense_range_limit is re-encoded densely so the
+    # direct-mapped label arrays stay O(rows) in memory.
+
     @staticmethod
-    def _hash_encode_object(arr: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
+    def _dense_range_limit(row_count: int) -> int:
+        """Largest code range used directly; a wider range is re-encoded densely."""
+        return 4 * row_count + 1024
+
+    @staticmethod
+    def _hash_encode_object(arr: np.ndarray[Any, Any]) -> tuple[np.ndarray[Any, Any], int]:
         # np.unique sorts via argsort, which raises TypeError on object arrays
-        # containing mixed Python types (e.g., str and int). Use a dict codebook
-        # — semantics match _c_encode_strings (hash equality, not ordering).
+        # containing mixed Python types (e.g., str and int), and on StringDType
+        # arrays holding None. Use a dict codebook — semantics match
+        # _c_encode_strings (hash equality, not ordering).
         codebook: dict[Any, int] = {}
         codes = np.empty(len(arr), dtype=np.int64)
         for i in range(len(arr)):
@@ -476,160 +659,142 @@ class GroupSet:
                 code = len(codebook)
                 codebook[v] = code
             codes[i] = code
-        return codes
+        return codes, len(codebook)
 
     @staticmethod
-    def _encode_columns(
-        col_arrays: list[np.ndarray[Any, Any]],
-    ) -> tuple[list[np.ndarray[Any, Any]], list[np.ndarray[Any, Any] | None]]:
-        """
-        Encode columns for structured array compatibility.
-        StringDType columns are converted to integer codes via np.unique.
-
-        Returns (encoded_arrays, codebooks) where codebooks[i] is the
-        unique values array for encoded columns, or None if no encoding
-        was needed.
-        """
-        encoded = []
-        codebooks: list[np.ndarray[Any, Any] | None] = []
-        for c in col_arrays:
-            if c.dtype.kind in ("T", "U", "S", "O"):
-                if _HAS_ACCEL and len(c) >= 50_000:
-                    obj_arr = c.astype(object)
-                    codes, _ = _c_encode_strings(obj_arr)
-                    encoded.append(codes)
-                    codebooks.append(None)
-                elif c.dtype.kind == "O":
-                    encoded.append(GroupSet._hash_encode_object(c))
-                    codebooks.append(None)
-                else:
-                    uniq, codes = np.unique(c, return_inverse=True)
-                    encoded.append(codes)
-                    codebooks.append(uniq)
-            else:
-                # Shift signed integer columns to non-negative for positional encoding.
-                if c.dtype.kind == "i" and len(c) > 0:
-                    c64 = c.astype(np.int64, copy=False)
-                    c_min = int(c64.min())
-                    if c_min < 0:
-                        c_max = int(c64.max())
-                        if c_max - c_min > np.iinfo(np.int64).max:
-                            raise ValueError(
-                                f"Column value range ({c_min} to {c_max}) exceeds "
-                                f"int64 after shift — cannot encode for groupby."
-                            )
-                        encoded.append(c64 - c_min)
-                        codebooks.append(None)
-                        continue
-                encoded.append(c)
-                codebooks.append(None)
-        return encoded, codebooks
+    def _encode_strings(column: np.ndarray[Any, Any]) -> tuple[np.ndarray[Any, Any], int]:
+        """First-seen codes for a string or object column."""
+        if _HAS_ACCEL:
+            # astype(object) gives the C encoder a private copy (see _accel.c)
+            codes, unique_count = _c_encode_strings(column.astype(object))
+            return codes, int(unique_count)
+        if column.dtype.kind in ("O", "T"):
+            return GroupSet._hash_encode_object(column)
+        unique, codes = np.unique(column, return_inverse=True)
+        return codes.astype(np.int64, copy=False).reshape(-1), len(unique)
 
     @staticmethod
-    def _encode_columns_paired(
+    def _encode_int64_dense(keys: np.ndarray[Any, Any]) -> tuple[np.ndarray[Any, Any], int]:
+        """Dense codes 0..unique_count-1 for int64 keys."""
+        if _HAS_ACCEL:
+            codes, unique_count = _c_encode_int64(np.ascontiguousarray(keys, dtype=np.int64))
+            return codes, int(unique_count)
+        unique, codes = np.unique(keys, return_inverse=True)
+        return codes.astype(np.int64, copy=False).reshape(-1), len(unique)
+
+    @staticmethod
+    def _integer_key_bits(column: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
+        """
+        An int64 array whose equality matches numpy `==` on a bool, integer,
+        datetime, timedelta or float column of at most 64 bits.
+        """
+        kind = column.dtype.kind
+        if kind == "f":
+            values = column.astype(np.float64, copy=True)
+            values += 0.0  # -0.0 + 0.0 is +0.0, so the two zeros get one key
+            values[np.isnan(values)] = np.nan  # one bit pattern for every NaN
+            return values.view(np.int64)
+        if kind in ("M", "m") or (kind == "u" and column.dtype.itemsize == 8):
+            # NaT is INT64_MIN, so all NaT share one key; a uint64 above the
+            # int64 range keeps its bit pattern, which preserves equality
+            return column.view(np.int64)
+        return column.astype(np.int64, copy=False)
+
+    @staticmethod
+    def _encode_column(column: np.ndarray[Any, Any]) -> tuple[np.ndarray[Any, Any], int]:
+        """Encode one key column as (codes, cardinality)."""
+        if len(column) == 0:
+            return np.array([], dtype=np.int64), 0
+        kind = column.dtype.kind
+        if kind in _STRING_KINDS:
+            return GroupSet._encode_strings(column)
+        if kind not in "biufMm" or column.dtype.itemsize > 8:
+            # complex, longdouble, structured: no exact int64 image
+            try:
+                unique, codes = np.unique(column, return_inverse=True)
+            except TypeError:
+                return GroupSet._hash_encode_object(column.astype(object))
+            return codes.astype(np.int64, copy=False).reshape(-1), len(unique)
+
+        bits = GroupSet._integer_key_bits(column)
+        if kind != "f":
+            low, high = int(bits.min()), int(bits.max())
+            if high - low < GroupSet._dense_range_limit(len(bits)):
+                if low == 0:
+                    return bits, high + 1
+                # the result lies in [0, high - low], so int64 wraparound in
+                # the subtraction cannot change it
+                return bits - np.int64(low), high - low + 1
+        # float bit patterns are never a narrow range
+        return GroupSet._encode_int64_dense(bits)
+
+    @staticmethod
+    def _build_composite_key(
+        encoded: list[tuple[np.ndarray[Any, Any], int]], row_count: int
+    ) -> np.ndarray[Any, Any]:
+        """
+        Combine encoded key columns into one non-negative int64 key whose
+        range is at most _dense_range_limit(row_count).
+
+        Positional encoding: key = c0 * N1*N2*... + c1 * N2*... + c2 * ...
+        When the product of cardinalities exceeds the dense limit, columns are
+        combined one at a time and the running key is re-encoded densely
+        whenever its range passes the limit, so no product can overflow.
+        """
+        limit = GroupSet._dense_range_limit(row_count)
+        if len(encoded) == 1:
+            return encoded[0][0]
+        if row_count == 0:
+            return np.array([], dtype=np.int64)
+
+        cardinalities = [cardinality for _, cardinality in encoded]
+        if math.prod(cardinalities) <= limit:
+            columns = tuple(codes for codes, _ in encoded)
+            if _HAS_ACCEL:
+                return cast(np.ndarray[Any, Any], _c_composite_key(columns, tuple(cardinalities)))
+            key = np.zeros(row_count, dtype=np.int64)
+            multiplier = 1
+            for codes, cardinality in zip(reversed(columns), reversed(cardinalities)):
+                key += codes * multiplier
+                multiplier *= cardinality
+            return key
+
+        key, key_cardinality = encoded[0]
+        for codes, cardinality in encoded[1:]:
+            # both factors are at most `limit`, so this holds below ~5e8 rows
+            if key_cardinality * cardinality > 2**62:
+                raise ValueError(
+                    "Composite key space overflow: too many rows to encode a "
+                    "multi-column key in int64"
+                )
+            key = key * np.int64(cardinality) + codes
+            key_cardinality *= cardinality
+            if key_cardinality > limit:
+                key, key_cardinality = GroupSet._encode_int64_dense(key)
+        return key
+
+    @staticmethod
+    def _encode_join_keys(
         left_cols: list[np.ndarray[Any, Any]],
         right_cols: list[np.ndarray[Any, Any]],
-    ) -> tuple[list[np.ndarray[Any, Any]], list[np.ndarray[Any, Any]]]:
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         """
-        Encode left and right column pairs with a shared codebook.
-        Ensures the same string value gets the same integer code on both sides.
+        Encode left and right key columns with one shared codebook, so equal
+        values on the two sides get equal int64 keys.
         """
-        left_enc = []
-        right_enc = []
+        left_count = len(left_cols[0])
+        encoded = []
         for lc, rc in zip(left_cols, right_cols):
-            # Verify both sides have compatible kinds before encoding
             l_kind, r_kind = lc.dtype.kind, rc.dtype.kind
             if (l_kind in _STRING_KINDS) != (r_kind in _STRING_KINDS):
                 raise TypeError(
                     f"Cannot encode columns with incompatible dtype kinds: "
                     f"left={lc.dtype} (kind={l_kind}), right={rc.dtype} (kind={r_kind})"
                 )
-            if l_kind in _STRING_KINDS:
-                combined = np.concatenate([lc, rc])
-                if _HAS_ACCEL and len(combined) >= 50_000:
-                    codes, _ = _c_encode_strings(combined.astype(object))
-                elif combined.dtype.kind == "O":
-                    codes = GroupSet._hash_encode_object(combined)
-                else:
-                    _, codes = np.unique(combined, return_inverse=True)
-                left_enc.append(codes[: len(lc)])
-                right_enc.append(codes[len(lc) :])
-            else:
-                # For signed integer columns, shift to non-negative using
-                # COMBINED min so both sides share the same baseline.
-                if l_kind == "i" and len(lc) > 0 and len(rc) > 0:
-                    combined_min = min(int(lc.min()), int(rc.min()))
-                    if combined_min < 0:
-                        combined_max = max(int(lc.max()), int(rc.max()))
-                        if combined_max - combined_min > np.iinfo(np.int64).max:
-                            raise ValueError(
-                                f"Column value range ({combined_min} to {combined_max}) "
-                                f"exceeds int64 after shift — cannot encode for join."
-                            )
-                        left_enc.append(lc.astype(np.int64, copy=False) - combined_min)
-                        right_enc.append(rc.astype(np.int64, copy=False) - combined_min)
-                        continue
-                left_enc.append(lc)
-                right_enc.append(rc)
-        return left_enc, right_enc
-
-    @staticmethod
-    def _build_composite_key(
-        encoded: list[np.ndarray[Any, Any]],
-        cards: list[int] | None = None,
-    ) -> np.ndarray[Any, Any]:
-        """
-        Combine multiple integer-coded columns into a single flat key.
-        Uses positional encoding: key = c0 * N1*N2*... + c1 * N2*... + c2 * ...
-        Raises ValueError if the product of cardinalities would overflow int64.
-
-        If *cards* is provided it is used directly; otherwise cardinalities are
-        inferred from the per-column max.  For joins, callers MUST pass shared
-        cardinalities (max over both sides) so left and right keys use the same
-        positional encoding.
-        """
-        if len(encoded) == 1:
-            return encoded[0]
-
-        # empty arrays: return empty int64
-        if len(encoded[0]) == 0:
-            return np.array([], dtype=np.int64)
-
-        # Precondition: columns are already non-negative integer codes.
-        # Callers _encode_columns (GroupBy/Transform) and _encode_columns_paired
-        # (joins) ensure this by encoding strings via np.unique and shifting
-        # negative integers to non-negative range.
-        if cards is None:
-            cards = [int(c.max()) + 1 for c in encoded]
-        assert len(cards) == len(encoded), "cards length must match encoded columns"
-
-        # check for overflow: product of all cardinalities must fit int64
-        product = 1
-        overflow = False
-        for card in cards:
-            product *= card
-            if product > 2**62:
-                overflow = True
-                break
-
-        if not overflow:
-            if _HAS_ACCEL:
-                return _c_composite_key(
-                    tuple(c.astype(np.int64, copy=False) for c in encoded),
-                    tuple(cards),
-                )
-            # Python fallback: flat integer key via positional encoding
-            key = np.zeros(len(encoded[0]), dtype=np.int64)
-            multiplier = 1
-            for c, card in zip(reversed(encoded), reversed(cards)):
-                key += c.astype(np.int64, copy=False) * multiplier
-                multiplier *= card
-            return key
-        else:
-            raise ValueError(
-                "Composite key space overflow: too many unique key "
-                "combinations for multi-column join"
-            )
+            encoded.append(GroupSet._encode_column(np.concatenate([lc, rc])))
+        key = GroupSet._build_composite_key(encoded, left_count + len(right_cols[0]))
+        key = np.ascontiguousarray(key, dtype=np.int64)
+        return key[:left_count], key[left_count:]
 
     @staticmethod
     def _decode_unique(
@@ -648,7 +813,8 @@ class GroupSet:
     ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], int]:
         """
         Assign first-seen-order group labels using direct array mapping.
-        O(n + max_key) — no sort. Requires non-negative integer keys.
+        O(n + max_key) — no sort. Requires non-negative integer keys; keys from
+        _build_composite_key have max_key < _dense_range_limit(rows).
 
         Returns (labels, first_seen_indices, n_groups).
         """
@@ -692,11 +858,8 @@ class GroupSet:
         """Encode columns and build composite integer key."""
         cols = list(columns)
         col_arrays = [tafra._data[c] for c in cols]
-        encoded, _ = GroupSet._encode_columns(col_arrays)
-        if len(cols) == 1:
-            data = encoded[0]
-        else:
-            data = GroupSet._build_composite_key(encoded)
+        encoded = [GroupSet._encode_column(c) for c in col_arrays]
+        data = GroupSet._build_composite_key(encoded, tafra._rows)
         return data, col_arrays
 
     @staticmethod
@@ -849,7 +1012,8 @@ class GroupBy(AggMethod):
 
         # check if all aggregations can be vectorized
         vectorized_functions = {
-            rename: _vectorized_aggregation(fn) for rename, (fn, _) in self._aggregation.items()
+            rename: _vectorized_aggregation(fn, tafra._data[col].dtype)
+            for rename, (fn, col) in self._aggregation.items()
         }
         all_vectorized = not self.iter_fn and all(
             vec_fn is not None for vec_fn in vectorized_functions.values()
@@ -941,7 +1105,8 @@ class Transform(AggMethod):
 
         # check if all aggregations can be vectorized
         vectorized_functions = {
-            rename: _vectorized_aggregation(fn) for rename, (fn, _) in self._aggregation.items()
+            rename: _vectorized_aggregation(fn, tafra._data[col].dtype)
+            for rename, (fn, col) in self._aggregation.items()
         }
         all_vectorized = not self.iter_fn and all(
             vec_fn is not None for vec_fn in vectorized_functions.values()
@@ -1118,21 +1283,6 @@ class Join(GroupSet):
                 raise TypeError(f"The operator {op} is not valid.")
 
     @staticmethod
-    def _build_composite_key(
-        cols: list[np.ndarray[Any, Any]],
-        cards: list[int] | None = None,
-    ) -> np.ndarray[Any, Any]:
-        """Build a single sortable key array from multiple columns."""
-        if len(cols) == 1:
-            return cols[0]
-        # structured array for multi-column sort
-        dt = np.dtype([(f"f{i}", c.dtype) for i, c in enumerate(cols)])
-        key = np.empty(len(cols[0]), dtype=dt)
-        for i, c in enumerate(cols):
-            key[f"f{i}"] = c
-        return key
-
-    @staticmethod
     def _sort_merge_indices(
         left_key: np.ndarray[Any, Any],
         right_key: np.ndarray[Any, Any],
@@ -1307,24 +1457,10 @@ class InnerJoin(Join):
                 left_cols_filt = left_cols_data
                 right_cols_filt = right_cols_data
 
-            l_enc, r_enc = GroupSet._encode_columns_paired(left_cols_filt, right_cols_filt)
-            # Shared cardinalities: max over both sides so positional encoding
-            # is consistent between left and right keys.
-            if len(l_enc) > 1 and len(l_enc[0]) > 0 and len(r_enc[0]) > 0:
-                cards: list[int] | None = [
-                    max(int(lc.max()), int(rc.max())) + 1
-                    for lc, rc in zip(l_enc, r_enc)
-                ]
-            else:
-                cards = None
-            left_key = GroupSet._build_composite_key(l_enc, cards)
-            right_key = GroupSet._build_composite_key(r_enc, cards)
+            left_key, right_key = GroupSet._encode_join_keys(left_cols_filt, right_cols_filt)
 
             if _HAS_ACCEL:
-                li, ri = _c_inner_join(
-                    np.ascontiguousarray(left_key, dtype=np.int64),
-                    np.ascontiguousarray(right_key, dtype=np.int64),
-                )
+                li, ri = _c_inner_join(left_key, right_key)
             else:
                 li, ri = self._sort_merge_indices(left_key, right_key)
 
@@ -1589,24 +1725,10 @@ class LeftJoin(Join):
                 right_cols_filt = right_cols_data
                 left_null_idx = np.array([], dtype=np.intp)
 
-            l_enc, r_enc = GroupSet._encode_columns_paired(left_cols_filt, right_cols_filt)
-            # Shared cardinalities: max over both sides so positional encoding
-            # is consistent between left and right keys.
-            if len(l_enc) > 1 and len(l_enc[0]) > 0 and len(r_enc[0]) > 0:
-                cards: list[int] | None = [
-                    max(int(lc.max()), int(rc.max())) + 1
-                    for lc, rc in zip(l_enc, r_enc)
-                ]
-            else:
-                cards = None
-            left_key = GroupSet._build_composite_key(l_enc, cards)
-            right_key = GroupSet._build_composite_key(r_enc, cards)
+            left_key, right_key = GroupSet._encode_join_keys(left_cols_filt, right_cols_filt)
 
             if _HAS_ACCEL:
-                li, ri, has_null = _c_left_join(
-                    np.ascontiguousarray(left_key, dtype=np.int64),
-                    np.ascontiguousarray(right_key, dtype=np.int64),
-                )
+                li, ri, has_null = _c_left_join(left_key, right_key)
             else:
                 li, ri, has_null = self._left_join_indices(left_key, right_key)
 
