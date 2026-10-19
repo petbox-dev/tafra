@@ -26,6 +26,7 @@ __all__ = [
     "harmean",
 ]
 
+import functools
 import math
 import operator
 import warnings
@@ -946,21 +947,41 @@ class AggMethod(GroupSet):
             if not callable(agg):
                 raise ValueError(f"{rename}: {agg} is not a valid aggregation argument")
 
-    def result_factory(
-        self, fn: Callable[[str, str], np.ndarray[Any, Any]]
-    ) -> dict[str, np.ndarray[Any, Any]]:
+    @staticmethod
+    def _promoted_dtype(results: list[np.ndarray[Any, Any]]) -> np.dtype[Any]:
         """
-        Factory function to generate the dict for the results set.
-        A function to take the new column name and source column name
-        and return an empty `np.ndarray` should be given.
+        numpy's promoted dtype of the per-group results (`np.promote_types`
+        over their dtypes), or object when they share none, e.g. str and float.
         """
-        return {
-            rename: fn(rename, col)
-            for rename, col in (
-                *((col, col) for col in self.group_by_cols),
-                *((rename, agg[1]) for rename, agg in self._aggregation.items()),
-            )
-        }
+        unique_dtypes = list(dict.fromkeys(result.dtype for result in results))
+        try:
+            return functools.reduce(np.promote_types, unique_dtypes)
+        except TypeError:
+            return np.dtype(object)
+
+    @staticmethod
+    def _column_from_group_results(values: list[Any]) -> np.ndarray[Any, Any]:
+        """
+        One column from one result per group. Scalar results take their
+        promoted dtype; if any result is not a scalar, the column is object.
+        """
+        result_types = set(map(type, values))
+        if len(result_types) == 1 and issubclass(
+            result_types.pop(), (np.generic, bool, int, float, str)
+        ):
+            # one scalar type: np.array promotes exactly as np.promote_types
+            # (datetime units, string widths), and gives object for a Python
+            # int beyond int64, as np.asarray does for that value alone
+            return np.array(values)
+        arrays = [np.asarray(value) for value in values]
+        if all(array.ndim == 0 for array in arrays):
+            dtype = AggMethod._promoted_dtype(arrays)
+        else:
+            dtype = np.dtype(object)
+        column = np.empty(len(values), dtype=dtype)
+        for i, value in enumerate(values):
+            column[i] = value
+        return column
 
     def iter_fn_factory(
         self, fn: Callable[[], np.ndarray[Any, Any]]
@@ -1044,9 +1065,10 @@ class GroupBy(AggMethod):
         unique, group_indices = self._build_group_indices(tafra, self.group_by_cols)
         n_groups = len(unique)
 
-        result = self.result_factory(
-            lambda rename, col: np.empty(n_groups, dtype=tafra._data[col].dtype)
-        )
+        result = {
+            col: np.empty(n_groups, dtype=tafra._data[col].dtype) for col in self.group_by_cols
+        }
+        group_results: dict[str, list[Any]] = {rename: [] for rename in self._aggregation}
         iter_fn = self.iter_fn_factory(lambda: np.ones(n_groups, dtype=int))
 
         for i, (u, rows) in enumerate(zip(unique, group_indices)):
@@ -1054,11 +1076,13 @@ class GroupBy(AggMethod):
                 result[col][i] = val
 
             for rename, (fn, col) in self._aggregation.items():
-                result[rename][i] = fn(tafra._data[col][rows])
+                group_results[rename].append(fn(tafra._data[col][rows]))
 
             for rename, fn in self.iter_fn.items():
                 iter_fn[rename][i] = fn(np.full(len(rows), i, dtype=int))
 
+        for rename, values in group_results.items():
+            result[rename] = self._column_from_group_results(values)
         result.update(iter_fn)
         return Tafra(result)
 
@@ -1133,19 +1157,25 @@ class Transform(AggMethod):
         # standard path: per-group loop
         unique, group_indices = self._build_group_indices(tafra, self.group_by_cols)
 
-        result = self.result_factory(lambda rename, col: np.empty_like(tafra._data[col]))
+        result = {col: tafra._data[col].copy() for col in self.group_by_cols}
+        group_results: dict[str, list[np.ndarray[Any, Any]]] = {
+            rename: [] for rename in self._aggregation
+        }
         iter_fn = self.iter_fn_factory(lambda: np.ones(tafra._rows, dtype=int))
 
         for i, (u, rows) in enumerate(zip(unique, group_indices)):
-            for col in self.group_by_cols:
-                result[col][rows] = tafra._data[col][rows]
-
             for rename, (fn, col) in self._aggregation.items():
-                result[rename][rows] = fn(tafra._data[col][rows])
+                group_results[rename].append(np.asarray(fn(tafra._data[col][rows])))
 
             for rename, fn in self.iter_fn.items():
                 iter_fn[rename][rows] = fn(np.full(len(rows), i, dtype=int))
 
+        # a group's result is one value broadcast to its rows, or one value per row
+        for rename, arrays in group_results.items():
+            column = np.empty(tafra._rows, dtype=self._promoted_dtype(arrays))
+            for rows, array in zip(group_indices, arrays):
+                column[rows] = array
+            result[rename] = column
         result.update(iter_fn)
         return Tafra(result)
 
@@ -1743,13 +1773,13 @@ class LeftJoin(Join):
             else:
                 ri_mapped = ri
 
-            # Append null-key left rows (they always get unmatched)
+            # Null-key left rows are always unmatched. li is ascending, so
+            # insert each at its left-table position to keep left order.
             if len(left_null_idx) > 0:
                 has_null = True
-                li = np.concatenate([li, left_null_idx])
-                ri_mapped = np.concatenate(
-                    [ri_mapped, np.full(len(left_null_idx), -1, dtype=np.intp)]
-                )
+                positions = np.searchsorted(li, left_null_idx)
+                li = np.insert(li, positions, left_null_idx)
+                ri_mapped = np.insert(ri_mapped, positions, -1)
 
             ri = ri_mapped
 

@@ -153,6 +153,14 @@ result = t.group_by(
 Custom lambda/functions use the standard per-group Python loop (no vectorized
 fast path).
 
+The result column takes the dtype that numpy promotes the per-group results
+to (`np.promote_types`), not the dtype of the input column: a mean of an
+`int64` column is `float64`, and `np.any` of a string column is `bool`.
+Results that share no dtype, such as `None` with a float, give an `object`
+column. numpy promotes a string with a number to a string, so `'low'` with
+`2.0` gives `['low', '2.0']`. In `transform`, a function may return one value
+per group (broadcast to the group's rows) or one value per row.
+
 ## Vectorized Fast Path
 
 When **all** aggregation functions in a `group_by` call are recognized (see

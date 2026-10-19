@@ -463,3 +463,83 @@ def test_group_indices_empty_input() -> None:
 
     first_seen, groups, group_count = _accel.group_indices(np.array([], dtype=np.int64))
     assert first_seen.tolist() == [] and groups == [] and group_count == 0
+
+
+# ----------------------------------------------------------------------------
+# Per-group path: result dtype follows numpy's type promotion of the results
+# ----------------------------------------------------------------------------
+
+
+class TestPerGroupResultDtype:
+    def test_group_by_mean_of_int_column_is_float(self, accel_mode: str) -> None:
+        table = Tafra({"g": np.array([0, 0, 1]), "i": np.array([1, 2, 5])})
+        result = table.group_by(["g"], {"m": (lambda values: values.mean(), "i")})
+        assert result["m"].dtype == np.float64
+        assert result["m"].tolist() == [1.5, 5.0]
+
+    def test_group_by_any_of_string_column_is_bool(self, accel_mode: str) -> None:
+        table = Tafra({"g": np.array([0, 0, 1]), "s": np.array(["a", "", ""], dtype=STRING_DTYPE)})
+        result = table.group_by(["g"], {"a": (np.any, "s")})
+        assert result["a"].dtype == np.bool_
+        assert result["a"].tolist() == [True, False]
+
+    def test_group_by_count_of_float_column_is_int(self, accel_mode: str) -> None:
+        table = Tafra({"g": np.array([0, 0, 1]), "x": np.array([1.5, 2.5, 3.5])})
+        result = table.group_by(["g"], {"n": (lambda values: int(len(values)), "x")})
+        assert result["n"].dtype == np.int64
+        assert result["n"].tolist() == [2, 1]
+
+    def test_group_by_string_result_is_not_truncated(self, accel_mode: str) -> None:
+        table = Tafra({"g": np.array([0, 0, 1]), "s": np.array(["a", "b", "c"])})
+        result = table.group_by(["g"], {"j": (lambda values: "".join(values), "s")})
+        assert result["j"].tolist() == ["ab", "c"]
+
+    def test_group_by_none_and_float_results_give_object(self, accel_mode: str) -> None:
+        table = Tafra({"g": np.array([0, 1]), "x": np.array([1.0, 2.0])})
+        result = table.group_by(
+            ["g"], {"y": (lambda values: None if values[0] < 1.5 else float(values[0]), "x")}
+        )
+        assert result["y"].dtype == object
+        assert result["y"].tolist() == [None, 2.0]
+
+    def test_group_by_string_and_float_results_follow_numpy(self, accel_mode: str) -> None:
+        """numpy promotes str with float to str: np.array(['low', 2.0]) is <U32."""
+        table = Tafra({"g": np.array([0, 1]), "x": np.array([1.0, 2.0])})
+        result = table.group_by(
+            ["g"], {"y": (lambda values: "low" if values[0] < 1.5 else float(values[0]), "x")}
+        )
+        assert result["y"].dtype == np.array(["low", 2.0]).dtype
+        assert result["y"].tolist() == ["low", "2.0"]
+
+    def test_transform_mean_of_int_column_is_float(self, accel_mode: str) -> None:
+        table = Tafra({"g": np.array([0, 0, 1]), "i": np.array([1, 2, 5])})
+        result = table.transform(["g"], {"m": (lambda values: values.mean(), "i")})
+        assert result["m"].dtype == np.float64
+        assert result["m"].tolist() == [1.5, 1.5, 5.0]
+
+    def test_transform_per_row_result_of_int_column_is_float(self, accel_mode: str) -> None:
+        table = Tafra({"g": np.array([0, 1, 0]), "i": np.array([1, 5, 2])})
+        result = table.transform(["g"], {"d": (lambda values: values - values.mean(), "i")})
+        assert result["d"].dtype == np.float64
+        assert result["d"].tolist() == [-0.5, 0.0, 0.5]
+
+    def test_transform_none_result_gives_object(self, accel_mode: str) -> None:
+        table = Tafra({"g": np.array([0, 1, 0]), "x": np.array([1.0, 2.0, 3.0])})
+        result = table.transform(
+            ["g"], {"y": (lambda values: None if len(values) == 1 else values.sum(), "x")}
+        )
+        assert result["y"].dtype == object
+        assert result["y"].tolist() == [4.0, None, 4.0]
+
+
+# ----------------------------------------------------------------------------
+# Left join row order
+# ----------------------------------------------------------------------------
+
+
+def test_left_join_keeps_null_key_rows_in_left_order(accel_mode: str) -> None:
+    left = Tafra({"k": np.array([np.nan, 1.0, np.nan, 2.0]), "a": np.array([0, 1, 2, 3])})
+    right = Tafra({"k": np.array([2.0, 1.0, 2.0]), "b": np.array([20.0, 10.0, 30.0])})
+    result = _left_join(left, right, [("k", "k", "==")])
+    assert result["a"].tolist() == [0, 1, 2, 3, 3]
+    np.testing.assert_array_equal(result["b"], [np.nan, 10.0, np.nan, 20.0, 30.0])

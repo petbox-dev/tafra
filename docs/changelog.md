@@ -30,6 +30,15 @@
   `float32` stays `float32`). A reducer on a dtype numpy refuses (for
   example `np.mean` of strings) takes the per-group path and raises numpy's
   error.
+* **Fix**: The per-group loop (custom functions, and registered functions on
+  a dtype the fast path does not take) stored each result in the input
+  column's dtype: a mean of an `int64` column was truncated to `int64`,
+  `np.any` of a string column gave the strings `'True'`, and a string result
+  was cut to the input's `<U` width. The result column now takes numpy's
+  promoted dtype of the per-group results (`object` when they share none),
+  in `group_by` and `transform`.
+* **Fix**: An equi left join put left rows with a NULL key (NaN, NaT,
+  `None`) at the end of the result. They now keep their left-table position.
 * **Fix**: The pure-Python `np.var` / `np.std` fast path used
   `E[x^2] - E[x]^2`, which returned 2.0 for three equal values near 1e8. It
   now subtracts the group mean first.
