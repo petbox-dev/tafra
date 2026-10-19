@@ -29,9 +29,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[test]" 2>/dev/null || pip install -e . && pip install pytest pytest-cov hypothesis pandas
-      - name: Verify C extension keeps the GIL disabled
-        if: endsWith(matrix.python-version, 't')
-        run: python -W error -c "import sys, tafra._accel; assert not sys._is_gil_enabled()"
+      # setup.py builds the extension optionally, so a failed build would
+      # otherwise pass on pure numpy with the accelerated tests skipped
+      - name: Verify the C extension loaded, and keeps a free-threaded build's GIL disabled
+        run: python -W error -c "import sys, sysconfig, tafra.group as g; assert g._HAS_ACCEL, 'C extension missing'; assert not sysconfig.get_config_var('Py_GIL_DISABLED') or not sys._is_gil_enabled()"
       - run: pytest
       - name: Upload coverage to Coveralls
         if: matrix.python-version == '3.12'

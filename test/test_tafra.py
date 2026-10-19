@@ -1120,14 +1120,17 @@ class TestGroupBy:
     def test_percentile_agg_freed_id_not_reused(self) -> None:
         """A callable allocated at a freed percentile()'s address must not hit its fast path."""
         from tafra import percentile
+        from tafra.group import _PercentileAgg
 
         class Spread:
-            __slots__ = ("q", "_vec_fn")  # same layout as _PercentileAgg: pymalloc reuses the block
+            """A custom aggregation with _PercentileAgg's layout."""
+
+            __slots__ = _PercentileAgg.__slots__  # same size class: pymalloc reuses the block
 
             def __call__(self, data: np.ndarray[Any, Any]) -> float:
                 return float(data.max() - data.min())
 
-        t = Tafra({"g": np.array([0, 0, 1, 1]), "v": np.array([1.0, 5.0, 2.0, 10.0])})
+        table = Tafra({"g": np.array([0, 0, 1, 1]), "v": np.array([1.0, 5.0, 2.0, 10.0])})
         for _ in range(100):
             freed_id = id(percentile(50))
             spread = Spread()
@@ -1136,10 +1139,10 @@ class TestGroupBy:
         else:
             pytest.skip("allocator did not reuse the freed percentile() address")
 
-        gb = t.group_by(["g"], {"spread": (spread, "v")})
-        np.testing.assert_array_equal(gb["spread"], [4.0, 8.0])
-        gb = t.transform(["g"], {"spread": (spread, "v")})
-        np.testing.assert_array_equal(gb["spread"], [4.0, 4.0, 8.0, 8.0])
+        group_by_result = table.group_by(["g"], {"spread": (spread, "v")})
+        np.testing.assert_array_equal(group_by_result["spread"], [4.0, 8.0])
+        transform_result = table.transform(["g"], {"spread": (spread, "v")})
+        np.testing.assert_array_equal(transform_result["spread"], [4.0, 4.0, 8.0, 8.0])
 
     def test_geomean_harmean(self) -> None:
         from tafra import geomean, harmean
@@ -2988,8 +2991,8 @@ class TestInnerJoin:
     def test_inner_join_asymmetric_cardinality(self) -> None:
         """Multi-column join where left has fewer unique values than right.
 
-        Regression test: _build_composite_key must use shared cardinalities
-        so that positional encoding is consistent across both sides.
+        Regression test: both sides must share one codebook
+        (GroupSet._encode_join_keys) so equal values get equal keys.
         """
         right = Tafra(
             {
@@ -3622,8 +3625,8 @@ class TestLeftJoin:
     def test_left_join_asymmetric_cardinality(self) -> None:
         """Multi-column left join where left has fewer unique values than right.
 
-        Regression test: _build_composite_key must use shared cardinalities
-        so that positional encoding is consistent across both sides.
+        Regression test: both sides must share one codebook
+        (GroupSet._encode_join_keys) so equal values get equal keys.
         """
         right = Tafra(
             {
@@ -4353,15 +4356,25 @@ class TestCoverageGaps:
         # NaN row (lv=20) should NOT appear in results
         assert 20 not in list(t["lv"])
 
-    def test_composite_key_wide_columns_do_not_overflow(self) -> None:
-        """Columns whose cardinality product exceeds int64 are re-encoded densely."""
-        from tafra.group import GroupSet
+    def test_composite_key_wide_columns_are_reencoded(self) -> None:
+        """A cardinality product above the dense limit is combined column by column."""
+        from tafra.group import EncodedColumn, GroupSet
 
-        big = np.array([0, 2**62, 0], dtype=np.int64)
-        encoded = [GroupSet._encode_column(big), GroupSet._encode_column(big)]
+        # three rows: limit 4 * 3 + 1024 = 1036, so 3000 * 3000 is over it
+        codes = np.array([0, 2999, 0], dtype=np.int64)
+        encoded = [EncodedColumn(codes, 3000), EncodedColumn(codes, 3000)]
         key = GroupSet._build_composite_key(encoded, 3)
         assert key[0] == key[2] != key[1]
-        assert int(key.max()) < GroupSet._dense_range_limit(3)
+        assert int(key.max()) == 1  # re-encoded to dense codes for two distinct rows
+
+    def test_composite_key_overflow_raises(self) -> None:
+        """A running cardinality product past 2**62 cannot be held in int64."""
+        from tafra.group import EncodedColumn, GroupSet
+
+        codes = np.array([0, 1, 2], dtype=np.int64)
+        encoded = [EncodedColumn(codes, 3), EncodedColumn(codes, 2**62)]
+        with pytest.raises(ValueError, match="overflow"):
+            GroupSet._build_composite_key(encoded, 3)
 
     def test_negative_int_groupby_multi_column(self) -> None:
         """GroupBy on multiple columns with negative integer keys."""

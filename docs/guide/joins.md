@@ -331,8 +331,9 @@ result = left.left_join(right, on=[('k', 'k', '==')])
 ```
 
 !!! tip
-    Avoid using float columns as join keys. If you must, filter out NaN
-    values first, or cast to integer IDs.
+    Float keys match by value (`-0.0` matches `0.0`) and a NaN key never
+    matches, but values computed by arithmetic can differ in the last bit.
+    Round them, or cast to integer IDs, before joining on them.
 
 ### Left join null-fill by dtype
 

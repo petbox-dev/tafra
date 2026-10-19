@@ -69,6 +69,7 @@ On a free-threaded interpreter, threads run Python code in parallel, and
 they share memory with no serialization cost. On a standard (GIL)
 interpreter, only one thread runs Python code at a time; use
 [`partition`](groupby-partition.md) with a process pool for CPU-bound work
-per group. The C extension releases the GIL inside its hashing, join and
-aggregation loops, so on a standard interpreter those loops in different
-threads also run in parallel.
+per group. The C extension releases the GIL inside its integer hashing, join
+and aggregation loops, so on a standard interpreter those loops in different
+threads also run in parallel. Encoding a string or `object` key column calls
+Python's hash on each value, so that step holds the GIL.

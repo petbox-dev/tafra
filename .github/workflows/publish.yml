@@ -21,6 +21,7 @@ jobs:
           CIBW_SKIP: "*-musllinux_*"
           CIBW_BUILD_FRONTEND: "build[uv]"
           CIBW_BUILD_VERBOSITY: 1
+          CIBW_TEST_COMMAND: 'python -W error -c "import sys, sysconfig, tafra.group as g; assert g._HAS_ACCEL, ''C extension missing''; assert not sysconfig.get_config_var(''Py_GIL_DISABLED'') or not sys._is_gil_enabled()"'
       - uses: actions/upload-artifact@v5
         with:
           name: wheels-${{ matrix.os }}

@@ -246,7 +246,7 @@ plf['x']:        0.57 µs   # 6x slower
 ```
 
 `tafra` uses vectorized numpy operations (`np.bincount`,
-`ufunc.reduceat`) and an optional C extension (single-pass aggregation,
+`ufunc.reduceat`) and an optional C extension (grouped aggregation in C,
 hash-based composite key encoding, hash joins) for GroupBy and joins:
 
 ```python

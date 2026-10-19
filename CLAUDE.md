@@ -51,9 +51,9 @@ The library has one core abstraction and a set of aggregation/partitioning opera
 **Aggregation classes** (`tafra/group.py`) — SQL-style operations that operate on `Tafra` instances:
 - `Union`, `GroupBy`, `Transform`, `IterateBy`, `InnerJoin`, `LeftJoin`, `CrossJoin`
 
-**Vectorized aggregations** (`tafra/group.py`) — `GroupBy` detects known numpy reducers (`np.sum`, `np.mean`, `np.std`, `np.var`, `np.min`, `np.max`, `np.median`, `np.prod`, `np.ptp`, `np.any`, `np.all`, `len`, `np.count_nonzero`) and uses `np.bincount`/`ufunc.reduceat` instead of per-group Python loops. Custom aggregations: `percentile(q)`, `geomean`, `harmean`.
+**Vectorized aggregations** (`tafra/group.py`) — `GroupBy` detects known numpy reducers (`np.sum`, `np.mean`, `np.std`, `np.var`, `np.min`/`np.amin`, `np.max`/`np.amax`, `np.median`, `np.prod`, `np.ptp`, `np.any`, `np.all`, `len`, `np.count_nonzero`, builtin `sum`, and the `np.nan*` forms) and uses `np.bincount`/`ufunc.reduceat` instead of per-group Python loops. Custom aggregations: `percentile(q)`, `geomean`, `harmean`.
 
-**C extension** (`tafra/_accel.c`) — Optional compiled acceleration. Single-pass grouped aggregation (Welford variance, sum, mean, min, max, count), O(n) hash-based equi-joins, O(n) composite key encoding (`composite_key`, `group_indices`), and O(n) string-to-integer encoding (`encode_strings`). Falls back to pure Python + numpy if not compiled. Build with `python setup.py build_ext --inplace --compiler=mingw32` (or omit `--compiler` for MSVC).
+**C extension** (`tafra/_accel.c`) — Optional compiled acceleration. Grouped aggregation (sum, mean, min, max, two-pass variance; exact int64 sum, min and max), O(n) hash-based equi-joins, O(n) composite key encoding (`composite_key`, `group_indices`), and O(n) dense encoding of int64 keys (`encode_int64`) and of string/object keys (`encode_strings`). Falls back to pure Python + numpy if not compiled. Build with `python setup.py build_ext --inplace --compiler=mingw32` (or omit `--compiler` for MSVC).
 
 **Chunking/partitioning** (`tafra/base.py`):
 - `chunks(n, sort_by=)` — split into n equal pieces

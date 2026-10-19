@@ -1,9 +1,11 @@
 """
 Semantics of the accelerated key-encoding, join and group-by paths.
 
-Every test runs twice: once with the C extension and once with the pure
-numpy fallback. Expected values are literals or come from numpy itself
-applied group by group, never from tafra.
+Every test that takes the `accel_mode` fixture runs twice: once with the C
+extension and once with the pure numpy fallback; `accel_only` tests call the
+C entry points directly. Expected values are literals or come from numpy
+itself applied group by group, never from tafra (geomean, harmean and
+percentile are checked against their own per-group definitions).
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ import tafra.group as group
 from tafra import Tafra
 from tafra.group import geomean, harmean, percentile
 
+# the nullable string dtype tafra uses for str columns
 STRING_DTYPE = np.dtypes.StringDType(na_object=None)
 
 
@@ -28,13 +31,9 @@ def accel_mode(request: Any, monkeypatch: Any) -> Iterator[str]:
     use_accel = request.param == "accelerated"
     if use_accel and not group._HAS_ACCEL:
         pytest.skip("C extension not available")
-    saved_registry = dict(group._VECTORIZED_AGGS)
+    # every _vec_* function and encoder reads _HAS_ACCEL when it is called
     monkeypatch.setattr(group, "_HAS_ACCEL", use_accel)
-    group._VECTORIZED_AGGS.clear()
-    group._register_vectorized()
     yield request.param
-    group._VECTORIZED_AGGS.clear()
-    group._VECTORIZED_AGGS.update(saved_registry)
 
 
 def _rows(table: Tafra) -> list[tuple[Any, ...]]:
@@ -54,12 +53,14 @@ def _rows(table: Tafra) -> list[tuple[Any, ...]]:
 
 
 def _inner_join(left: Tafra, right: Tafra, on: list[tuple[str, str, str]]) -> Tafra:
+    """Inner join with the empty-table warning silenced."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return left.inner_join(right, on)
 
 
 def _left_join(left: Tafra, right: Tafra, on: list[tuple[str, str, str]]) -> Tafra:
+    """Left join with the null-cast and empty-table warnings silenced."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return left.left_join(right, on)
@@ -71,6 +72,8 @@ def _left_join(left: Tafra, right: Tafra, on: list[tuple[str, str, str]]) -> Taf
 
 
 class TestJoinKeys:
+    """Equi-join keys match exactly when numpy `==` holds, and NULL never matches."""
+
     def test_float_key_fractions_do_not_match(self, accel_mode: str) -> None:
         left = Tafra({"k": np.array([1.2, 2.9, 1.5]), "a": np.array([10, 20, 30])})
         right = Tafra({"k": np.array([1.7, 2.1, 1.5]), "b": np.array([100, 200, 300])})
@@ -149,7 +152,7 @@ class TestJoinKeys:
         assert result["b"].tolist() == [3]
 
     def test_three_wide_columns_join(self, accel_mode: str) -> None:
-        """Cardinality product 3000**3 would need a 2.7e10-slot direct map."""
+        """Three wide key columns, combined through the composite-key re-encode."""
         values = np.arange(3000, dtype=np.int64) * 7
         left = Tafra({"a": values, "b": values, "c": values, "v": np.arange(3000)})
         right = Tafra({"a": values[::-1], "b": values[::-1], "c": values[::-1]})
@@ -158,22 +161,78 @@ class TestJoinKeys:
         assert sorted(result["v"].tolist()) == list(range(3000))
 
 
+# One key column per NULL kind: rows 0 and 2 hold a value both sides share,
+# row 1 holds the kind's NULL on both sides, which must never match.
+SHARED_NAN = float("nan")
+SHARED_NAT = np.datetime64("NaT", "ns")
+NULL_KEYS: dict[str, tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]] = {
+    "string_none": (
+        np.array(["a", None, "b"], dtype=STRING_DTYPE),
+        np.array(["a", None, "b"], dtype=STRING_DTYPE),
+    ),
+    "object_none": (
+        np.array(["a", None, "b"], dtype=object),
+        np.array(["a", None, "b"], dtype=object),
+    ),
+    "object_shared_nan": (
+        np.array([1.0, SHARED_NAN, 2.0], dtype=object),
+        np.array([1.0, SHARED_NAN, 2.0], dtype=object),
+    ),
+    "object_nat": (
+        np.array([1, SHARED_NAT, 2], dtype=object),
+        np.array([1, SHARED_NAT, 2], dtype=object),
+    ),
+    "datetime_nat": (
+        np.array(["2020-01-01", "NaT", "2020-01-02"], dtype="datetime64[D]"),
+        np.array(["2020-01-01", "NaT", "2020-01-02"], dtype="datetime64[D]"),
+    ),
+    "timedelta_nat": (
+        np.array([1, "NaT", 2], dtype="timedelta64[s]"),
+        np.array([1, "NaT", 2], dtype="timedelta64[s]"),
+    ),
+}
+
+
+@pytest.mark.parametrize("null_kind", list(NULL_KEYS))
+def test_null_keys_never_match(accel_mode: str, null_kind: str) -> None:
+    left_keys, right_keys = NULL_KEYS[null_kind]
+    left = Tafra({"k": left_keys, "j": np.array([1, 1, 1]), "lv": np.array([0, 1, 2])})
+    right = Tafra({"k": right_keys, "j": np.array([1, 1, 1]), "rv": np.array([10, 11, 12])})
+    for on in ([("k", "k", "==")], [("k", "k", "=="), ("j", "j", "==")]):
+        inner = _inner_join(left, right, on)
+        assert sorted(zip(inner["lv"].tolist(), inner["rv"].tolist())) == [(0, 10), (2, 12)]
+        joined = _left_join(left, right, on)
+        assert joined["lv"].tolist() == [0, 1, 2]
+        assert joined["rv"].tolist() == [10, None, 12]
+
+
+def test_null_key_made_by_unit_promotion_never_matches(accel_mode: str) -> None:
+    """2**54 s is NaT once promoted to ns, so it must not match a left NaT key."""
+    left = Tafra(
+        {"k": np.array(["NaT", "2020-01-01"], dtype="datetime64[ns]"), "a": np.array([1, 2])}
+    )
+    right = Tafra({"k": np.array([2**54], dtype="datetime64[s]"), "b": np.array([10.0])})
+    on = [("k", "k", "==")]
+    assert len(_inner_join(left, right, on)) == 0
+    assert np.isnan(_left_join(left, right, on)["b"]).all()
+
+
 # ----------------------------------------------------------------------------
 # Group-by keys
 # ----------------------------------------------------------------------------
 
-REPEATS = (1, 12_000)
-
-
-def _tile(array: np.ndarray[Any, Any], repeats: int) -> np.ndarray[Any, Any]:
-    return np.tile(array, repeats)
+# Tile each fixture once, and enough times to pass group._GROUP_INDICES_MIN_ROWS
+# with the shortest (3-row) fixture, so the C group_indices path runs too.
+REPEATS = (1, group._GROUP_INDICES_MIN_ROWS // 3 + 1)
 
 
 class TestGroupByKeys:
+    """group_by accepts every key dtype numpy compares with `==`."""
+
     @pytest.mark.parametrize("repeats", REPEATS)
     def test_float_key(self, accel_mode: str, repeats: int) -> None:
-        keys = _tile(np.array([1.5, 2.5, 1.5, np.nan, np.nan, -0.0, 0.0]), repeats)
-        values = _tile(np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]), repeats)
+        keys = np.tile(np.array([1.5, 2.5, 1.5, np.nan, np.nan, -0.0, 0.0]), repeats)
+        values = np.tile(np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]), repeats)
         table = Tafra({"k": keys, "x": values})
         for aggregation in (np.sum, lambda array: array.sum()):
             result = table.group_by(["k"], {"x": aggregation})
@@ -195,8 +254,8 @@ class TestGroupByKeys:
     def test_bool_key(self, accel_mode: str, repeats: int) -> None:
         table = Tafra(
             {
-                "b": _tile(np.array([True, False, True]), repeats),
-                "x": _tile(np.array([1.0, 2.0, 3.0]), repeats),
+                "b": np.tile(np.array([True, False, True]), repeats),
+                "x": np.tile(np.array([1.0, 2.0, 3.0]), repeats),
             }
         )
         for aggregation in (np.sum, lambda array: array.sum()):
@@ -206,10 +265,13 @@ class TestGroupByKeys:
     @pytest.mark.parametrize("repeats", REPEATS)
     def test_day_datetime_key(self, accel_mode: str, repeats: int) -> None:
         days = np.array(["2020-01-02", "2020-01-01", "2020-01-02"], dtype="datetime64[D]")
-        table = Tafra({"d": _tile(days, repeats), "x": _tile(np.array([1.0, 2.0, 3.0]), repeats)})
-        result = table.group_by(["d"], {"x": np.sum})
+        table = Tafra(
+            {"d": np.tile(days, repeats), "x": np.tile(np.array([1.0, 2.0, 3.0]), repeats)}
+        )
+        result = table.group_by(["d"], {"x": np.sum, "n": (lambda values: len(values), "x")})
         assert result["d"].tolist() == days[:2].tolist()
         assert result["x"].tolist() == [4.0 * repeats, 2.0 * repeats]
+        assert result["n"].tolist() == [2 * repeats, repeats]
 
     def test_nat_forms_one_group(self, accel_mode: str) -> None:
         days = np.array(["NaT", "2020-01-01", "NaT"], dtype="datetime64[D]")
@@ -220,8 +282,10 @@ class TestGroupByKeys:
     @pytest.mark.parametrize("repeats", REPEATS)
     def test_large_integer_ids(self, accel_mode: str, repeats: int) -> None:
         ids = np.array([42_000_000_000_001, 42_000_000_000_000, 42_000_000_000_001])
-        table = Tafra({"api": _tile(ids, repeats), "x": _tile(np.array([1.0, 2.0, 3.0]), repeats)})
-        result = table.group_by(["api"], {"x": np.sum})
+        table = Tafra(
+            {"api": np.tile(ids, repeats), "x": np.tile(np.array([1.0, 2.0, 3.0]), repeats)}
+        )
+        result = table.group_by(["api"], {"x": (lambda values: float(values.sum()), "x")})
         assert _rows(result) == [
             (42_000_000_000_001, 4.0 * repeats),
             (42_000_000_000_000, 2.0 * repeats),
@@ -253,10 +317,43 @@ class TestGroupByKeys:
 
     @pytest.mark.parametrize("repeats", REPEATS)
     def test_string_key_with_none(self, accel_mode: str, repeats: int) -> None:
-        keys = _tile(np.array(["a", None, "b", "a"], dtype=STRING_DTYPE), repeats)
-        table = Tafra({"s": keys, "x": _tile(np.array([1.0, 2.0, 3.0, 4.0]), repeats)})
-        result = table.group_by(["s"], {"x": np.sum})
+        keys = np.tile(np.array(["a", None, "b", "a"], dtype=STRING_DTYPE), repeats)
+        table = Tafra({"s": keys, "x": np.tile(np.array([1.0, 2.0, 3.0, 4.0]), repeats)})
+        result = table.group_by(["s"], {"x": (lambda values: float(values.sum()), "x")})
         assert _rows(result) == [("a", 5.0 * repeats), (None, 2.0 * repeats), ("b", 3.0 * repeats)]
+
+
+# ----------------------------------------------------------------------------
+# Key column arguments
+# ----------------------------------------------------------------------------
+
+
+def _key_table() -> Tafra:
+    """Three rows, two groups by k."""
+    return Tafra({"k": np.array([1, 2, 1]), "v": np.array([1.0, 2.0, 3.0])})
+
+
+def test_group_by_accepts_a_generator_of_key_columns(accel_mode: str) -> None:
+    result = _key_table().group_by((column for column in ["k"]), {"v": np.sum})
+    assert _rows(result) == [(1, 4.0), (2, 2.0)]
+
+
+def test_transform_and_iterate_by_accept_a_generator(accel_mode: str) -> None:
+    table = _key_table()
+    transformed = table.transform((column for column in ["k"]), {"v": np.sum})
+    assert transformed["v"].tolist() == [4.0, 2.0, 4.0]
+    groups = list(table.iterate_by(column for column in ["k"]))
+    assert [values for values, _, _ in groups] == [(1,), (2,)]
+
+
+@pytest.mark.parametrize("operation", ["group_by", "transform", "iterate_by"])
+def test_no_key_columns_raises(accel_mode: str, operation: str) -> None:
+    table = _key_table()
+    with pytest.raises(ValueError, match="key column"):
+        if operation == "iterate_by":
+            list(table.iterate_by([]))
+        else:
+            getattr(table, operation)([], {"v": np.sum})
 
 
 # ----------------------------------------------------------------------------
@@ -264,7 +361,11 @@ class TestGroupByKeys:
 # ----------------------------------------------------------------------------
 
 # Three groups: a mixed group, an all-NaN group for floats, a plain group.
+# DATA_BY_DTYPE lists each group's rows together; INTERLEAVE then mixes the
+# groups (keeping each group's own row order), so a reducer that does not
+# sort rows by label gives wrong groups.
 GROUP_LABELS = np.array([0, 0, 0, 1, 1, 2, 2, 2])
+INTERLEAVE = np.array([3, 0, 5, 1, 6, 2, 7, 4])
 
 DATA_BY_DTYPE: dict[str, np.ndarray[Any, Any]] = {
     "float64": np.array([1.0, np.nan, 4.0, np.nan, np.nan, 2.0, 3.0, 2.5]),
@@ -288,6 +389,9 @@ DATA_BY_DTYPE: dict[str, np.ndarray[Any, Any]] = {
     ),
 }
 
+GROUP_LABELS = GROUP_LABELS[INTERLEAVE]
+DATA_BY_DTYPE = {name: data[INTERLEAVE] for name, data in DATA_BY_DTYPE.items()}
+
 REDUCERS: dict[str, Callable[..., Any]] = {
     "np.sum": np.sum,
     "np.nansum": np.nansum,
@@ -298,8 +402,10 @@ REDUCERS: dict[str, Callable[..., Any]] = {
     "np.var": np.var,
     "np.nanvar": np.nanvar,
     "np.min": np.min,
+    "np.amin": np.amin,
     "np.nanmin": np.nanmin,
     "np.max": np.max,
+    "np.amax": np.amax,
     "np.nanmax": np.nanmax,
     "np.ptp": np.ptp,
     "np.prod": np.prod,
@@ -327,9 +433,28 @@ def _numpy_per_group(
         for label in range(int(GROUP_LABELS.max()) + 1):
             try:
                 results.append(function(data[GROUP_LABELS == label]))
-            except Exception:  # noqa: BLE001
+            except (TypeError, ValueError):  # numpy refuses this dtype
                 return None
     return np.array(results)
+
+
+# Pairs numpy accepts that deliberately take the per-group path: builtin sum
+# rounds differently from np.sum on narrow types; the rest have no kernel for
+# datetime or bool.
+PER_GROUP_BY_DESIGN: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("np.any", "datetime64[D]"),
+        ("np.all", "datetime64[D]"),
+        ("np.count_nonzero", "datetime64[D]"),
+        ("sum", "float32"),
+        ("sum", "int32"),
+        ("geomean", "bool"),
+        ("geomean", "datetime64[D]"),
+        ("harmean", "bool"),
+        ("harmean", "datetime64[D]"),
+        ("percentile(30)", "datetime64[D]"),
+    }
+)
 
 
 @pytest.mark.parametrize("dtype_name", list(DATA_BY_DTYPE))
@@ -343,7 +468,10 @@ def test_vectorized_reducer_matches_numpy(
 
     vectorized = group._vectorized_aggregation(function, data.dtype)
     if vectorized is None:
+        # no fast path: only where numpy refuses, or for a listed pair
+        assert expected is None or (reducer_name, dtype_name) in PER_GROUP_BY_DESIGN
         pytest.skip("no vectorized path for this dtype; the per-group path calls numpy")
+    assert (reducer_name, dtype_name) not in PER_GROUP_BY_DESIGN
     assert expected is not None, "a vectorized path exists where numpy refuses the input"
 
     with warnings.catch_warnings(), np.errstate(all="ignore"):
@@ -399,6 +527,47 @@ def test_variance_of_large_offset_values(accel_mode: str) -> None:
     np.testing.assert_allclose(result["x"], [1.25, 0.0], atol=1e-6)
 
 
+@pytest.mark.parametrize("dtype_name", [">u8", ">i8", ">u4", ">f8"])
+@pytest.mark.parametrize("reducer", [np.min, np.max, np.sum])
+def test_non_native_byte_order_reduces_like_numpy(
+    accel_mode: str, dtype_name: str, reducer: Callable[..., Any]
+) -> None:
+    """A big-endian column reduces to numpy's values, not to its byte-swapped bits."""
+    values = np.array([5, 3, 9, 2]).astype(dtype_name)
+    table = Tafra({"g": np.array([0, 0, 1, 1]), "v": values})
+    result = table.group_by(["g"], {"v": (reducer, "v")})
+    assert result["v"].tolist() == [reducer(values[:2]), reducer(values[2:])]
+    assert result["v"].dtype.isnative
+
+
+def test_variance_matches_numpy_on_offset_values(accel_mode: str) -> None:
+    """Grouped np.var is as accurate as numpy's two-pass result on offset data."""
+    generator = np.random.default_rng(seed=1)
+    labels = np.repeat(np.arange(300), 60)
+    values = generator.normal(size=labels.size) + 1e9
+    table = Tafra({"g": labels, "v": values})
+    result = table.group_by(["g"], {"v": (np.var, "v")})
+    expected = [np.var(values[labels == label]) for label in range(300)]
+    np.testing.assert_allclose(result["v"], expected, rtol=1e-11)
+
+
+def test_fast_path_refuses_dtypes_wider_than_64_bits() -> None:
+    """The kernels compute in 64 bits, so a wider dtype takes the per-group path."""
+    complex_kind = group._kind_in(frozenset("c"))
+    assert complex_kind(np.dtype(np.complex64))  # 8 bytes
+    assert not complex_kind(np.dtype(np.complex128))  # 16 bytes
+
+
+@pytest.mark.skipif(
+    np.dtype(np.longdouble).itemsize <= 8, reason="longdouble is float64 on this platform"
+)
+def test_longdouble_sum_keeps_its_precision(accel_mode: str) -> None:
+    values = np.array([1.0, 1e-18, 1e-18], dtype=np.longdouble)
+    table = Tafra({"g": np.array([0, 0, 0]), "v": values})
+    result = table.group_by(["g"], {"v": (np.sum, "v")})
+    assert result["v"][0] == np.sum(values)
+
+
 def test_transform_min_keeps_integer_dtype(accel_mode: str) -> None:
     table = Tafra({"g": np.array([0, 0, 1]), "x": np.array([5, 3, 9], dtype=np.int64)})
     result = table.transform(["g"], {"x": np.min})
@@ -432,18 +601,42 @@ def test_hash_join_keys_with_trailing_zero_bits(shift: int) -> None:
 def test_groupby_kernels_reject_mismatched_lengths() -> None:
     from tafra import _accel  # type: ignore[attr-defined]
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="same length"):
         _accel.groupby_sum(np.zeros(4, dtype=np.int64), np.ones(2), 1, False)
 
 
 @accel_only
-def test_groupby_kernels_reject_out_of_range_labels() -> None:
+@pytest.mark.parametrize(
+    "kernel_name",
+    [
+        "groupby_sum",
+        "groupby_sum_int64",
+        "groupby_mean",
+        "groupby_var",
+        "groupby_min",
+        "groupby_max",
+        "groupby_min_int64",
+        "groupby_max_int64",
+    ],
+)
+@pytest.mark.parametrize("bad_label", [2, 5, -1])
+def test_groupby_kernels_reject_out_of_range_labels(kernel_name: str, bad_label: int) -> None:
     from tafra import _accel  # type: ignore[attr-defined]
 
-    with pytest.raises(ValueError):
-        _accel.groupby_sum(np.array([0, 5], dtype=np.int64), np.ones(2), 2, False)
-    with pytest.raises(ValueError):
-        _accel.groupby_min(np.array([0, -1], dtype=np.int64), np.ones(2), 2, False)
+    kernel = getattr(_accel, kernel_name)
+    data = np.ones(2, dtype=np.int64 if kernel_name.endswith("_int64") else np.float64)
+    with pytest.raises(ValueError, match="group label"):
+        kernel(np.array([0, bad_label], dtype=np.int64), data, 2, False)
+
+
+@accel_only
+@pytest.mark.parametrize("entry_point", ["encode_strings", "encode_int64", "group_indices"])
+def test_key_kernels_reject_multidimensional_input(entry_point: str) -> None:
+    from tafra import _accel  # type: ignore[attr-defined]
+
+    keys = np.zeros((2, 2), dtype=object if entry_point == "encode_strings" else np.int64)
+    with pytest.raises(ValueError, match="one-dimensional"):
+        getattr(_accel, entry_point)(keys)
 
 
 @accel_only
@@ -530,6 +723,21 @@ class TestPerGroupResultDtype:
         )
         assert result["y"].dtype == object
         assert result["y"].tolist() == [4.0, None, 4.0]
+
+    def test_transform_object_result_keeps_numpy_scalars(self, accel_mode: str) -> None:
+        """An object column holds each group's result as group_by does, not cast to int."""
+        stamp = np.datetime64("2020-01-01T00:00:00.000000001", "ns")
+        table = Tafra({"g": np.array([0, 1, 0]), "x": np.array([1.0, 2.0, 3.0])})
+        aggregation = {"y": (lambda values: stamp if values[0] == 1.0 else 1.0, "x")}
+        transformed = table.transform(["g"], aggregation)
+        grouped = table.group_by(["g"], aggregation)
+        assert transformed["y"].dtype == object
+        assert transformed["y"][0] == stamp and transformed["y"][2] == stamp
+        assert grouped["y"][0] == transformed["y"][0]
+        per_row = table.transform(
+            ["g"], {"y": (lambda values: values.astype("M8[s]") if len(values) > 1 else 1.0, "x")}
+        )
+        assert per_row["y"][0] == np.datetime64(1, "s")
 
 
 # ----------------------------------------------------------------------------

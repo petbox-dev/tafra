@@ -2,6 +2,28 @@
 
 ## 2.4.0
 
+* **Feature**: Wheels for Python 3.14 and 3.15, including the free-threaded
+  (no-GIL) builds `cp314t` and `cp315t`. The C extension declares that it
+  runs without the GIL, so importing it does not re-enable the GIL on a
+  free-threaded interpreter. Its hash-table build reads each key once and
+  caches its slot, so a thread that writes a key column during a join cannot
+  make the build write past its buffer; this also removes a table-sized
+  scratch buffer (16.8 MB for a 1M-row right side). CI tests all eight
+  interpreters (3.10 to 3.15, plus 3.14t and 3.15t) and fails if the C
+  extension did not build, and new tests run `group_by`, `transform` and
+  joins on one shared `Tafra` from several threads. A new
+  [Thread Safety](guide/thread-safety.md) guide states which concurrent
+  operations are safe.
+* **Fix**: A callable that Python allocated at the address of a freed
+  `percentile(q)` object was routed to that percentile's vectorized fast
+  path, so `group_by` and `transform` silently returned percentiles in place
+  of the callable's result. `percentile` objects now carry their own fast
+  path and are no longer registered by `id()`, which also removes a registry
+  entry that leaked for each `percentile` call.
+* **Fix**: `group_by`, `transform` and `iterate_by` raised `IndexError` when
+  the key columns were given as a generator. A generator now works, and an
+  empty list of key columns raises `ValueError` in these and in `partition`.
+* **Removed**: `AggMethod.result_factory`, which nothing in tafra called.
 * **Fix**: An equi-join on a float key column cast the key to `int64` before
   the C hash join, so `1.2` matched `1.7`, and `1e19`, `inf` and `-inf`
   matched one another. A multi-column key with a float column was wrong on
@@ -14,7 +36,8 @@
   `MemoryError`, and two wide integer key columns raised `Composite key space
   overflow`. Every key dtype that numpy compares with `==` now works, and a
   wide key range is re-encoded to dense codes. In `group_by`, all NaN keys
-  form one group and all NaT keys form one group, as in `np.unique`.
+  of a float column form one group and all NaT keys form one group, as in
+  `np.unique`.
 * **Fix**: A multi-column key with a pre-epoch `datetime64` or a negative
   `timedelta64` produced colliding keys and joined the wrong rows.
 * **Fix**: `np.nansum`, `np.nanmean`, `np.nanstd`, `np.nanvar` and
@@ -40,8 +63,10 @@
 * **Fix**: An equi left join put left rows with a NULL key (NaN, NaT,
   `None`) at the end of the result. They now keep their left-table position.
 * **Fix**: The pure-Python `np.var` / `np.std` fast path used
-  `E[x^2] - E[x]^2`, which returned 2.0 for three equal values near 1e8. It
-  now subtracts the group mean first.
+  `E[x^2] - E[x]^2`, which returned 2.0 for three values of 1e8 + 0.1. It
+  now subtracts the group mean first. The C kernel used Welford's one-pass
+  update, with a relative error near 1e-7 on values offset by 1e9 (numpy:
+  near 1e-13); it is now two-pass as well.
 * **Fix**: The C extension now raises `ValueError` for group labels outside
   `[0, n_groups)`, for labels and data of different lengths, and for
   multi-dimensional input, in place of reading or writing out of bounds.
@@ -52,33 +77,14 @@
   The tables now use the high bits (Fibonacci hashing).
 * **Perf**: Exact C kernels for integer sum, min and max. Object and string
   keys use the C encoder at every size, in place of below 50,000 rows only.
-  For `object` and `StringDType` keys it was 2.4x to 14x faster than the dict
-  codebook and `np.unique` at every size measured (10 to 49,999 rows); for
-  `<U` keys it ranged from 1.5x slower to 3.8x faster than `np.unique`.
-* **Perf**: The C extension releases the GIL in its hashing, join and
-  aggregation loops: four threads ran four 2M x 2M joins 2.5x faster than one
+  For `object` and `StringDType` keys it is several times faster than the
+  dict codebook and `np.unique` at the sizes measured (10 to 49,999 rows);
+  for `<U` keys it ranges from somewhat slower to a few times faster than
+  `np.unique`, depending on the number of distinct keys.
+* **Perf**: The C extension releases the GIL in its integer hashing, join
+  and aggregation loops (string and `object` key encoding hashes Python
+  objects and keeps it): four threads ran four 2M x 2M joins 2.5x faster than one
   thread on a standard interpreter.
-* **Fix**: On a free-threaded build, a thread that wrote a key column during
-  a join could make the hash-table build write past its buffer. The build
-  now reads each key once and caches its slot, which also removes a
-  table-sized scratch buffer (16.8 MB for a 1M-row right side).
-
-## 2.3.0
-
-* **Feature**: Wheels for Python 3.14 and 3.15, including the free-threaded
-  (no-GIL) builds `cp314t` and `cp315t`. The C extension declares that it
-  runs without the GIL, so importing it no longer re-enables the GIL on a
-  free-threaded interpreter. CI tests all eight interpreters (3.10 to 3.15,
-  plus 3.14t and 3.15t), and a new test runs `group_by` and joins on one
-  shared `Tafra` from several threads. A new
-  [Thread Safety](guide/thread-safety.md) guide states which concurrent
-  operations are safe.
-* **Fix**: A callable that Python allocated at the address of a freed
-  `percentile(q)` object was routed to that percentile's vectorized fast
-  path, so `group_by` and `transform` silently returned percentiles in place
-  of the callable's result. `percentile` objects now carry their own fast
-  path and are no longer registered by `id()`, which also removes a registry
-  entry that leaked for each `percentile` call.
 
 ## 2.2.5
 

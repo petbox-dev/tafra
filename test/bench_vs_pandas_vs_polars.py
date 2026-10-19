@@ -45,18 +45,14 @@ def median_of(fn, n=7):
 def _disable_accel():
     """Temporarily disable C acceleration."""
     saved = _grp._HAS_ACCEL
+    # every vectorized aggregation reads _HAS_ACCEL when it is called
     _grp._HAS_ACCEL = False
-    # re-register vectorized aggs with Python fallbacks
-    _grp._VECTORIZED_AGGS.clear()
-    _grp._register_vectorized()
     return saved
 
 
 def _restore_accel(saved):
     """Restore C acceleration state."""
     _grp._HAS_ACCEL = saved
-    _grp._VECTORIZED_AGGS.clear()
-    _grp._register_vectorized()
 
 
 def _tafra_time(fn):

@@ -69,6 +69,14 @@ malloc_nonzero(size_t byte_count)
 }
 
 
+/* calloc with the same guard: never asks for 0 elements. */
+static void *
+calloc_nonzero(size_t element_count, size_t element_size)
+{
+    return calloc(element_count ? element_count : 1, element_size);
+}
+
+
 /* Coerce to a contiguous one-dimensional array of the given type.
  * Caller must Py_DECREF. */
 static PyArrayObject *
@@ -86,27 +94,28 @@ as_contiguous_vector(PyObject *obj, int typenum)
 
 
 /* ================================================================
- * GroupBy aggregations: single pass over (labels, data)
+ * GroupBy aggregations over (labels, data); one pass, two for variance
  *
  * All groupby functions take:
  *   labels:      int64 array of group indices in [0, group_count)
  *   data:        float64 array of values (int64 for the *_int64 kernels),
  *                the same length as labels
  *   group_count: number of groups
- *   skip_nan:    optional bool; True ignores NaN (np.nansum and friends).
- *                A group with no non-NaN value gives NaN (0 for sum).
- *                For groupby_min_int64 / groupby_max_int64 the same slot
- *                is unsigned_values: compare the data as uint64.
+ *   option_flag: optional bool, read per kernel as
+ *                skip_nan (float kernels): True ignores NaN (np.nansum and
+ *                friends); a group with no non-NaN value gives NaN (0 for sum);
+ *                unsigned_values (groupby_min_int64 / groupby_max_int64):
+ *                compare the data as uint64. groupby_sum_int64 ignores it.
  * ================================================================ */
 
 typedef struct {
     PyArrayObject *labels_array;
-    PyArrayObject *data_array;      /* NULL for groupby_count */
+    PyArrayObject *data_array;
     const npy_int64 *labels;
     const void *data;
     npy_intp row_count;
     npy_intp group_count;
-    int skip_nan;
+    int option_flag;    /* skip_nan or unsigned_values; see above */
 } GroupbyInput;
 
 
@@ -118,23 +127,18 @@ release_groupby_input(GroupbyInput *input)
 }
 
 
-/* Parse (labels, data, group_count[, skip_nan]), or (labels, group_count)
- * when data_typenum < 0. Returns 0, or -1 with an exception set. */
+/* Parse (labels, data, group_count[, option_flag]). Returns 0, or -1 with
+ * an exception set. */
 static int
 parse_groupby_input(PyObject *args, int data_typenum, GroupbyInput *input)
 {
     PyObject *labels_obj = NULL, *data_obj = NULL;
     Py_ssize_t group_count = 0;
-    int skip_nan = 0;
+    int option_flag = 0;
 
     memset(input, 0, sizeof(*input));
-    if (data_typenum < 0) {
-        if (!PyArg_ParseTuple(args, "On", &labels_obj, &group_count))
-            return -1;
-    } else {
-        if (!PyArg_ParseTuple(args, "OOn|p", &labels_obj, &data_obj, &group_count, &skip_nan))
-            return -1;
-    }
+    if (!PyArg_ParseTuple(args, "OOn|p", &labels_obj, &data_obj, &group_count, &option_flag))
+        return -1;
     if (group_count < 0) {
         PyErr_SetString(PyExc_ValueError, "group_count must be non-negative");
         return -1;
@@ -145,18 +149,16 @@ parse_groupby_input(PyObject *args, int data_typenum, GroupbyInput *input)
     input->row_count = PyArray_SIZE(input->labels_array);
     input->labels = (const npy_int64 *)PyArray_DATA(input->labels_array);
 
-    if (data_typenum >= 0) {
-        input->data_array = as_contiguous_vector(data_obj, data_typenum);
-        if (!input->data_array) { release_groupby_input(input); return -1; }
-        if (PyArray_SIZE(input->data_array) != input->row_count) {
-            PyErr_SetString(PyExc_ValueError, "labels and data must have the same length");
-            release_groupby_input(input);
-            return -1;
-        }
-        input->data = PyArray_DATA(input->data_array);
+    input->data_array = as_contiguous_vector(data_obj, data_typenum);
+    if (!input->data_array) { release_groupby_input(input); return -1; }
+    if (PyArray_SIZE(input->data_array) != input->row_count) {
+        PyErr_SetString(PyExc_ValueError, "labels and data must have the same length");
+        release_groupby_input(input);
+        return -1;
     }
+    input->data = PyArray_DATA(input->data_array);
     input->group_count = (npy_intp)group_count;
-    input->skip_nan = skip_nan;
+    input->option_flag = option_flag;
     return 0;
 }
 
@@ -194,7 +196,7 @@ accel_groupby_sum(PyObject *self, PyObject *args)
         npy_int64 group = labels[i];
         if (LABEL_OUT_OF_RANGE(group, input.group_count)) { invalid_label = 1; break; }
         npy_float64 value = data[i];
-        if (!input.skip_nan || value == value)
+        if (!input.option_flag || value == value)
             result[group] += value;
     }
     Py_END_ALLOW_THREADS
@@ -238,34 +240,6 @@ accel_groupby_sum_int64(PyObject *self, PyObject *args)
 
 
 static PyObject *
-accel_groupby_count(PyObject *self, PyObject *args)
-{
-    GroupbyInput input;
-    if (parse_groupby_input(args, -1, &input) < 0) return NULL;
-
-    npy_intp dims[1] = {input.group_count};
-    PyArrayObject *out = (PyArrayObject *)PyArray_ZEROS(1, dims, NPY_INT64, 0);
-    if (!out) { release_groupby_input(&input); return NULL; }
-
-    const npy_int64 *labels = input.labels;
-    npy_int64 *result = (npy_int64 *)PyArray_DATA(out);
-    int invalid_label = 0;
-
-    Py_BEGIN_ALLOW_THREADS
-    for (npy_intp i = 0; i < input.row_count; i++) {
-        npy_int64 group = labels[i];
-        if (LABEL_OUT_OF_RANGE(group, input.group_count)) { invalid_label = 1; break; }
-        result[group]++;
-    }
-    Py_END_ALLOW_THREADS
-
-    release_groupby_input(&input);
-    if (invalid_label) { Py_DECREF(out); return raise_label_out_of_range(); }
-    return (PyObject *)out;
-}
-
-
-static PyObject *
 accel_groupby_mean(PyObject *self, PyObject *args)
 {
     GroupbyInput input;
@@ -291,7 +265,7 @@ accel_groupby_mean(PyObject *self, PyObject *args)
         npy_int64 group = labels[i];
         if (LABEL_OUT_OF_RANGE(group, input.group_count)) { invalid_label = 1; break; }
         npy_float64 value = data[i];
-        if (input.skip_nan && value != value) continue;
+        if (input.option_flag && value != value) continue;
         sum[group] += value;
         count[group]++;
     }
@@ -306,7 +280,7 @@ accel_groupby_mean(PyObject *self, PyObject *args)
 }
 
 
-/* Welford's online algorithm for numerically stable population variance */
+/* Grouped population variance, two-pass as numpy computes it */
 static PyObject *
 accel_groupby_var(PyObject *self, PyObject *args)
 {
@@ -316,9 +290,9 @@ accel_groupby_var(PyObject *self, PyObject *args)
     npy_intp dims[1] = {input.group_count};
     PyArrayObject *counts = (PyArrayObject *)PyArray_ZEROS(1, dims, NPY_INT64, 0);
     PyArrayObject *means = (PyArrayObject *)PyArray_ZEROS(1, dims, NPY_FLOAT64, 0);
-    PyArrayObject *squared_deviations = (PyArrayObject *)PyArray_ZEROS(1, dims, NPY_FLOAT64, 0);
-    if (!counts || !means || !squared_deviations) {
-        Py_XDECREF(counts); Py_XDECREF(means); Py_XDECREF(squared_deviations);
+    PyArrayObject *variances = (PyArrayObject *)PyArray_ZEROS(1, dims, NPY_FLOAT64, 0);
+    if (!counts || !means || !variances) {
+        Py_XDECREF(counts); Py_XDECREF(means); Py_XDECREF(variances);
         release_groupby_input(&input);
         return NULL;
     }
@@ -327,30 +301,44 @@ accel_groupby_var(PyObject *self, PyObject *args)
     const npy_float64 *data = (const npy_float64 *)input.data;
     npy_int64 *count = (npy_int64 *)PyArray_DATA(counts);
     npy_float64 *mean = (npy_float64 *)PyArray_DATA(means);
-    npy_float64 *m2 = (npy_float64 *)PyArray_DATA(squared_deviations);  /* Welford M2 */
+    npy_float64 *variance = (npy_float64 *)PyArray_DATA(variances);
     int invalid_label = 0;
 
+    /* Two passes, as numpy: the group mean first, then the mean squared
+     * deviation from it. A one-pass update (Welford) loses about 1e-7 of
+     * relative accuracy on values offset by 1e9; this matches numpy. */
     Py_BEGIN_ALLOW_THREADS
     for (npy_intp i = 0; i < input.row_count; i++) {
         npy_int64 group = labels[i];
         if (LABEL_OUT_OF_RANGE(group, input.group_count)) { invalid_label = 1; break; }
         npy_float64 value = data[i];
-        if (input.skip_nan && value != value) continue;
+        if (input.option_flag && value != value) continue;
         count[group]++;
-        npy_float64 delta = value - mean[group];
-        mean[group] += delta / (npy_float64)count[group];
-        m2[group] += delta * (value - mean[group]);
+        mean[group] += value;  /* the sum, until divided below */
     }
-    /* Convert M2 to population variance, reusing the means array for output */
-    for (npy_intp group = 0; group < input.group_count; group++)
-        mean[group] = count[group] > 0 ? m2[group] / (npy_float64)count[group] : NPY_NAN;
+    if (!invalid_label) {
+        for (npy_intp group = 0; group < input.group_count; group++)
+            mean[group] = count[group] > 0 ? mean[group] / (npy_float64)count[group] : NPY_NAN;
+        for (npy_intp i = 0; i < input.row_count; i++) {
+            /* read each label once and check it again: the array may be
+             * shared with a thread that writes it between the passes */
+            npy_int64 group = labels[i];
+            if (LABEL_OUT_OF_RANGE(group, input.group_count)) { invalid_label = 1; break; }
+            npy_float64 value = data[i];
+            if (input.option_flag && value != value) continue;
+            npy_float64 deviation = value - mean[group];
+            variance[group] += deviation * deviation;
+        }
+        for (npy_intp group = 0; group < input.group_count; group++)
+            variance[group] = count[group] > 0 ? variance[group] / (npy_float64)count[group] : NPY_NAN;
+    }
     Py_END_ALLOW_THREADS
 
     Py_DECREF(counts);
-    Py_DECREF(squared_deviations);
+    Py_DECREF(means);
     release_groupby_input(&input);
-    if (invalid_label) { Py_DECREF(means); return raise_label_out_of_range(); }
-    return (PyObject *)means;
+    if (invalid_label) { Py_DECREF(variances); return raise_label_out_of_range(); }
+    return (PyObject *)variances;
 }
 
 
@@ -370,7 +358,7 @@ groupby_extreme(PyObject *args, int want_maximum)
     const npy_int64 *labels = input.labels;
     const npy_float64 *data = (const npy_float64 *)input.data;
     npy_float64 *result = (npy_float64 *)PyArray_DATA(out);
-    const int skip_nan = input.skip_nan;
+    const int skip_nan = input.option_flag;
     int invalid_label = 0;
 
     Py_BEGIN_ALLOW_THREADS
@@ -411,8 +399,7 @@ groupby_integer_extreme(PyObject *args, int want_maximum)
 {
     GroupbyInput input;
     if (parse_groupby_input(args, NPY_INT64, &input) < 0) return NULL;
-    /* the optional fourth argument means unsigned_values here */
-    const int unsigned_values = input.skip_nan;
+    const int unsigned_values = input.option_flag;
 
     npy_intp dims[1] = {input.group_count};
     PyArrayObject *out = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INT64);
@@ -627,8 +614,7 @@ accel_encode_strings(PyObject *self, PyObject *args)
     if (!PyArg_ParseTuple(args, "O", &arr_obj))
         return NULL;
 
-    PyArrayObject *arr = (PyArrayObject *)PyArray_FROM_OTF(
-        arr_obj, NPY_OBJECT, NPY_ARRAY_C_CONTIGUOUS);
+    PyArrayObject *arr = as_contiguous_vector(arr_obj, NPY_OBJECT);
     if (!arr) return NULL;
 
     npy_intp row_count = PyArray_SIZE(arr);
@@ -788,7 +774,7 @@ accel_group_indices(PyObject *self, PyObject *args)
     /* group_count <= row_count, so per-group buffers sized by rows never grow */
     npy_int64 *labels = (npy_int64 *)malloc_nonzero(row_count * sizeof(npy_int64));
     npy_intp *first_seen = (npy_intp *)malloc_nonzero(row_count * sizeof(npy_intp));
-    npy_intp *group_sizes = (npy_intp *)calloc(row_count ? row_count : 1, sizeof(npy_intp));
+    npy_intp *group_sizes = (npy_intp *)calloc_nonzero(row_count, sizeof(npy_intp));
     npy_intp **group_data = NULL;
     PyObject *group_list = NULL;
     if (!table || !labels || !first_seen || !group_sizes) {
@@ -814,6 +800,8 @@ accel_group_indices(PyObject *self, PyObject *args)
         npy_intp dims[1] = {group_sizes[group]};
         PyArrayObject *rows = (PyArrayObject *)PyArray_EMPTY(1, dims, NPY_INTP, 0);
         if (!rows) goto error;
+        /* group_list owns rows (and keeps it alive until return or error),
+         * so this interior pointer stays valid for the scatter below */
         group_data[group] = (npy_intp *)PyArray_DATA(rows);
         PyList_SET_ITEM(group_list, group, (PyObject *)rows);
     }
@@ -941,7 +929,8 @@ build_csr_hash_table(const npy_int64 *right, npy_intp right_count, CSRHashTable 
 
 /* Probe pass: cache each left key's slot (-1 if absent) and return the
  * number of output rows. An unmatched left row counts as one output row
- * when keep_unmatched is set (left join). Pure C, no GIL. */
+ * when keep_unmatched is set (left join). Returns -1 when the count does
+ * not fit in npy_intp. Pure C, no GIL. */
 static npy_intp
 probe_csr_hash_table(const CSRHashTable *table, const npy_int64 *left, npy_intp left_count,
                      npy_intp *slots, int keep_unmatched, int *has_unmatched)
@@ -956,11 +945,16 @@ probe_csr_hash_table(const CSRHashTable *table, const npy_int64 *left, npy_intp 
             slot = (slot + 1) & geometry.mask;
         if (entries[slot].count > 0) {
             slots[i] = slot;
+            /* a many-to-many join can exceed npy_intp (32 bits on win32) */
+            if (entries[slot].count > NPY_MAX_INTP - total) return -1;
             total += entries[slot].count;
         } else {
             slots[i] = -1;
             *has_unmatched = 1;
-            if (keep_unmatched) total++;
+            if (keep_unmatched) {
+                if (total == NPY_MAX_INTP) return -1;
+                total++;
+            }
         }
     }
     return total;
@@ -1029,6 +1023,10 @@ hash_join(PyObject *args, int keep_unmatched)
     Py_BEGIN_ALLOW_THREADS
     total = probe_csr_hash_table(&table, left, left_count, slots, keep_unmatched, &has_unmatched);
     Py_END_ALLOW_THREADS
+    if (total < 0) {
+        PyErr_SetString(PyExc_MemoryError, "join result has more rows than an array can index");
+        goto cleanup;
+    }
 
     npy_intp dims[1] = {total};
     left_indices_array = (PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_INTP);
@@ -1078,23 +1076,21 @@ accel_left_join(PyObject *self, PyObject *args)
 
 static PyMethodDef AccelMethods[] = {
     {"groupby_sum", accel_groupby_sum, METH_VARARGS,
-     "Grouped float sum: groupby_sum(labels, data, group_count, skip_nan=False)"},
+     "Grouped float sum: groupby_sum(labels, data, group_count, [skip_nan])"},
     {"groupby_sum_int64", accel_groupby_sum_int64, METH_VARARGS,
      "Grouped exact int64 sum, wrapping like numpy: groupby_sum_int64(labels, data, group_count)"},
-    {"groupby_count", accel_groupby_count, METH_VARARGS,
-     "Grouped count: groupby_count(labels, group_count)"},
     {"groupby_mean", accel_groupby_mean, METH_VARARGS,
-     "Grouped mean: groupby_mean(labels, data, group_count, skip_nan=False)"},
+     "Grouped mean: groupby_mean(labels, data, group_count, [skip_nan])"},
     {"groupby_var", accel_groupby_var, METH_VARARGS,
-     "Grouped population variance (Welford): groupby_var(labels, data, group_count, skip_nan=False)"},
+     "Grouped population variance (two-pass): groupby_var(labels, data, group_count, [skip_nan])"},
     {"groupby_min", accel_groupby_min, METH_VARARGS,
-     "Grouped min, NaN as numpy: groupby_min(labels, data, group_count, skip_nan=False)"},
+     "Grouped min, NaN as numpy: groupby_min(labels, data, group_count, [skip_nan])"},
     {"groupby_max", accel_groupby_max, METH_VARARGS,
-     "Grouped max, NaN as numpy: groupby_max(labels, data, group_count, skip_nan=False)"},
+     "Grouped max, NaN as numpy: groupby_max(labels, data, group_count, [skip_nan])"},
     {"groupby_min_int64", accel_groupby_min_int64, METH_VARARGS,
-     "Grouped exact integer min: groupby_min_int64(labels, data, group_count, unsigned_values=False)"},
+     "Grouped exact integer min: groupby_min_int64(labels, data, group_count, [unsigned_values])"},
     {"groupby_max_int64", accel_groupby_max_int64, METH_VARARGS,
-     "Grouped exact integer max: groupby_max_int64(labels, data, group_count, unsigned_values=False)"},
+     "Grouped exact integer max: groupby_max_int64(labels, data, group_count, [unsigned_values])"},
     {"composite_key", accel_composite_key, METH_VARARGS,
      "Positional encoding: composite_key(arrays, cardinalities) -> int64 key"},
     {"encode_strings", accel_encode_strings, METH_VARARGS,
@@ -1128,7 +1124,10 @@ PyInit__accel(void)
     /* No module-level mutable state: every buffer is allocated per call,
      * and each input key is read once, so a concurrent writer cannot
      * corrupt a table. */
-    PyUnstable_Module_SetGIL(module, Py_MOD_GIL_NOT_USED);
+    if (PyUnstable_Module_SetGIL(module, Py_MOD_GIL_NOT_USED) < 0) {
+        Py_DECREF(module);
+        return NULL;
+    }
 #endif
     return module;
 }
