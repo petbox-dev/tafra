@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -27,7 +27,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -617,6 +617,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/thread-safety/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Thread Safety
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -916,6 +944,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#230" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3.0
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#225" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1170,6 +1209,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#230" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3.0
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#225" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1410,6 +1460,99 @@
 
 
 <h1 id="version-history">Version History</h1>
+<h2 id="230">2.3.0</h2>
+<ul>
+<li><strong>Feature</strong>: Wheels for Python 3.14 and 3.15, including the free-threaded
+  (no-GIL) builds <code>cp314t</code> and <code>cp315t</code>. The C extension declares that it
+  runs without the GIL, so importing it does not re-enable the GIL on a
+  free-threaded interpreter. Its hash-table build reads each key once and
+  caches its slot, so a thread that writes a key column during a join cannot
+  make the build write past its buffer; this also removes a table-sized
+  scratch buffer (16.8 MB for a 1M-row right side). CI tests all eight
+  interpreters (3.10 to 3.15, plus 3.14t and 3.15t) and fails if the C
+  extension did not build, and new tests run <code>group_by</code>, <code>transform</code> and
+  joins on one shared <code>Tafra</code> from several threads. A new
+  <a href="../guide/thread-safety/">Thread Safety</a> guide states which concurrent
+  operations are safe.</li>
+<li><strong>Fix</strong>: A callable that Python allocated at the address of a freed
+  <code>percentile(q)</code> object was routed to that percentile's vectorized fast
+  path, so <code>group_by</code> and <code>transform</code> silently returned percentiles in place
+  of the callable's result. <code>percentile</code> objects now carry their own fast
+  path and are no longer registered by <code>id()</code>, which also removes a registry
+  entry that leaked for each <code>percentile</code> call.</li>
+<li><strong>Fix</strong>: <code>group_by</code>, <code>transform</code> and <code>iterate_by</code> raised <code>IndexError</code> when
+  the key columns were given as a generator. A generator now works, and an
+  empty list of key columns raises <code>ValueError</code> in these and in <code>partition</code>.</li>
+<li><strong>Removed</strong>: <code>AggMethod.result_factory</code>, which nothing in tafra called.</li>
+<li><strong>Fix</strong>: An equi-join on a float key column cast the key to <code>int64</code> before
+  the C hash join, so <code>1.2</code> matched <code>1.7</code>, and <code>1e19</code>, <code>inf</code> and <code>-inf</code>
+  matched one another. A multi-column key with a float column was wrong on
+  both the C and the pure-Python paths. Float keys now match by value, and
+  <code>-0.0</code> matches <code>0.0</code>.</li>
+<li><strong>Fix</strong>: <code>group_by</code>, <code>transform</code> and <code>iterate_by</code> raised on key columns of
+  float, <code>bool</code>, <code>datetime64</code> with a unit other than <code>ns</code>, <code>uint64</code> above the
+  <code>int64</code> range, and <code>StringDType</code> holding <code>None</code> (below 50,000 rows). Integer
+  IDs with a wide range (for example 14-digit well numbers) raised
+  <code>MemoryError</code>, and two wide integer key columns raised <code>Composite key space
+  overflow</code>. Every key dtype that numpy compares with <code>==</code> now works, and a
+  wide key range is re-encoded to dense codes. In <code>group_by</code>, all NaN keys
+  of a float column form one group and all NaT keys form one group, as in
+  <code>np.unique</code>.</li>
+<li><strong>Fix</strong>: A multi-column key with a pre-epoch <code>datetime64</code> or a negative
+  <code>timedelta64</code> produced colliding keys and joined the wrong rows.</li>
+<li><strong>Fix</strong>: <code>np.nansum</code>, <code>np.nanmean</code>, <code>np.nanstd</code>, <code>np.nanvar</code> and
+  <code>np.nanprod</code> used the NaN-propagating fast path and returned NaN.
+  <code>np.median</code> and <code>np.nanmedian</code> picked the middle of a sorted group with its
+  NaN values still in it, so <code>[1, nan, 4]</code> gave 4. With the C extension,
+  <code>np.min</code> / <code>np.max</code> skipped NaN, and returned <code>inf</code> for an all-NaN group.
+  The fast path now gives numpy's NaN result for every registered function.</li>
+<li><strong>Fix</strong>: With the C extension, <code>np.sum</code>, <code>np.min</code> and <code>np.max</code> converted the
+  column to <code>float64</code>: an <code>int64</code> sum lost precision above 2**53, and <code>np.min</code>
+  of an <code>int64</code>, <code>bool</code> or <code>datetime64</code> column returned <code>float64</code>. Results now
+  have numpy's dtype (exact <code>int64</code> / <code>uint64</code> sums, <code>datetime64</code> minimums,
+  <code>float32</code> stays <code>float32</code>). A reducer on a dtype numpy refuses (for
+  example <code>np.mean</code> of strings) takes the per-group path and raises numpy's
+  error.</li>
+<li><strong>Fix</strong>: The per-group loop (custom functions, and registered functions on
+  a dtype the fast path does not take) stored each result in the input
+  column's dtype: a mean of an <code>int64</code> column was truncated to <code>int64</code>,
+  <code>np.any</code> of a string column gave the strings <code>'True'</code>, and a string result
+  was cut to the input's <code>&lt;U</code> width. The result column now takes numpy's
+  promoted dtype of the per-group results (<code>object</code> when they share none),
+  in <code>group_by</code> and <code>transform</code>.</li>
+<li><strong>Fix</strong>: An equi left join put left rows with a NULL key (NaN, NaT,
+  <code>None</code>) at the end of the result. They now keep their left-table position.</li>
+<li><strong>Fix</strong>: A join with a non-<code>==</code> operator judged NULL keys before unit
+  promotion, so a <code>datetime64[s]</code> key that becomes NaT in <code>ns</code> matched under
+  <code>!=</code>. NULL is now judged on the promoted values for every operator, as the
+  <code>==</code> join already did.</li>
+<li><strong>Fix</strong>: <code>coalesce</code> into a new numeric column returned uninitialized memory:
+  the column was allocated empty and only <code>None</code> or NaN slots were filled. A
+  new column now starts as the first fill, as SQL <code>COALESCE</code>.</li>
+<li><strong>Fix</strong>: The pure-Python <code>np.var</code> / <code>np.std</code> fast path used
+  <code>E[x^2] - E[x]^2</code>, which returned 2.0 for three values of 1e8 + 0.1. It
+  now subtracts the group mean first. The C kernel used Welford's one-pass
+  update, with a relative error near 1e-7 on values offset by 1e9 (numpy:
+  near 1e-13); it is now two-pass as well.</li>
+<li><strong>Fix</strong>: The C extension now raises <code>ValueError</code> for group labels outside
+  <code>[0, n_groups)</code>, for labels and data of different lengths, and for
+  multi-dimensional input, in place of reading or writing out of bounds.</li>
+<li><strong>Perf</strong>: The C hash tables used the low bits of <code>key * GOLDEN_HASH</code>, so
+  keys with trailing zero bits (<code>datetime64[ns]</code> dates, IDs with a
+  power-of-two step) collided in a few slots. A join on 200,000
+  <code>datetime64[ns]</code> daily keys took 4.6 to 10 s; it now takes 66 to 103 ms.
+  The tables now use the high bits (Fibonacci hashing).</li>
+<li><strong>Perf</strong>: Exact C kernels for integer sum, min and max. Object and string
+  keys use the C encoder at every size, in place of below 50,000 rows only.
+  For <code>object</code> and <code>StringDType</code> keys it is several times faster than the
+  dict codebook and <code>np.unique</code> at the sizes measured (10 to 49,999 rows);
+  for <code>&lt;U</code> keys it ranges from somewhat slower to a few times faster than
+  <code>np.unique</code>, depending on the number of distinct keys.</li>
+<li><strong>Perf</strong>: The C extension releases the GIL in its integer hashing, join
+  and aggregation loops (string and <code>object</code> key encoding hashes Python
+  objects and keeps it): four threads ran four 2M x 2M joins 2.5x faster than one
+  thread on a standard interpreter.</li>
+</ul>
 <h2 id="225">2.2.5</h2>
 <ul>
 <li><strong>Fix</strong>: Join and <code>group_by</code> on <code>object</code>-dtype key columns containing mixed
@@ -1705,7 +1848,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
         <script src="../javascripts/api-highlight.js"></script>
       

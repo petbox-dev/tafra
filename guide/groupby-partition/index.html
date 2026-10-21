@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -729,6 +729,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#key-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Columns
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#transform" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -880,6 +891,34 @@
     
   
     Chunking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../thread-safety/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Thread Safety
   
 
     
@@ -1301,6 +1340,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#key-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Columns
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#transform" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1443,44 +1493,44 @@ one row per group. This is analogous to SQL <code>GROUP BY</code>, <strong>not</
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tafra</span><span class="w"> </span><span class="kn">import</span> <span class="n">Tafra</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">t</span> <span class="o">=</span> <span class="n">Tafra</span><span class="p">({</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="s1">&#39;region&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="s1">&#39;east&#39;</span><span class="p">,</span> <span class="s1">&#39;east&#39;</span><span class="p">,</span> <span class="s1">&#39;west&#39;</span><span class="p">,</span> <span class="s1">&#39;west&#39;</span><span class="p">,</span> <span class="s1">&#39;west&#39;</span><span class="p">]),</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="s1">&#39;product&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="s1">&#39;B&#39;</span><span class="p">]),</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="s1">&#39;sales&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">100</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="mi">150</span><span class="p">,</span> <span class="mi">175</span><span class="p">,</span> <span class="mi">250</span><span class="p">]),</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="s1">&#39;cost&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">50</span><span class="p">,</span> <span class="mi">120</span><span class="p">,</span> <span class="mi">80</span><span class="p">,</span> <span class="mi">90</span><span class="p">,</span> <span class="mi">130</span><span class="p">]),</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="s1">'region'</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="s1">'east'</span><span class="p">,</span> <span class="s1">'east'</span><span class="p">,</span> <span class="s1">'west'</span><span class="p">,</span> <span class="s1">'west'</span><span class="p">,</span> <span class="s1">'west'</span><span class="p">]),</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="s1">'product'</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="s1">'A'</span><span class="p">,</span> <span class="s1">'B'</span><span class="p">,</span> <span class="s1">'A'</span><span class="p">,</span> <span class="s1">'A'</span><span class="p">,</span> <span class="s1">'B'</span><span class="p">]),</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="s1">'sales'</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">100</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="mi">150</span><span class="p">,</span> <span class="mi">175</span><span class="p">,</span> <span class="mi">250</span><span class="p">]),</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="s1">'cost'</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">50</span><span class="p">,</span> <span class="mi">120</span><span class="p">,</span> <span class="mi">80</span><span class="p">,</span> <span class="mi">90</span><span class="p">,</span> <span class="mi">130</span><span class="p">]),</span>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">})</span>
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c1"># Group by region, sum sales, and mean cost</span>
 <a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="n">result</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="p">[</span><span class="s1">&#39;region&#39;</span><span class="p">],</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="p">[</span><span class="s1">'region'</span><span class="p">],</span>
 <a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="p">{</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>        <span class="s1">&#39;sales&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">,</span>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>        <span class="s1">&#39;cost&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">,</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>        <span class="s1">'sales'</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">,</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>        <span class="s1">'cost'</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">,</span>
 <a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="p">},</span>
 <a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="p">)</span>
 </code></pre></div>
 <details class="example" open="open">
 <summary>Output</summary>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>region   sales   cost
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>&#39;east&#39;   300     85.0
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>&#39;west&#39;   575     100.0
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>'east'   300     85.0
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>'west'   575     100.0
 </code></pre></div>
 </details>
 <h3 id="renaming-output-columns">Renaming output columns</h3>
 <p>Use the <code>(function, source_column)</code> tuple form to create new column names:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="p">[</span><span class="s1">&#39;region&#39;</span><span class="p">],</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="p">[</span><span class="s1">'region'</span><span class="p">],</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="p">{</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>        <span class="s1">&#39;total_sales&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">,</span> <span class="s1">&#39;sales&#39;</span><span class="p">),</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>        <span class="s1">&#39;avg_cost&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">,</span> <span class="s1">&#39;cost&#39;</span><span class="p">),</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>        <span class="s1">&#39;n_rows&#39;</span><span class="p">:</span> <span class="p">(</span><span class="nb">len</span><span class="p">,</span> <span class="s1">&#39;sales&#39;</span><span class="p">),</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>        <span class="s1">'total_sales'</span><span class="p">:</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">,</span> <span class="s1">'sales'</span><span class="p">),</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>        <span class="s1">'avg_cost'</span><span class="p">:</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">,</span> <span class="s1">'cost'</span><span class="p">),</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>        <span class="s1">'n_rows'</span><span class="p">:</span> <span class="p">(</span><span class="nb">len</span><span class="p">,</span> <span class="s1">'sales'</span><span class="p">),</span>
 <a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="p">},</span>
 <a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="p">)</span>
 </code></pre></div>
 <h3 id="multiple-group-columns">Multiple group columns</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="p">[</span><span class="s1">&#39;region&#39;</span><span class="p">,</span> <span class="s1">&#39;product&#39;</span><span class="p">],</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="p">[</span><span class="s1">'region'</span><span class="p">,</span> <span class="s1">'product'</span><span class="p">],</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="p">{</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>        <span class="s1">&#39;total_sales&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">,</span> <span class="s1">&#39;sales&#39;</span><span class="p">),</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>        <span class="s1">'total_sales'</span><span class="p">:</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">,</span> <span class="s1">'sales'</span><span class="p">),</span>
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="p">},</span>
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="p">)</span>
 </code></pre></div>
@@ -1559,24 +1609,24 @@ below):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tafra.group</span><span class="w"> </span><span class="kn">import</span> <span class="n">percentile</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">result</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="p">[</span><span class="s1">&#39;region&#39;</span><span class="p">],</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="p">[</span><span class="s1">'region'</span><span class="p">],</span>
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="p">{</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>        <span class="s1">&#39;p10_sales&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">percentile</span><span class="p">(</span><span class="mi">10</span><span class="p">),</span> <span class="s1">&#39;sales&#39;</span><span class="p">),</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>        <span class="s1">&#39;p50_sales&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">percentile</span><span class="p">(</span><span class="mi">50</span><span class="p">),</span> <span class="s1">&#39;sales&#39;</span><span class="p">),</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>        <span class="s1">&#39;p90_sales&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">percentile</span><span class="p">(</span><span class="mi">90</span><span class="p">),</span> <span class="s1">&#39;sales&#39;</span><span class="p">),</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>        <span class="s1">'p10_sales'</span><span class="p">:</span> <span class="p">(</span><span class="n">percentile</span><span class="p">(</span><span class="mi">10</span><span class="p">),</span> <span class="s1">'sales'</span><span class="p">),</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>        <span class="s1">'p50_sales'</span><span class="p">:</span> <span class="p">(</span><span class="n">percentile</span><span class="p">(</span><span class="mi">50</span><span class="p">),</span> <span class="s1">'sales'</span><span class="p">),</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>        <span class="s1">'p90_sales'</span><span class="p">:</span> <span class="p">(</span><span class="n">percentile</span><span class="p">(</span><span class="mi">90</span><span class="p">),</span> <span class="s1">'sales'</span><span class="p">),</span>
 <a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="p">},</span>
 <a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="p">)</span>
 </code></pre></div>
 <p><code>percentile(q)</code> returns a callable that computes the q-th percentile (0-100).
-It is also registered for the vectorized fast path.</p>
+It carries its own vectorized fast path for integer and float columns.</p>
 <h3 id="geomean-and-harmean"><code>geomean</code> and <code>harmean</code></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tafra.group</span><span class="w"> </span><span class="kn">import</span> <span class="n">geomean</span><span class="p">,</span> <span class="n">harmean</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">result</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="p">[</span><span class="s1">&#39;region&#39;</span><span class="p">],</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="p">[</span><span class="s1">'region'</span><span class="p">],</span>
 <a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="p">{</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        <span class="s1">&#39;geo_sales&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">geomean</span><span class="p">,</span> <span class="s1">&#39;sales&#39;</span><span class="p">),</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        <span class="s1">&#39;harm_sales&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">harmean</span><span class="p">,</span> <span class="s1">&#39;sales&#39;</span><span class="p">),</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        <span class="s1">'geo_sales'</span><span class="p">:</span> <span class="p">(</span><span class="n">geomean</span><span class="p">,</span> <span class="s1">'sales'</span><span class="p">),</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        <span class="s1">'harm_sales'</span><span class="p">:</span> <span class="p">(</span><span class="n">harmean</span><span class="p">,</span> <span class="s1">'sales'</span><span class="p">),</span>
 <a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="p">},</span>
 <a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="p">)</span>
 </code></pre></div>
@@ -1584,15 +1634,22 @@ It is also registered for the vectorized fast path.</p>
 <h3 id="arbitrary-functions">Arbitrary functions</h3>
 <p>Any callable that takes an <code>np.ndarray</code> and returns a scalar works:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="p">[</span><span class="s1">&#39;region&#39;</span><span class="p">],</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="p">[</span><span class="s1">'region'</span><span class="p">],</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="p">{</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>        <span class="s1">&#39;range&#39;</span><span class="p">:</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">-</span> <span class="n">x</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="s1">&#39;sales&#39;</span><span class="p">),</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        <span class="s1">&#39;cv&#39;</span><span class="p">:</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">std</span><span class="p">()</span> <span class="o">/</span> <span class="n">x</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span> <span class="s1">&#39;sales&#39;</span><span class="p">),</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>        <span class="s1">'range'</span><span class="p">:</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">-</span> <span class="n">x</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="s1">'sales'</span><span class="p">),</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        <span class="s1">'cv'</span><span class="p">:</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">std</span><span class="p">()</span> <span class="o">/</span> <span class="n">x</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span> <span class="s1">'sales'</span><span class="p">),</span>
 <a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="p">},</span>
 <a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="p">)</span>
 </code></pre></div>
 <p>Custom lambda/functions use the standard per-group Python loop (no vectorized
 fast path).</p>
+<p>The result column takes the dtype that numpy promotes the per-group results
+to (<code>np.promote_types</code>), not the dtype of the input column: a mean of an
+<code>int64</code> column is <code>float64</code>, and <code>np.any</code> of a string column is <code>bool</code>.
+Results that share no dtype, such as <code>None</code> with a float, give an <code>object</code>
+column. numpy promotes a string with a number to a string, so <code>'low'</code> with
+<code>2.0</code> gives <code>['low', '2.0']</code>. In <code>transform</code>, a function may return one value
+per group (broadcast to the group's rows) or one value per row.</p>
 <h2 id="vectorized-fast-path">Vectorized Fast Path</h2>
 <p>When <strong>all</strong> aggregation functions in a <code>group_by</code> call are recognized (see
 table above), Tafra uses a vectorized code path based on <code>np.bincount</code> and
@@ -1600,20 +1657,66 @@ table above), Tafra uses a vectorized code path based on <code>np.bincount</code
 significantly faster for large datasets.</p>
 <p>The fast path is used automatically -- no configuration needed. If any
 aggregation function is not recognized, the entire call falls back to the
-per-group Python loop.</p>
+per-group Python loop. The fast path also applies only to the column dtypes
+that numpy reduces with that function: for example, <code>np.mean</code> on a string
+column takes the per-group loop, which calls <code>np.mean</code> and raises the same
+error that numpy raises.</p>
+<p>The fast path gives the same result as the function applied to each group:</p>
+<ul>
+<li><code>np.min</code>, <code>np.max</code>, <code>np.sum</code>, <code>np.mean</code> and the others propagate NaN;
+  <code>np.nanmin</code>, <code>np.nansum</code>, <code>np.nanmean</code> and the others ignore it (an all-NaN
+  group gives NaN, or 0 for <code>np.nansum</code> and 1 for <code>np.nanprod</code>).</li>
+<li>The result dtype is numpy's: <code>np.sum</code> of an <code>int64</code> column is an exact
+  <code>int64</code>, <code>np.min</code> of a <code>datetime64</code> column is a <code>datetime64</code>, and a
+  <code>float32</code> column keeps <code>float32</code>.</li>
+<li>Floating-point values agree up to rounding. The fast path adds in float64 in
+  row order and numpy adds pairwise in the input width, so the last digits
+  can differ (about 1e-14 relative for a 200,000-row <code>float64</code> group), more so
+  for <code>float16</code> and <code>float32</code>, where a sum numpy overflows to <code>inf</code> can stay
+  finite. An all-NaN group does not emit numpy's <code>RuntimeWarning</code>.</li>
+</ul>
 <p>If the optional C extension (<code>_accel.c</code>) is compiled, <code>np.sum</code>, <code>np.mean</code>,
-<code>np.var</code>, <code>np.min</code>, and <code>np.max</code> use single-pass C implementations (Welford
-variance, etc.) for even better performance.</p>
+<code>np.var</code>, <code>np.std</code>, <code>np.min</code>, <code>np.max</code> and their <code>nan</code> forms use C
+implementations (one pass for most, two passes for variance; exact integer
+sums) for even better performance.</p>
+<h2 id="key-columns">Key Columns</h2>
+<p><code>group_by</code>, <code>transform</code>, <code>iterate_by</code> and the equi-joins accept key columns
+of any dtype numpy can compare with <code>==</code>: integers of any range, <code>uint64</code>,
+<code>bool</code>, floats, <code>datetime64</code> and <code>timedelta64</code> of any unit, strings
+(<code>StringDType</code> with <code>None</code>, <code>&lt;U</code>, <code>bytes</code>) and <code>object</code>. The two sides of a
+join key must share a dtype kind (an <code>int64</code> key does not join a <code>float64</code>
+or <code>uint64</code> key, and a <code>&lt;U</code> key does not join a <code>bytes</code> key), or both be
+text strings (<code>StringDType</code> and <code>&lt;U</code>). Keys follow numpy equality, with
+these rules:</p>
+<ul>
+<li><code>-0.0</code> and <code>0.0</code> are one key.</li>
+<li>In a float column every NaN is one key in <code>group_by</code>, as is every NaT in a
+  <code>datetime64</code> or <code>timedelta64</code> column. In an <code>object</code> column, NaN values are
+  one key only when they are the same Python object.</li>
+<li>Joins never match a NULL key (SQL <code>NULL</code> semantics): NaN in a float column,
+  NaT in a <code>datetime64</code> or <code>timedelta64</code> column, <code>None</code> in a <code>StringDType</code>
+  column, and <code>None</code>, NaN or NaT in an <code>object</code> column. Other missing-value
+  markers are not NULL: a join matches complex NaN to complex NaN, as
+  <code>np.unique</code> merges them, and <code>pd.NA</code> or <code>pd.NaT</code> to the same object.</li>
+<li><code>datetime64</code> keys of different units are compared in the finer unit, as
+  numpy converts them, and NULL is judged after that conversion, for every
+  operator. For a value outside that unit's range (about the years 1678 to
+  2262 for <code>ns</code>), numpy 2.2 and 2.4 wrap the value without an error: it can
+  become NaT (no match) or a valid but different date that matches another
+  key. The numpy 2.5 release notes describe unit-conversion casts as
+  overflow-checked, so a newer numpy can raise instead. Convert such keys to a
+  common, wide-enough unit before the join.</li>
+</ul>
 <h2 id="transform">transform</h2>
 <p><code>transform()</code> computes group aggregations and <strong>broadcasts the result back</strong> to
 every row of the original data. The output has the same number of rows as the
 input. Analogous to <code>pandas.DataFrame.groupby().transform()</code>, or a SQL
 <code>GROUP BY</code> with a <code>LEFT JOIN</code> back to the original table.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="p">[</span><span class="s1">&#39;region&#39;</span><span class="p">],</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="p">[</span><span class="s1">'region'</span><span class="p">],</span>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="p">{</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>        <span class="s1">&#39;region_total&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">,</span> <span class="s1">&#39;sales&#39;</span><span class="p">),</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>        <span class="s1">&#39;region_avg&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">,</span> <span class="s1">&#39;sales&#39;</span><span class="p">),</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>        <span class="s1">'region_total'</span><span class="p">:</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">,</span> <span class="s1">'sales'</span><span class="p">),</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>        <span class="s1">'region_avg'</span><span class="p">:</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">,</span> <span class="s1">'sales'</span><span class="p">),</span>
 <a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="p">},</span>
 <a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="p">)</span>
 <a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">rows</span><span class="p">)</span>
@@ -1636,10 +1739,10 @@ and row indices. Analogous to iterating over <code>pandas.DataFrame.groupby()</c
 <li><code>indices</code> -- <code>np.ndarray</code> of row indices into the original Tafra</li>
 <li><code>sub_tafra</code> -- the subset <code>Tafra</code> for that group</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">for</span> <span class="n">keys</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">t</span><span class="o">.</span><span class="n">iterate_by</span><span class="p">([</span><span class="s1">&#39;region&#39;</span><span class="p">]):</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Region: </span><span class="si">{</span><span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">, rows: </span><span class="si">{</span><span class="n">sub</span><span class="o">.</span><span class="n">rows</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;  indices: </span><span class="si">{</span><span class="n">indices</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;  sales: </span><span class="si">{</span><span class="n">sub</span><span class="p">[</span><span class="s2">&quot;sales&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">for</span> <span class="n">keys</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">t</span><span class="o">.</span><span class="n">iterate_by</span><span class="p">([</span><span class="s1">'region'</span><span class="p">]):</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'Region: </span><span class="si">{</span><span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">, rows: </span><span class="si">{</span><span class="n">sub</span><span class="o">.</span><span class="n">rows</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'  indices: </span><span class="si">{</span><span class="n">indices</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'  sales: </span><span class="si">{</span><span class="n">sub</span><span class="p">[</span><span class="s2">"sales"</span><span class="p">]</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
 </code></pre></div>
 <details class="example" open="open">
 <summary>Output</summary>
@@ -1653,11 +1756,11 @@ and row indices. Analogous to iterating over <code>pandas.DataFrame.groupby()</c
 </details>
 <h3 id="processing-each-group">Processing each group</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="k">for</span> <span class="n">keys</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">t</span><span class="o">.</span><span class="n">iterate_by</span><span class="p">([</span><span class="s1">&#39;region&#39;</span><span class="p">]):</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>    <span class="n">total</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sub</span><span class="p">[</span><span class="s1">&#39;sales&#39;</span><span class="p">])</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="k">for</span> <span class="n">keys</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">t</span><span class="o">.</span><span class="n">iterate_by</span><span class="p">([</span><span class="s1">'region'</span><span class="p">]):</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>    <span class="n">total</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sub</span><span class="p">[</span><span class="s1">'sales'</span><span class="p">])</span>
 <a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>    <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Tafra</span><span class="p">({</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>        <span class="s1">&#39;region&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]]),</span>
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>        <span class="s1">&#39;total&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">total</span><span class="p">]),</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>        <span class="s1">'region'</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]]),</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>        <span class="s1">'total'</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">total</span><span class="p">]),</span>
 <a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>    <span class="p">}))</span>
 <a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>
 <a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="n">combined</span> <span class="o">=</span> <span class="n">Tafra</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
@@ -1667,23 +1770,23 @@ and row indices. Analogous to iterating over <code>pandas.DataFrame.groupby()</c
 columns. Unlike <code>group_by</code>, it preserves <strong>all original rows</strong> with no
 aggregation. This is designed for dispatching groups to parallel workers.</p>
 <p>Returns a list of <code>(group_key, sub_tafra)</code> tuples.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">parts</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">partition</span><span class="p">([</span><span class="s1">&#39;region&#39;</span><span class="p">])</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">parts</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">partition</span><span class="p">([</span><span class="s1">'region'</span><span class="p">])</span>
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
 <a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">:</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Group </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="n">sub</span><span class="o">.</span><span class="n">rows</span><span class="si">}</span><span class="s1"> rows&#39;</span><span class="p">)</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;  sales: </span><span class="si">{</span><span class="n">sub</span><span class="p">[</span><span class="s2">&quot;sales&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'Group </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="n">sub</span><span class="o">.</span><span class="n">rows</span><span class="si">}</span><span class="s1"> rows'</span><span class="p">)</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'  sales: </span><span class="si">{</span><span class="n">sub</span><span class="p">[</span><span class="s2">"sales"</span><span class="p">]</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
 </code></pre></div>
 <details class="example" open="open">
 <summary>Output</summary>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>Group (&#39;east&#39;,): 2 rows
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>Group ('east',): 2 rows
 <a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>  sales: [100 200]
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>Group (&#39;west&#39;,): 3 rows
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>Group ('west',): 3 rows
 <a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>  sales: [150 175 250]
 </code></pre></div>
 </details>
 <h3 id="optional-sorting-within-partitions">Optional sorting within partitions</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">parts</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">partition</span><span class="p">([</span><span class="s1">&#39;region&#39;</span><span class="p">],</span> <span class="n">sort_by</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;sales&#39;</span><span class="p">])</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="c1"># Each sub-Tafra is sorted by &#39;sales&#39; within its group</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">parts</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">partition</span><span class="p">([</span><span class="s1">'region'</span><span class="p">],</span> <span class="n">sort_by</span><span class="o">=</span><span class="p">[</span><span class="s1">'sales'</span><span class="p">])</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="c1"># Each sub-Tafra is sorted by 'sales' within its group</span>
 </code></pre></div>
 <h3 id="multiprocessing-example">Multiprocessing example</h3>
 <p>The primary use case for <code>partition</code> is parallel processing with
@@ -1695,15 +1798,15 @@ aggregation. This is designed for dispatching groups to parallel workers.</p>
 <a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>    <span class="n">key</span><span class="p">,</span> <span class="n">sub_tafra</span> <span class="o">=</span> <span class="n">args</span>
 <a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>    <span class="c1"># Perform expensive computation on sub_tafra</span>
 <a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">sub_tafra</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>    <span class="n">result</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sub_tafra</span><span class="p">[</span><span class="s1">&#39;sales&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="mf">2.0</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>    <span class="n">result</span><span class="p">[</span><span class="s1">'score'</span><span class="p">]</span> <span class="o">=</span> <span class="n">sub_tafra</span><span class="p">[</span><span class="s1">'sales'</span><span class="p">]</span> <span class="o">*</span> <span class="mf">2.0</span>
 <a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>    <span class="k">return</span> <span class="n">result</span>
 <a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>
 <a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="n">t</span> <span class="o">=</span> <span class="n">Tafra</span><span class="p">({</span>
-<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>    <span class="s1">&#39;region&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="s1">&#39;east&#39;</span><span class="p">,</span> <span class="s1">&#39;east&#39;</span><span class="p">,</span> <span class="s1">&#39;west&#39;</span><span class="p">,</span> <span class="s1">&#39;west&#39;</span><span class="p">,</span> <span class="s1">&#39;west&#39;</span><span class="p">]),</span>
-<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a>    <span class="s1">&#39;sales&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">100</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="mi">150</span><span class="p">,</span> <span class="mi">175</span><span class="p">,</span> <span class="mi">250</span><span class="p">]),</span>
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>    <span class="s1">'region'</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="s1">'east'</span><span class="p">,</span> <span class="s1">'east'</span><span class="p">,</span> <span class="s1">'west'</span><span class="p">,</span> <span class="s1">'west'</span><span class="p">,</span> <span class="s1">'west'</span><span class="p">]),</span>
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a>    <span class="s1">'sales'</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">100</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="mi">150</span><span class="p">,</span> <span class="mi">175</span><span class="p">,</span> <span class="mi">250</span><span class="p">]),</span>
 <a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a><span class="p">})</span>
 <a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a>
-<a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a><span class="n">parts</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">partition</span><span class="p">([</span><span class="s1">&#39;region&#39;</span><span class="p">])</span>
+<a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a><span class="n">parts</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">partition</span><span class="p">([</span><span class="s1">'region'</span><span class="p">])</span>
 <a id="__codelineno-15-17" name="__codelineno-15-17" href="#__codelineno-15-17"></a>
 <a id="__codelineno-15-18" name="__codelineno-15-18" href="#__codelineno-15-18"></a><span class="k">with</span> <span class="n">Pool</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span> <span class="k">as</span> <span class="n">pool</span><span class="p">:</span>
 <a id="__codelineno-15-19" name="__codelineno-15-19" href="#__codelineno-15-19"></a>    <span class="n">results</span> <span class="o">=</span> <span class="n">pool</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">process_group</span><span class="p">,</span> <span class="n">parts</span><span class="p">)</span>
@@ -1758,9 +1861,9 @@ aggregation. This is designed for dispatching groups to parallel workers.</p>
 functions that operate on the group enumeration index rather than on column
 data:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>    <span class="p">[</span><span class="s1">&#39;region&#39;</span><span class="p">],</span>
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>    <span class="p">{</span><span class="s1">&#39;total_sales&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">,</span> <span class="s1">&#39;sales&#39;</span><span class="p">)},</span>
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>    <span class="n">iter_fn</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;group_id&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]},</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>    <span class="p">[</span><span class="s1">'region'</span><span class="p">],</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>    <span class="p">{</span><span class="s1">'total_sales'</span><span class="p">:</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">,</span> <span class="s1">'sales'</span><span class="p">)},</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>    <span class="n">iter_fn</span><span class="o">=</span><span class="p">{</span><span class="s1">'group_id'</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]},</span>
 <a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="p">)</span>
 </code></pre></div>
 <p>The function receives an array filled with the group index (0, 1, 2, ...).</p>
@@ -1822,7 +1925,7 @@ data:</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
         <script src="../../javascripts/api-highlight.js"></script>
       
