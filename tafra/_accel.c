@@ -306,7 +306,9 @@ accel_groupby_var(PyObject *self, PyObject *args)
 
     /* Two passes, as numpy: the group mean first, then the mean squared
      * deviation from it. A one-pass update (Welford) loses about 1e-7 of
-     * relative accuracy on values offset by 1e9; this matches numpy. */
+     * relative accuracy on values offset by 1e9. This agrees with numpy up
+     * to rounding: numpy adds pairwise, this adds in row order, and on
+     * values near 1e9 the two differed by up to 4e-13 relative (measured). */
     Py_BEGIN_ALLOW_THREADS
     for (npy_intp i = 0; i < input.row_count; i++) {
         npy_int64 group = labels[i];
@@ -372,14 +374,20 @@ groupby_extreme(PyObject *args, int want_maximum)
         npy_float64 value = data[i];
         npy_float64 current = result[group];
         if (skip_nan) {
-            /* current is NaN until the first non-NaN value arrives */
+            /* current is NaN until the first non-NaN value arrives. Of two
+             * zeros, np.nanmin keeps -0.0 and np.nanmax +0.0 in any order. */
             if (value == value
-                && (current != current || (want_maximum ? value > current : value < current)))
+                && (current != current
+                    || (want_maximum ? value > current : value < current)
+                    || (value == current
+                        && (want_maximum ? !npy_signbit(value) : npy_signbit(value)))))
                 result[group] = value;
         } else {
-            /* once NaN, stay NaN; a NaN value fails every comparison */
+            /* once NaN, stay NaN; a NaN value fails every comparison. Of
+             * equal values np.min / np.max keep the last, which decides
+             * between -0.0 and +0.0. */
             if (current == current
-                && !(want_maximum ? value <= current : value >= current))
+                && !(want_maximum ? value < current : value > current))
                 result[group] = value;
         }
     }

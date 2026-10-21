@@ -259,6 +259,27 @@ def test_nested_loop_keys_need_no_common_dtype(accel_mode: str) -> None:
     assert _inner_join(left, right, [("k", "k", "!=")])["a"].tolist() == [2]
 
 
+# A StringDType's na_object is its NULL: '' in na_object='' and NaN in
+# na_object=nan are NULL, as None is in the default na_object=None.
+NULL_MARKER_RIGHT_KEYS = {
+    "na_object=''": np.array(["a", ""], dtype=np.dtypes.StringDType(na_object="")),
+    "na_object=nan": np.array(["a", np.nan], dtype=np.dtypes.StringDType(na_object=np.nan)),
+}
+
+
+@pytest.mark.parametrize("marker", list(NULL_MARKER_RIGHT_KEYS))
+def test_string_keys_with_different_null_markers(accel_mode: str, marker: str) -> None:
+    left = Tafra({"k": np.array(["a", "b", None], dtype=STRING_DTYPE), "a": np.array([0, 1, 2])})
+    right = Tafra({"k": NULL_MARKER_RIGHT_KEYS[marker], "b": np.array([10.0, 20.0])})
+    on_equal = [("k", "k", "==")]
+    assert _inner_join(left, right, on_equal)["a"].tolist() == [0]
+    left_result = _left_join(left, right, on_equal)
+    assert left_result["a"].tolist() == [0, 1, 2]
+    np.testing.assert_array_equal(left_result["b"], [10.0, np.nan, np.nan])
+    # the right NULL never matches under != either; 'b' != 'a' matches
+    assert _inner_join(left, right, [("k", "k", "!=")])["a"].tolist() == [1]
+
+
 # ----------------------------------------------------------------------------
 # Group-by keys
 # ----------------------------------------------------------------------------
@@ -737,14 +758,31 @@ class TestPerGroupResultDtype:
         assert result["y"].dtype == object
         assert result["y"].tolist() == [None, 2.0]
 
-    def test_group_by_string_and_float_results_follow_numpy(self, accel_mode: str) -> None:
-        """numpy promotes str with float to str: np.array(['low', 2.0]) is <U32."""
+    def test_group_by_string_and_float_results_give_object(self, accel_mode: str) -> None:
+        """numpy would turn 2.0 into the text '2.0'; the column keeps both values."""
         table = Tafra({"g": np.array([0, 1]), "x": np.array([1.0, 2.0])})
         result = table.group_by(
             ["g"], {"y": (lambda values: "low" if values[0] < 1.5 else float(values[0]), "x")}
         )
-        assert result["y"].dtype == np.array(["low", 2.0]).dtype
-        assert result["y"].tolist() == ["low", "2.0"]
+        assert result["y"].dtype == object
+        assert result["y"].tolist() == ["low", 2.0]
+
+    def test_transform_string_and_bool_results_give_object(self, accel_mode: str) -> None:
+        table = Tafra({"g": np.array([0, 1, 0]), "x": np.array([1.0, 2.0, 3.0])})
+        result = table.transform(
+            ["g"], {"y": (lambda values: "pair" if len(values) == 2 else True, "x")}
+        )
+        assert result["y"].dtype == object
+        assert result["y"].tolist() == ["pair", True, "pair"]
+
+    def test_group_by_bytes_and_str_results_follow_numpy(self, accel_mode: str) -> None:
+        """Two string kinds still promote as numpy does (bytes with str to str)."""
+        table = Tafra({"g": np.array([0, 1]), "x": np.array([1.0, 2.0])})
+        result = table.group_by(
+            ["g"], {"y": (lambda values: b"ab" if values[0] < 1.5 else "cde", "x")}
+        )
+        assert result["y"].dtype == np.promote_types(np.dtype("S2"), np.dtype("U3"))
+        assert result["y"].tolist() == ["ab", "cde"]
 
     def test_transform_mean_of_int_column_is_float(self, accel_mode: str) -> None:
         table = Tafra({"g": np.array([0, 0, 1]), "i": np.array([1, 2, 5])})
@@ -793,3 +831,35 @@ def test_left_join_keeps_null_key_rows_in_left_order(accel_mode: str) -> None:
     result = _left_join(left, right, [("k", "k", "==")])
     assert result["a"].tolist() == [0, 1, 2, 3, 3]
     np.testing.assert_array_equal(result["b"], [np.nan, 10.0, np.nan, 20.0, 30.0])
+
+
+# ----------------------------------------------------------------------------
+# Signed zero in min / max
+# ----------------------------------------------------------------------------
+
+# np.min / np.max keep the last of equal values; np.nanmin prefers -0.0 and
+# np.nanmax +0.0 whatever the order. Each group holds one order.
+SIGNED_ZERO_GROUPS = {
+    "+0 then -0": [0.0, -0.0],
+    "-0 then +0": [-0.0, 0.0],
+    "+0, nan, -0": [0.0, np.nan, -0.0],
+    "-0, nan, +0": [-0.0, np.nan, 0.0],
+}
+
+
+@pytest.mark.parametrize("reducer", [np.min, np.max, np.nanmin, np.nanmax])
+def test_signed_zero_min_max_matches_numpy(accel_mode: str, reducer: Callable[..., Any]) -> None:
+    values = list(SIGNED_ZERO_GROUPS.values())
+    table = Tafra(
+        {
+            "g": np.repeat(np.arange(len(values)), [len(group) for group in values]),
+            "x": np.concatenate([np.array(group) for group in values]),
+        }
+    )
+    result = table.group_by(["g"], {"x": reducer})["x"]
+    for index, (label, group_values) in enumerate(SIGNED_ZERO_GROUPS.items()):
+        expected = reducer(np.array(group_values))
+        if np.isnan(expected):
+            assert np.isnan(result[index]), label
+        else:
+            assert np.signbit(result[index]) == np.signbit(expected), label

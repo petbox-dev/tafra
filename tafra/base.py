@@ -2011,16 +2011,21 @@ class Tafra:
         """
         # Result dtype with mixed fills: docs/todo/open/coalesce-result-dtype.md
         iter_fills = iter(fills)
-        head = next(iter_fills)
 
         remaining_fills: Iterable[
             Iterable[None | str | int | float | bool | np.ndarray[Any, Any]]
         ]
         if column in self._data.keys():
             value = self._data[column].copy()
-            remaining_fills = chain([head], iter_fills)
+            remaining_fills = iter_fills
         else:
             # a new column starts as the first fill, as SQL COALESCE(head, ...)
+            no_fill = object()
+            head = next(iter_fills, no_fill)
+            if head is no_fill:
+                raise ValueError(
+                    f"coalesce of new column `{column}` needs at least one fill."
+                )
             head_fill = np.atleast_1d(np.asarray(head))
             value = np.array(np.broadcast_to(head_fill, (self._rows,)))
             remaining_fills = iter_fills

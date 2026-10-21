@@ -57,6 +57,15 @@ _GROUP_INDICES_MIN_ROWS = 50_000
 # Any other kind is cast to object to hold None.
 _NATIVE_NULL_FILL_KINDS: frozenset[str] = frozenset("TUfMm")
 
+# Text dtype kinds (StringDType, <U, bytes). A per-group result column that
+# mixes one of these with any other kind is object, so a number is not
+# turned into text as np.promote_types would.
+_STRING_RESULT_KINDS: frozenset[str] = frozenset("TUS")
+
+# The NULL marker that join NULL checks read: a StringDType key with another
+# na_object ('' or NaN) is cast to this, which turns its NULLs into None.
+_NONE_NULL_STRING_DTYPE = np.dtypes.StringDType(na_object=None)  # type: ignore[call-arg]
+
 JOIN_OPS: dict[str, Callable[[Any, Any], Any]] = {
     "==": operator.eq,
     "!=": operator.ne,
@@ -284,9 +293,13 @@ class AggMethod(GroupSet):
         """
         numpy's promoted dtype of the per-group results (`np.promote_types`
         over their dtypes), or object when they share none, e.g. datetime64
-        and float. (A str and a float promote to str.)
+        and float. A string mixed with a non-string is object too: numpy
+        would turn the number into text.
         """
         unique_dtypes = list(dict.fromkeys(result.dtype for result in results))
+        string_kinds = {dtype.kind in _STRING_RESULT_KINDS for dtype in unique_dtypes}
+        if len(string_kinds) == 2:
+            return np.dtype(object)
         try:
             return functools.reduce(np.promote_types, unique_dtypes)
         except TypeError:
@@ -720,11 +733,29 @@ class Join(GroupSet):
         concatenation promotes the two sides to one dtype, as a comparison
         does (e.g. datetime64[s] to datetime64[ns]), so NULL is judged on the
         values that are compared: a unit cast can turn a datetime into NaT.
+        StringDType sides take na_object=None first, which numpy cannot
+        concatenate across na_object values.
         """
         return [
-            np.concatenate([left_t._data[left_column], right_t._data[right_column]])
+            np.concatenate(
+                [
+                    self._none_null_strings(left_t._data[left_column]),
+                    self._none_null_strings(right_t._data[right_column]),
+                ]
+            )
             for left_column, right_column, _ in self.on
         ]
+
+    @staticmethod
+    def _none_null_strings(column: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
+        """
+        A StringDType column with na_object None. Its NULLs ('' for
+        na_object='', NaN for na_object=nan) become None, the NULL that
+        `_non_null_mask` reads; any other column is returned as is.
+        """
+        if column.dtype.kind == "T" and column.dtype != _NONE_NULL_STRING_DTYPE:
+            return column.astype(_NONE_NULL_STRING_DTYPE)
+        return column
 
     def _non_null_masks(
         self, left_t: "Tafra", right_t: "Tafra"
@@ -744,8 +775,8 @@ class Join(GroupSet):
             if left_column.dtype.kind in "Mm" and left_column.dtype != right_column.dtype:
                 promoted = np.concatenate([left_column, right_column])
                 left_column, right_column = promoted[: left_t._rows], promoted[left_t._rows :]
-            left_columns.append(left_column)
-            right_columns.append(right_column)
+            left_columns.append(self._none_null_strings(left_column))
+            right_columns.append(self._none_null_strings(right_column))
         return self._non_null_mask(left_columns), self._non_null_mask(right_columns)
 
     def _equi_join_keys(

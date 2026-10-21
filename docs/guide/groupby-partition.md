@@ -157,8 +157,9 @@ The result column takes the dtype that numpy promotes the per-group results
 to (`np.promote_types`), not the dtype of the input column: a mean of an
 `int64` column is `float64`, and `np.any` of a string column is `bool`.
 Results that share no dtype, such as `None` with a float, give an `object`
-column. numpy promotes a string with a number to a string, so `'low'` with
-`2.0` gives `['low', '2.0']`. In `transform`, a function may return one value
+column. A string mixed with a non-string also gives an `object` column, so
+`'low'` with `2.0` gives `['low', 2.0]`; numpy would turn `2.0` into the text
+`'2.0'`. In `transform`, a function may return one value
 per group (broadcast to the group's rows) or one value per row.
 
 ## Vectorized Fast Path
@@ -185,7 +186,8 @@ The fast path gives the same result as the function applied to each group:
   `float32` column keeps `float32`.
 - Floating-point values agree up to rounding. The fast path adds in float64 in
   row order and numpy adds pairwise in the input width, so the last digits
-  can differ (about 1e-14 relative for a 200,000-row `float64` group), more so
+  can differ (about 1e-14 relative for the sum of a 200,000-row `float64`
+  group, and up to about 4e-13 for the variance of values near 1e9), more so
   for `float16` and `float32`, where a sum numpy overflows to `inf` can stay
   finite. An all-NaN group does not emit numpy's `RuntimeWarning`.
 
@@ -210,8 +212,10 @@ these rules:
   `datetime64` or `timedelta64` column. In an `object` column, NaN values are
   one key only when they are the same Python object.
 - Joins never match a NULL key (SQL `NULL` semantics): NaN in a float column,
-  NaT in a `datetime64` or `timedelta64` column, `None` in a `StringDType`
-  column, and `None`, NaN or NaT in an `object` column. Other missing-value
+  NaT in a `datetime64` or `timedelta64` column, the `na_object` of a
+  `StringDType` column (`None` by default; `''` or NaN when the dtype says so),
+  and `None`, NaN or NaT in an `object` column. Two `StringDType` keys with
+  different `na_object` values join. Other missing-value
   markers are not NULL: a join matches complex NaN to complex NaN, as
   `np.unique` merges them, and `pd.NA` or `pd.NaT` to the same object.
 - `datetime64` keys of different units are compared in the finer unit, as

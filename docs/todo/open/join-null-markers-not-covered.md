@@ -21,16 +21,19 @@ complex keys [complex(nan, 0), 1] inner_join [complex(nan, 0)] -> 1 row
 ```
 
 Also reported by the /code-fix auditors: `pd.NaT` in an object column matches
-itself; `StringDType(na_object=np.nan)` matches NaN to NaN (the `'T'` branch
-tests `is not None` only). Same at BASE 390157d.
+itself. Same at BASE 390157d.
+
+A `StringDType` whose `na_object` is NaN or `''` no longer belongs here: since
+2026-10-21 each StringDType key is cast to `na_object=None` before the NULL
+check, so those NULLs never match (`test_string_keys_with_different_null_markers`).
 
 ## What would fix it
 
 Extend `_NULLABLE_KINDS` with `'c'` and add a complex branch
 (`np.isnan(column.real) | np.isnan(column.imag)`); extend
 `Join._is_non_null_object` with `pd.NA` / `pd.NaT` checks that do not import
-pandas (for example `value is getattr(sys.modules.get('pandas'), 'NA', None)`);
-handle a StringDType whose `na_object` is NaN. Then update the guide.
+pandas (for example `value is getattr(sys.modules.get('pandas'), 'NA', None)`).
+Then update the guide.
 
 ## What is still unverified
 

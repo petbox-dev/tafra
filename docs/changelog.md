@@ -46,6 +46,10 @@
   NaN values still in it, so `[1, nan, 4]` gave 4. With the C extension,
   `np.min` / `np.max` skipped NaN, and returned `inf` for an all-NaN group.
   The fast path now gives numpy's NaN result for every registered function.
+* **Fix**: With the C extension, `np.min` / `np.max` kept the first of equal
+  values, so `-0.0` and `0.0` came out with the wrong sign. They now follow
+  numpy: `np.min` / `np.max` keep the last of equal values, and `np.nanmin`
+  gives `-0.0` and `np.nanmax` `0.0` in any order.
 * **Fix**: With the C extension, `np.sum`, `np.min` and `np.max` converted the
   column to `float64`: an `int64` sum lost precision above 2**53, and `np.min`
   of an `int64`, `bool` or `datetime64` column returned `float64`. Results now
@@ -59,7 +63,9 @@
   `np.any` of a string column gave the strings `'True'`, and a string result
   was cut to the input's `<U` width. The result column now takes numpy's
   promoted dtype of the per-group results (`object` when they share none),
-  in `group_by` and `transform`.
+  in `group_by` and `transform`. A string mixed with a non-string also gives
+  `object`, so `'low'` with `2.0` keeps `2.0` a float; numpy would turn it
+  into the text `'2.0'`.
 * **Fix**: An equi left join put left rows with a NULL key (NaN, NaT,
   `None`) at the end of the result. They now keep their left-table position.
 * **Fix**: A join with a non-`==` operator judged NULL keys before unit
@@ -68,7 +74,15 @@
   `==` join already did.
 * **Fix**: `coalesce` into a new numeric column returned uninitialized memory:
   the column was allocated empty and only `None` or NaN slots were filled. A
-  new column now starts as the first fill, as SQL `COALESCE`.
+  new column now starts as the first fill, as SQL `COALESCE`. With no fills,
+  `coalesce` raised `StopIteration`; it now returns an existing column
+  unchanged and raises `ValueError` for a new column.
+* **Fix**: An `==` join on two `StringDType` keys with different `na_object`
+  values (for example `None` and `''`) raised `TypeError: Cannot find common
+  instance for incompatible dtypes`, and a NULL written as `''` or NaN in such
+  a key matched as a value (under `!=`, or NaN to NaN under `==`). Each
+  `StringDType` key is now read with `na_object=None`, so its NULLs never
+  match, for every operator.
 * **Fix**: The pure-Python `np.var` / `np.std` fast path used
   `E[x^2] - E[x]^2`, which returned 2.0 for three values of 1e8 + 0.1. It
   now subtracts the group mean first. The C kernel used Welford's one-pass

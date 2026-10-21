@@ -810,6 +810,13 @@ class TestDtypes:
         assert t.coalesce("new", [[7], [2.5]]).tolist() == [7, 7]
         assert t.coalesce("new", [np.array([np.nan, 5.0]), [9.0]]).tolist() == [9.0, 5.0]
 
+    def test_coalesce_with_no_fills(self) -> None:
+        """No fills: an existing column comes back unchanged; a new one has no value."""
+        t = Tafra({"x": np.array([1.0, np.nan])})
+        np.testing.assert_array_equal(t.coalesce("x", []), [1.0, np.nan])
+        with pytest.raises(ValueError, match="at least one fill"):
+            t.coalesce("new", [])
+
     def test_update_dtypes_string_conversion(self) -> None:
         """update_dtypes_inplace should not no-op between <U and
         StringDType."""
