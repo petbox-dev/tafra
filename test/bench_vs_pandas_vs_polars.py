@@ -21,14 +21,10 @@ try:
 except ImportError:
     HAS_POLARS = False
 
-try:
-    from tafra._accel import groupby_sum as _c_test
+from tafra import _kernels
 
-    HAS_ACCEL = True
-except ImportError:
-    HAS_ACCEL = False
-
-import tafra.group as _grp
+# whether the C extension loaded; _disable_accel toggles only _kernels.HAS_ACCEL
+HAS_ACCEL = _kernels.HAS_ACCEL
 
 
 def median_of(fn, n=7):
@@ -44,19 +40,15 @@ def median_of(fn, n=7):
 
 def _disable_accel():
     """Temporarily disable C acceleration."""
-    saved = _grp._HAS_ACCEL
-    _grp._HAS_ACCEL = False
-    # re-register vectorized aggs with Python fallbacks
-    _grp._VECTORIZED_AGGS.clear()
-    _grp._register_vectorized()
+    saved = _kernels.HAS_ACCEL
+    # every reducer, encoder and join reads _kernels.HAS_ACCEL when it is called
+    _kernels.HAS_ACCEL = False
     return saved
 
 
 def _restore_accel(saved):
     """Restore C acceleration state."""
-    _grp._HAS_ACCEL = saved
-    _grp._VECTORIZED_AGGS.clear()
-    _grp._register_vectorized()
+    _kernels.HAS_ACCEL = saved
 
 
 def _tafra_time(fn):

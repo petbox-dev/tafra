@@ -1,5 +1,5 @@
 {% set name = "tafra" %}
-{% set version = "2.2.5" %}
+{% set version = "2.3.0" %}
 
 
 package:
@@ -12,7 +12,7 @@ source:
 
 build:
   number: 0
-  skip: true  # [py<39]
+  skip: true  # [py<310]
   script: {{ PYTHON }} -m pip install . -vv
 
 requirements:
@@ -41,6 +41,9 @@ test:
   commands:
     - pip check
     - python -c "from tafra._accel import groupby_sum; print('C extension OK')"
+    # The C extension loaded with every kernel; on a free-threaded build
+    # (Py_GIL_DISABLED) importing it must not re-enable the GIL
+    - python -W error -c "import sys, sysconfig, tafra._kernels as k; assert k.HAS_ACCEL, 'C extension missing'; assert not sysconfig.get_config_var('Py_GIL_DISABLED') or not sys._is_gil_enabled()"
     - pytest --cov=tafra --cov-report=term-missing --hypothesis-show-statistics -v test
   requires:
     - pip
@@ -58,9 +61,9 @@ about:
   description: |
     A minimalist Python dataframe library — a lightweight alternative to
     pandas backed by numpy arrays. Provides SQL-style group-by, transform,
-    and join operations with optional C acceleration for single-pass
+    and join operations with optional C acceleration for grouped
     aggregation and hash-based equi-joins.
-  doc_url: https://tafra.readthedocs.io/
+  doc_url: https://petbox-dev.github.io/tafra/
   dev_url: https://github.com/petbox-dev/tafra
 
 extra:

@@ -24,6 +24,7 @@ import numpy as np
 
 from tafra import Tafra
 import tafra.group as _grp
+from tafra import _kernels
 
 from tafra._accel import inner_join as _c_inner_join, left_join as _c_left_join
 
@@ -53,17 +54,14 @@ def make_keys():
 
 
 def _disable_accel():
-    saved = _grp._HAS_ACCEL
-    _grp._HAS_ACCEL = False
-    _grp._VECTORIZED_AGGS.clear()
-    _grp._register_vectorized()
+    saved = _kernels.HAS_ACCEL
+    # every reducer, encoder and join reads _kernels.HAS_ACCEL when it is called
+    _kernels.HAS_ACCEL = False
     return saved
 
 
 def _restore_accel(saved):
-    _grp._HAS_ACCEL = saved
-    _grp._VECTORIZED_AGGS.clear()
-    _grp._register_vectorized()
+    _kernels.HAS_ACCEL = saved
 
 
 def median_of(fn, n=N_REPS):
@@ -98,9 +96,9 @@ def bench_phase(phase):
             _c_left_join(left_key, right_key)
 
     elif phase == 'py-left':
-        _grp.Join._left_join_indices(left_key, right_key)
+        _grp.LeftJoin._left_join_indices(left_key, right_key)
         for _ in range(N_REPS):
-            _grp.Join._left_join_indices(left_key, right_key)
+            _grp.LeftJoin._left_join_indices(left_key, right_key)
 
     elif phase == 'full-c-inner':
         left_tf.inner_join(right_tf, [('key', 'key', '==')])
@@ -166,7 +164,7 @@ def timing_index_only():
          lambda: _grp.Join._sort_merge_indices(left_key, right_key)),
         ("left join",
          lambda: _c_left_join(left_key, right_key),
-         lambda: _grp.Join._left_join_indices(left_key, right_key)),
+         lambda: _grp.LeftJoin._left_join_indices(left_key, right_key)),
     ]:
         c_ms = median_of(c_fn)
         py_ms = median_of(py_fn)

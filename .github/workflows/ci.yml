@@ -22,13 +22,17 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14", "3.14t", "3.15", "3.15t"]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[test]" 2>/dev/null || pip install -e . && pip install pytest pytest-cov hypothesis pandas
+      # setup.py builds the extension optionally, so a failed build would
+      # otherwise pass on pure numpy with the accelerated tests skipped
+      - name: Verify the C extension loaded, and keeps a free-threaded build's GIL disabled
+        run: python -W error -c "import sys, sysconfig, tafra._kernels as k; assert k.HAS_ACCEL, 'C extension missing'; assert not sysconfig.get_config_var('Py_GIL_DISABLED') or not sys._is_gil_enabled()"
       - run: pytest
       - name: Upload coverage to Coveralls
         if: matrix.python-version == '3.12'

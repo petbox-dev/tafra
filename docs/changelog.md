@@ -1,5 +1,98 @@
 # Version History
 
+## 2.3.0
+
+* **Feature**: Wheels for Python 3.14 and 3.15, including the free-threaded
+  (no-GIL) builds `cp314t` and `cp315t`. The C extension declares that it
+  runs without the GIL, so importing it does not re-enable the GIL on a
+  free-threaded interpreter. Its hash-table build reads each key once and
+  caches its slot, so a thread that writes a key column during a join cannot
+  make the build write past its buffer; this also removes a table-sized
+  scratch buffer (16.8 MB for a 1M-row right side). CI tests all eight
+  interpreters (3.10 to 3.15, plus 3.14t and 3.15t) and fails if the C
+  extension did not build, and new tests run `group_by`, `transform` and
+  joins on one shared `Tafra` from several threads. A new
+  [Thread Safety](guide/thread-safety.md) guide states which concurrent
+  operations are safe.
+* **Fix**: A callable that Python allocated at the address of a freed
+  `percentile(q)` object was routed to that percentile's vectorized fast
+  path, so `group_by` and `transform` silently returned percentiles in place
+  of the callable's result. `percentile` objects now carry their own fast
+  path and are no longer registered by `id()`, which also removes a registry
+  entry that leaked for each `percentile` call.
+* **Fix**: `group_by`, `transform` and `iterate_by` raised `IndexError` when
+  the key columns were given as a generator. A generator now works, and an
+  empty list of key columns raises `ValueError` in these and in `partition`.
+* **Removed**: `AggMethod.result_factory`, which nothing in tafra called.
+* **Fix**: An equi-join on a float key column cast the key to `int64` before
+  the C hash join, so `1.2` matched `1.7`, and `1e19`, `inf` and `-inf`
+  matched one another. A multi-column key with a float column was wrong on
+  both the C and the pure-Python paths. Float keys now match by value, and
+  `-0.0` matches `0.0`.
+* **Fix**: `group_by`, `transform` and `iterate_by` raised on key columns of
+  float, `bool`, `datetime64` with a unit other than `ns`, `uint64` above the
+  `int64` range, and `StringDType` holding `None` (below 50,000 rows). Integer
+  IDs with a wide range (for example 14-digit well numbers) raised
+  `MemoryError`, and two wide integer key columns raised `Composite key space
+  overflow`. Every key dtype that numpy compares with `==` now works, and a
+  wide key range is re-encoded to dense codes. In `group_by`, all NaN keys
+  of a float column form one group and all NaT keys form one group, as in
+  `np.unique`.
+* **Fix**: A multi-column key with a pre-epoch `datetime64` or a negative
+  `timedelta64` produced colliding keys and joined the wrong rows.
+* **Fix**: `np.nansum`, `np.nanmean`, `np.nanstd`, `np.nanvar` and
+  `np.nanprod` used the NaN-propagating fast path and returned NaN.
+  `np.median` and `np.nanmedian` picked the middle of a sorted group with its
+  NaN values still in it, so `[1, nan, 4]` gave 4. With the C extension,
+  `np.min` / `np.max` skipped NaN, and returned `inf` for an all-NaN group.
+  The fast path now gives numpy's NaN result for every registered function.
+* **Fix**: With the C extension, `np.sum`, `np.min` and `np.max` converted the
+  column to `float64`: an `int64` sum lost precision above 2**53, and `np.min`
+  of an `int64`, `bool` or `datetime64` column returned `float64`. Results now
+  have numpy's dtype (exact `int64` / `uint64` sums, `datetime64` minimums,
+  `float32` stays `float32`). A reducer on a dtype numpy refuses (for
+  example `np.mean` of strings) takes the per-group path and raises numpy's
+  error.
+* **Fix**: The per-group loop (custom functions, and registered functions on
+  a dtype the fast path does not take) stored each result in the input
+  column's dtype: a mean of an `int64` column was truncated to `int64`,
+  `np.any` of a string column gave the strings `'True'`, and a string result
+  was cut to the input's `<U` width. The result column now takes numpy's
+  promoted dtype of the per-group results (`object` when they share none),
+  in `group_by` and `transform`.
+* **Fix**: An equi left join put left rows with a NULL key (NaN, NaT,
+  `None`) at the end of the result. They now keep their left-table position.
+* **Fix**: A join with a non-`==` operator judged NULL keys before unit
+  promotion, so a `datetime64[s]` key that becomes NaT in `ns` matched under
+  `!=`. NULL is now judged on the promoted values for every operator, as the
+  `==` join already did.
+* **Fix**: `coalesce` into a new numeric column returned uninitialized memory:
+  the column was allocated empty and only `None` or NaN slots were filled. A
+  new column now starts as the first fill, as SQL `COALESCE`.
+* **Fix**: The pure-Python `np.var` / `np.std` fast path used
+  `E[x^2] - E[x]^2`, which returned 2.0 for three values of 1e8 + 0.1. It
+  now subtracts the group mean first. The C kernel used Welford's one-pass
+  update, with a relative error near 1e-7 on values offset by 1e9 (numpy:
+  near 1e-13); it is now two-pass as well.
+* **Fix**: The C extension now raises `ValueError` for group labels outside
+  `[0, n_groups)`, for labels and data of different lengths, and for
+  multi-dimensional input, in place of reading or writing out of bounds.
+* **Perf**: The C hash tables used the low bits of `key * GOLDEN_HASH`, so
+  keys with trailing zero bits (`datetime64[ns]` dates, IDs with a
+  power-of-two step) collided in a few slots. A join on 200,000
+  `datetime64[ns]` daily keys took 4.6 to 10 s; it now takes 66 to 103 ms.
+  The tables now use the high bits (Fibonacci hashing).
+* **Perf**: Exact C kernels for integer sum, min and max. Object and string
+  keys use the C encoder at every size, in place of below 50,000 rows only.
+  For `object` and `StringDType` keys it is several times faster than the
+  dict codebook and `np.unique` at the sizes measured (10 to 49,999 rows);
+  for `<U` keys it ranges from somewhat slower to a few times faster than
+  `np.unique`, depending on the number of distinct keys.
+* **Perf**: The C extension releases the GIL in its integer hashing, join
+  and aggregation loops (string and `object` key encoding hashes Python
+  objects and keeps it): four threads ran four 2M x 2M joins 2.5x faster than one
+  thread on a standard interpreter.
+
 ## 2.2.5
 
 * **Fix**: Join and `group_by` on `object`-dtype key columns containing mixed

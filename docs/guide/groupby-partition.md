@@ -118,7 +118,7 @@ result = t.group_by(
 ```
 
 `percentile(q)` returns a callable that computes the q-th percentile (0-100).
-It is also registered for the vectorized fast path.
+It carries its own vectorized fast path for integer and float columns.
 
 ### `geomean` and `harmean`
 
@@ -153,6 +153,14 @@ result = t.group_by(
 Custom lambda/functions use the standard per-group Python loop (no vectorized
 fast path).
 
+The result column takes the dtype that numpy promotes the per-group results
+to (`np.promote_types`), not the dtype of the input column: a mean of an
+`int64` column is `float64`, and `np.any` of a string column is `bool`.
+Results that share no dtype, such as `None` with a float, give an `object`
+column. numpy promotes a string with a number to a string, so `'low'` with
+`2.0` gives `['low', '2.0']`. In `transform`, a function may return one value
+per group (broadcast to the group's rows) or one value per row.
+
 ## Vectorized Fast Path
 
 When **all** aggregation functions in a `group_by` call are recognized (see
@@ -162,11 +170,58 @@ significantly faster for large datasets.
 
 The fast path is used automatically -- no configuration needed. If any
 aggregation function is not recognized, the entire call falls back to the
-per-group Python loop.
+per-group Python loop. The fast path also applies only to the column dtypes
+that numpy reduces with that function: for example, `np.mean` on a string
+column takes the per-group loop, which calls `np.mean` and raises the same
+error that numpy raises.
+
+The fast path gives the same result as the function applied to each group:
+
+- `np.min`, `np.max`, `np.sum`, `np.mean` and the others propagate NaN;
+  `np.nanmin`, `np.nansum`, `np.nanmean` and the others ignore it (an all-NaN
+  group gives NaN, or 0 for `np.nansum` and 1 for `np.nanprod`).
+- The result dtype is numpy's: `np.sum` of an `int64` column is an exact
+  `int64`, `np.min` of a `datetime64` column is a `datetime64`, and a
+  `float32` column keeps `float32`.
+- Floating-point values agree up to rounding. The fast path adds in float64 in
+  row order and numpy adds pairwise in the input width, so the last digits
+  can differ (about 1e-14 relative for a 200,000-row `float64` group), more so
+  for `float16` and `float32`, where a sum numpy overflows to `inf` can stay
+  finite. An all-NaN group does not emit numpy's `RuntimeWarning`.
 
 If the optional C extension (`_accel.c`) is compiled, `np.sum`, `np.mean`,
-`np.var`, `np.min`, and `np.max` use single-pass C implementations (Welford
-variance, etc.) for even better performance.
+`np.var`, `np.std`, `np.min`, `np.max` and their `nan` forms use C
+implementations (one pass for most, two passes for variance; exact integer
+sums) for even better performance.
+
+## Key Columns
+
+`group_by`, `transform`, `iterate_by` and the equi-joins accept key columns
+of any dtype numpy can compare with `==`: integers of any range, `uint64`,
+`bool`, floats, `datetime64` and `timedelta64` of any unit, strings
+(`StringDType` with `None`, `<U`, `bytes`) and `object`. The two sides of a
+join key must share a dtype kind (an `int64` key does not join a `float64`
+or `uint64` key, and a `<U` key does not join a `bytes` key), or both be
+text strings (`StringDType` and `<U`). Keys follow numpy equality, with
+these rules:
+
+- `-0.0` and `0.0` are one key.
+- In a float column every NaN is one key in `group_by`, as is every NaT in a
+  `datetime64` or `timedelta64` column. In an `object` column, NaN values are
+  one key only when they are the same Python object.
+- Joins never match a NULL key (SQL `NULL` semantics): NaN in a float column,
+  NaT in a `datetime64` or `timedelta64` column, `None` in a `StringDType`
+  column, and `None`, NaN or NaT in an `object` column. Other missing-value
+  markers are not NULL: a join matches complex NaN to complex NaN, as
+  `np.unique` merges them, and `pd.NA` or `pd.NaT` to the same object.
+- `datetime64` keys of different units are compared in the finer unit, as
+  numpy converts them, and NULL is judged after that conversion, for every
+  operator. For a value outside that unit's range (about the years 1678 to
+  2262 for `ns`), numpy 2.2 and 2.4 wrap the value without an error: it can
+  become NaT (no match) or a valid but different date that matches another
+  key. The numpy 2.5 release notes describe unit-conversion casts as
+  overflow-checked, so a newer numpy can raise instead. Convert such keys to a
+  common, wide-enough unit before the join.
 
 ## transform
 
