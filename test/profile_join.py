@@ -24,6 +24,7 @@ import numpy as np
 
 from tafra import Tafra
 import tafra.group as _grp
+from tafra import _kernels
 
 from tafra._accel import inner_join as _c_inner_join, left_join as _c_left_join
 
@@ -53,14 +54,14 @@ def make_keys():
 
 
 def _disable_accel():
-    saved = _grp._HAS_ACCEL
-    # every vectorized aggregation reads _HAS_ACCEL when it is called
-    _grp._HAS_ACCEL = False
+    saved = _kernels.HAS_ACCEL
+    # every reducer, encoder and join reads _kernels.HAS_ACCEL when it is called
+    _kernels.HAS_ACCEL = False
     return saved
 
 
 def _restore_accel(saved):
-    _grp._HAS_ACCEL = saved
+    _kernels.HAS_ACCEL = saved
 
 
 def median_of(fn, n=N_REPS):

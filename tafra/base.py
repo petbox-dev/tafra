@@ -151,7 +151,7 @@ class Tafra:
         ) -> None: ...
 
     def __post_init__(self, data: InitVar, dtypes: InitVar | None, validate: bool) -> None:
-        # TODO: enable this?
+        # Disabled; see docs/todo/open/constructor-from-dataframe-disabled.md
         # if isinstance(self._data, DataFrame):
         #     tf = self.from_dataframe(df=self._data)
         #     self._data = tf._data
@@ -2009,16 +2009,23 @@ class Tafra:
         data: np.ndarray
             The coalesced data.
         """
-        # TODO: handle dtype?
+        # Result dtype with mixed fills: docs/todo/open/coalesce-result-dtype.md
         iter_fills = iter(fills)
         head = next(iter_fills)
 
+        remaining_fills: Iterable[
+            Iterable[None | str | int | float | bool | np.ndarray[Any, Any]]
+        ]
         if column in self._data.keys():
             value = self._data[column].copy()
+            remaining_fills = chain([head], iter_fills)
         else:
-            value = np.empty(self._rows, np.asarray(head).dtype)
+            # a new column starts as the first fill, as SQL COALESCE(head, ...)
+            head_fill = np.atleast_1d(np.asarray(head))
+            value = np.array(np.broadcast_to(head_fill, (self._rows,)))
+            remaining_fills = iter_fills
 
-        for _fill in chain([head], iter_fills):
+        for _fill in remaining_fills:
             fill = np.atleast_1d(np.asarray(_fill))
             where_na = np.full(self._rows, False)
             where_na |= value == np.array([None])

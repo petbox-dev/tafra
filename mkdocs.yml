@@ -55,6 +55,10 @@ markdown_extensions:
   - admonition
   - pymdownx.details
 
+# docs/todo is the project's work queue, not user documentation
+exclude_docs: |
+  todo/
+
 nav:
   - Home: index.md
   - Getting Started: getting-started.md

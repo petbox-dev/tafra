@@ -18,6 +18,7 @@ import numpy as np
 import pytest  # type: ignore
 
 import tafra.group as group
+from tafra import _kernels, _reducers
 from tafra import Tafra
 from tafra.group import geomean, harmean, percentile
 
@@ -29,10 +30,10 @@ STRING_DTYPE = np.dtypes.StringDType(na_object=None)
 def accel_mode(request: Any, monkeypatch: Any) -> Iterator[str]:
     """Run the test with the C extension and with the numpy fallback."""
     use_accel = request.param == "accelerated"
-    if use_accel and not group._HAS_ACCEL:
+    if use_accel and not _kernels.HAS_ACCEL:
         pytest.skip("C extension not available")
-    # every _vec_* function and encoder reads _HAS_ACCEL when it is called
-    monkeypatch.setattr(group, "_HAS_ACCEL", use_accel)
+    # every reducer, encoder and join reads HAS_ACCEL when it is called
+    monkeypatch.setattr(_kernels, "HAS_ACCEL", use_accel)
     yield request.param
 
 
@@ -213,8 +214,49 @@ def test_null_key_made_by_unit_promotion_never_matches(accel_mode: str) -> None:
     )
     right = Tafra({"k": np.array([2**54], dtype="datetime64[s]"), "b": np.array([10.0])})
     on = [("k", "k", "==")]
+    try:
+        np.concatenate([left["k"], right["k"]])
+    except OverflowError:
+        # a numpy that checks the unit cast raises (2.2 and 2.4 wrap 2**54 s to NaT;
+        # the 2.5 release notes describe the cast as overflow-checked), and so does the join
+        with pytest.raises(OverflowError):
+            _inner_join(left, right, on)
+        with pytest.raises(OverflowError):
+            _left_join(left, right, on)
+        return
     assert len(_inner_join(left, right, on)) == 0
     assert np.isnan(_left_join(left, right, on)["b"]).all()
+
+
+def test_nested_loop_judges_null_on_promoted_key(accel_mode: str) -> None:
+    """A right key that is NaT only once promoted to ns is NULL on the `!=` path too."""
+    left = Tafra({"k": np.array(["2020-01-01"], dtype="datetime64[ns]"), "a": np.array([1])})
+    right = Tafra({"k": np.array([2**54], dtype="datetime64[s]"), "b": np.array([10.0])})
+    on = [("k", "k", "!=")]
+    try:
+        np.concatenate([left["k"], right["k"]])
+    except OverflowError:
+        # a numpy that checks the unit cast raises before any NULL is judged
+        with pytest.raises(OverflowError):
+            _inner_join(left, right, on)
+        with pytest.raises(OverflowError):
+            _left_join(left, right, on)
+        return
+    assert len(_inner_join(left, right, on)) == 0
+    assert np.isnan(_left_join(left, right, on)["b"]).all()
+    # the same key on the left side is NULL too: the left row stays unmatched
+    swapped = Tafra({"k": right["k"], "a": np.array([1])})
+    other = Tafra({"k": left["k"], "b": np.array([10.0])})
+    assert len(_inner_join(swapped, other, on)) == 0
+    assert np.isnan(_left_join(swapped, other, on)["b"]).all()
+
+
+def test_nested_loop_keys_need_no_common_dtype(accel_mode: str) -> None:
+    """Two StringDType keys with different na_object values compare without a common dtype."""
+    left = Tafra({"k": np.array(["a", "b"], dtype=STRING_DTYPE), "a": np.array([1, 2])})
+    right = Tafra({"k": np.array(["a"], dtype=STRING_DTYPE), "b": np.array([10.0])})
+    right._data["k"] = np.array(["a"], dtype=np.dtypes.StringDType(na_object=""))
+    assert _inner_join(left, right, [("k", "k", "!=")])["a"].tolist() == [2]
 
 
 # ----------------------------------------------------------------------------
@@ -466,7 +508,7 @@ def test_vectorized_reducer_matches_numpy(
     data = DATA_BY_DTYPE[dtype_name]
     expected = _numpy_per_group(function, data)
 
-    vectorized = group._vectorized_aggregation(function, data.dtype)
+    vectorized = _reducers.vectorized_aggregation(function, data.dtype)
     if vectorized is None:
         # no fast path: only where numpy refuses, or for a listed pair
         assert expected is None or (reducer_name, dtype_name) in PER_GROUP_BY_DESIGN
@@ -553,7 +595,7 @@ def test_variance_matches_numpy_on_offset_values(accel_mode: str) -> None:
 
 def test_fast_path_refuses_dtypes_wider_than_64_bits() -> None:
     """The kernels compute in 64 bits, so a wider dtype takes the per-group path."""
-    complex_kind = group._kind_in(frozenset("c"))
+    complex_kind = _reducers.kind_in(frozenset("c"))
     assert complex_kind(np.dtype(np.complex64))  # 8 bytes
     assert not complex_kind(np.dtype(np.complex128))  # 16 bytes
 
@@ -579,7 +621,7 @@ def test_transform_min_keeps_integer_dtype(accel_mode: str) -> None:
 # C entry points: hashing and input validation
 # ----------------------------------------------------------------------------
 
-accel_only = pytest.mark.skipif(not group._HAS_ACCEL, reason="C extension not available")
+accel_only = pytest.mark.skipif(not _kernels.HAS_ACCEL, reason="C extension not available")
 
 
 @accel_only

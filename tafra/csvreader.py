@@ -48,8 +48,7 @@ _TYPE_PRECEDENCE: list[ReadableType] = [
     # np.float32, # nervous about ever inferring this
     ReadableType(np.float64, cast(Callable[[str], Any], np.float64)),
     ReadableType(bool, _parse_bool),
-    # TODO: date,
-    # TODO: datetime,
+    # date and datetime are not inferred: docs/todo/open/csv-reader-date-inference.md
 ]
 
 _TYPE_OBJECT: ReadableType = ReadableType(

@@ -1,5 +1,5 @@
 {% set name = "tafra" %}
-{% set version = "2.4.0" %}
+{% set version = "2.3.0" %}
 
 
 package:
@@ -43,7 +43,7 @@ test:
     - python -c "from tafra._accel import groupby_sum; print('C extension OK')"
     # The C extension loaded with every kernel; on a free-threaded build
     # (Py_GIL_DISABLED) importing it must not re-enable the GIL
-    - python -W error -c "import sys, sysconfig, tafra.group as g; assert g._HAS_ACCEL, 'C extension missing'; assert not sysconfig.get_config_var('Py_GIL_DISABLED') or not sys._is_gil_enabled()"
+    - python -W error -c "import sys, sysconfig, tafra._kernels as k; assert k.HAS_ACCEL, 'C extension missing'; assert not sysconfig.get_config_var('Py_GIL_DISABLED') or not sys._is_gil_enabled()"
     - pytest --cov=tafra --cov-report=term-missing --hypothesis-show-statistics -v test
   requires:
     - pip

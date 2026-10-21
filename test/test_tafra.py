@@ -803,6 +803,13 @@ class TestDtypes:
         t.coalesce("x", [[1], [None]])
         check_tafra(t)
 
+    def test_coalesce_new_numeric_column_starts_as_first_fill(self) -> None:
+        """A new column holds the first fill, not uninitialized memory."""
+        t = Tafra({"x": np.array([1, 2])})
+        assert t.coalesce("new", [np.array([3, 4])]).tolist() == [3, 4]
+        assert t.coalesce("new", [[7], [2.5]]).tolist() == [7, 7]
+        assert t.coalesce("new", [np.array([np.nan, 5.0]), [9.0]]).tolist() == [9.0, 5.0]
+
     def test_update_dtypes_string_conversion(self) -> None:
         """update_dtypes_inplace should not no-op between <U and
         StringDType."""
@@ -1120,12 +1127,13 @@ class TestGroupBy:
     def test_percentile_agg_freed_id_not_reused(self) -> None:
         """A callable allocated at a freed percentile()'s address must not hit its fast path."""
         from tafra import percentile
-        from tafra.group import _PercentileAgg
+        from tafra._reducers import PercentileAggregation
 
         class Spread:
-            """A custom aggregation with _PercentileAgg's layout."""
+            """A custom aggregation with PercentileAggregation's layout."""
 
-            __slots__ = _PercentileAgg.__slots__  # same size class: pymalloc reuses the block
+            # same size class as PercentileAggregation: pymalloc reuses the block
+            __slots__ = PercentileAggregation.__slots__
 
             def __call__(self, data: np.ndarray[Any, Any]) -> float:
                 return float(data.max() - data.min())
@@ -2953,9 +2961,9 @@ class TestInnerJoin:
     def test_inner_join_c_vs_python_same_results(self) -> None:
         """If C extension available, compare results as sets of
         tuples."""
-        import tafra.group as grp
+        from tafra import _kernels
 
-        if not grp._HAS_ACCEL:
+        if not _kernels.HAS_ACCEL:
             pytest.skip("C extension not available")
 
         left = Tafra(
@@ -2979,7 +2987,7 @@ class TestInnerJoin:
         )
 
         # Run with Python fallback
-        with patch.object(grp, "_HAS_ACCEL", False):
+        with patch.object(_kernels, "HAS_ACCEL", False):
             t_py = left.inner_join(
                 right,
                 [("k", "k", "==")],
@@ -2992,7 +3000,7 @@ class TestInnerJoin:
         """Multi-column join where left has fewer unique values than right.
 
         Regression test: both sides must share one codebook
-        (GroupSet._encode_join_keys) so equal values get equal keys.
+        (tafra._keys.encode_join_keys) so equal values get equal keys.
         """
         right = Tafra(
             {
@@ -3585,9 +3593,9 @@ class TestLeftJoin:
 
     def test_left_join_c_vs_python_same_results(self) -> None:
         """If C extension available, compare results."""
-        import tafra.group as grp
+        from tafra import _kernels
 
-        if not grp._HAS_ACCEL:
+        if not _kernels.HAS_ACCEL:
             pytest.skip("C extension not available")
 
         left = Tafra(
@@ -3609,7 +3617,7 @@ class TestLeftJoin:
             select=["k", "lv", "rv"],
         )
 
-        with patch.object(grp, "_HAS_ACCEL", False):
+        with patch.object(_kernels, "HAS_ACCEL", False):
             t_py = left.left_join(
                 right,
                 [("k", "k", "==")],
@@ -3626,7 +3634,7 @@ class TestLeftJoin:
         """Multi-column left join where left has fewer unique values than right.
 
         Regression test: both sides must share one codebook
-        (GroupSet._encode_join_keys) so equal values get equal keys.
+        (tafra._keys.encode_join_keys) so equal values get equal keys.
         """
         right = Tafra(
             {
@@ -4358,23 +4366,23 @@ class TestCoverageGaps:
 
     def test_composite_key_wide_columns_are_reencoded(self) -> None:
         """A cardinality product above the dense limit is combined column by column."""
-        from tafra.group import EncodedColumn, GroupSet
+        from tafra._keys import EncodedColumn, build_composite_key
 
         # three rows: limit 4 * 3 + 1024 = 1036, so 3000 * 3000 is over it
         codes = np.array([0, 2999, 0], dtype=np.int64)
         encoded = [EncodedColumn(codes, 3000), EncodedColumn(codes, 3000)]
-        key = GroupSet._build_composite_key(encoded, 3)
+        key = build_composite_key(encoded, 3)
         assert key[0] == key[2] != key[1]
         assert int(key.max()) == 1  # re-encoded to dense codes for two distinct rows
 
     def test_composite_key_overflow_raises(self) -> None:
         """A running cardinality product past 2**62 cannot be held in int64."""
-        from tafra.group import EncodedColumn, GroupSet
+        from tafra._keys import EncodedColumn, build_composite_key
 
         codes = np.array([0, 1, 2], dtype=np.int64)
         encoded = [EncodedColumn(codes, 3), EncodedColumn(codes, 2**62)]
         with pytest.raises(ValueError, match="overflow"):
-            GroupSet._build_composite_key(encoded, 3)
+            build_composite_key(encoded, 3)
 
     def test_negative_int_groupby_multi_column(self) -> None:
         """GroupBy on multiple columns with negative integer keys."""

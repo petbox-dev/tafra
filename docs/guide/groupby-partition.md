@@ -215,8 +215,12 @@ these rules:
   markers are not NULL: a join matches complex NaN to complex NaN, as
   `np.unique` merges them, and `pd.NA` or `pd.NaT` to the same object.
 - `datetime64` keys of different units are compared in the finer unit, as
-  numpy converts them. A value outside that unit's range (about the years
-  1678 to 2262 for `ns`) wraps without an error, so convert such keys to a
+  numpy converts them, and NULL is judged after that conversion, for every
+  operator. For a value outside that unit's range (about the years 1678 to
+  2262 for `ns`), numpy 2.2 and 2.4 wrap the value without an error: it can
+  become NaT (no match) or a valid but different date that matches another
+  key. The numpy 2.5 release notes describe unit-conversion casts as
+  overflow-checked, so a newer numpy can raise instead. Convert such keys to a
   common, wide-enough unit before the join.
 
 ## transform

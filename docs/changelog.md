@@ -1,6 +1,6 @@
 # Version History
 
-## 2.4.0
+## 2.3.0
 
 * **Feature**: Wheels for Python 3.14 and 3.15, including the free-threaded
   (no-GIL) builds `cp314t` and `cp315t`. The C extension declares that it
@@ -62,6 +62,13 @@
   in `group_by` and `transform`.
 * **Fix**: An equi left join put left rows with a NULL key (NaN, NaT,
   `None`) at the end of the result. They now keep their left-table position.
+* **Fix**: A join with a non-`==` operator judged NULL keys before unit
+  promotion, so a `datetime64[s]` key that becomes NaT in `ns` matched under
+  `!=`. NULL is now judged on the promoted values for every operator, as the
+  `==` join already did.
+* **Fix**: `coalesce` into a new numeric column returned uninitialized memory:
+  the column was allocated empty and only `None` or NaN slots were filled. A
+  new column now starts as the first fill, as SQL `COALESCE`.
 * **Fix**: The pure-Python `np.var` / `np.std` fast path used
   `E[x^2] - E[x]^2`, which returned 2.0 for three values of 1e8 + 0.1. It
   now subtracts the group mean first. The C kernel used Welford's one-pass
