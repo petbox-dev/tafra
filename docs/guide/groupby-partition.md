@@ -187,9 +187,13 @@ The fast path gives the same result as the function applied to each group:
 - Floating-point values agree up to rounding. The fast path adds in float64 in
   row order and numpy adds pairwise in the input width, so the last digits
   can differ (about 1e-14 relative for the sum of a 200,000-row `float64`
-  group, and up to about 4e-13 for the variance of values near 1e9), more so
+  group, and up to about 4e-13 for the variance of values near 1e9; the
+  variance difference grows with the square of the offset), more so
   for `float16` and `float32`, where a sum numpy overflows to `inf` can stay
   finite. An all-NaN group does not emit numpy's `RuntimeWarning`.
+- The sign of a zero minimum or maximum is unspecified: a group holding both
+  `-0.0` and `0.0` can give either, as in numpy, whose own choice depends on
+  the array's length and the CPU's vector instructions.
 
 If the optional C extension (`_accel.c`) is compiled, `np.sum`, `np.mean`,
 `np.var`, `np.std`, `np.min`, `np.max` and their `nan` forms use C

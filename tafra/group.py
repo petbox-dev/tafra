@@ -749,11 +749,13 @@ class Join(GroupSet):
     @staticmethod
     def _none_null_strings(column: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
         """
-        A StringDType column with na_object None. Its NULLs ('' for
-        na_object='', NaN for na_object=nan) become None, the NULL that
-        `_non_null_mask` reads; any other column is returned as is.
+        A StringDType column whose NULL marker is not None, cast to
+        na_object None: its NULLs ('' for na_object='', NaN for
+        na_object=nan) become None, the NULL that `_non_null_mask` reads.
+        Any other column is returned as is, without a copy; StringDType()
+        has no NULL marker and concatenates with na_object None.
         """
-        if column.dtype.kind == "T" and column.dtype != _NONE_NULL_STRING_DTYPE:
+        if column.dtype.kind == "T" and getattr(column.dtype, "na_object", None) is not None:
             return column.astype(_NONE_NULL_STRING_DTYPE)
         return column
 

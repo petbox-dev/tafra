@@ -261,16 +261,16 @@ def test_nested_loop_keys_need_no_common_dtype(accel_mode: str) -> None:
 
 # A StringDType's na_object is its NULL: '' in na_object='' and NaN in
 # na_object=nan are NULL, as None is in the default na_object=None.
-NULL_MARKER_RIGHT_KEYS = {
+NULL_MARKER_KEYS = {
     "na_object=''": np.array(["a", ""], dtype=np.dtypes.StringDType(na_object="")),
     "na_object=nan": np.array(["a", np.nan], dtype=np.dtypes.StringDType(na_object=np.nan)),
 }
 
 
-@pytest.mark.parametrize("marker", list(NULL_MARKER_RIGHT_KEYS))
+@pytest.mark.parametrize("marker", list(NULL_MARKER_KEYS))
 def test_string_keys_with_different_null_markers(accel_mode: str, marker: str) -> None:
     left = Tafra({"k": np.array(["a", "b", None], dtype=STRING_DTYPE), "a": np.array([0, 1, 2])})
-    right = Tafra({"k": NULL_MARKER_RIGHT_KEYS[marker], "b": np.array([10.0, 20.0])})
+    right = Tafra({"k": NULL_MARKER_KEYS[marker], "b": np.array([10.0, 20.0])})
     on_equal = [("k", "k", "==")]
     assert _inner_join(left, right, on_equal)["a"].tolist() == [0]
     left_result = _left_join(left, right, on_equal)
@@ -278,6 +278,21 @@ def test_string_keys_with_different_null_markers(accel_mode: str, marker: str) -
     np.testing.assert_array_equal(left_result["b"], [10.0, np.nan, np.nan])
     # the right NULL never matches under != either; 'b' != 'a' matches
     assert _inner_join(left, right, [("k", "k", "!=")])["a"].tolist() == [1]
+
+
+@pytest.mark.parametrize("marker", list(NULL_MARKER_KEYS))
+def test_string_keys_with_null_marker_on_the_left(accel_mode: str, marker: str) -> None:
+    left = Tafra({"k": NULL_MARKER_KEYS[marker], "a": np.array([0, 1])})
+    right = Tafra(
+        {"k": np.array(["a", "b", None], dtype=STRING_DTYPE), "b": np.array([10.0, 20.0, 30.0])}
+    )
+    on_equal = [("k", "k", "==")]
+    assert _inner_join(left, right, on_equal)["a"].tolist() == [0]
+    left_result = _left_join(left, right, on_equal)
+    assert left_result["a"].tolist() == [0, 1]
+    np.testing.assert_array_equal(left_result["b"], [10.0, np.nan])
+    # the left NULL never matches under != either; 'a' != 'b' matches
+    assert _inner_join(left, right, [("k", "k", "!=")])["b"].tolist() == [20.0]
 
 
 # ----------------------------------------------------------------------------
@@ -837,18 +852,21 @@ def test_left_join_keeps_null_key_rows_in_left_order(accel_mode: str) -> None:
 # Signed zero in min / max
 # ----------------------------------------------------------------------------
 
-# np.min / np.max keep the last of equal values; np.nanmin prefers -0.0 and
-# np.nanmax +0.0 whatever the order. Each group holds one order.
+# The sign of a zero min or max is unspecified: numpy's own choice depends on
+# SIMD lane order from about 5 values up. Values must still match numpy.
 SIGNED_ZERO_GROUPS = {
     "+0 then -0": [0.0, -0.0],
     "-0 then +0": [-0.0, 0.0],
     "+0, nan, -0": [0.0, np.nan, -0.0],
-    "-0, nan, +0": [-0.0, np.nan, 0.0],
+    "five, -0 fourth": [0.0, 0.0, 0.0, -0.0, 0.0],
+    "five with a one": [0.0, 0.0, 0.0, -0.0, 1.0],
 }
 
 
 @pytest.mark.parametrize("reducer", [np.min, np.max, np.nanmin, np.nanmax])
-def test_signed_zero_min_max_matches_numpy(accel_mode: str, reducer: Callable[..., Any]) -> None:
+def test_signed_zero_min_max_values_match_numpy(
+    accel_mode: str, reducer: Callable[..., Any]
+) -> None:
     values = list(SIGNED_ZERO_GROUPS.values())
     table = Tafra(
         {
@@ -857,9 +875,5 @@ def test_signed_zero_min_max_matches_numpy(accel_mode: str, reducer: Callable[..
         }
     )
     result = table.group_by(["g"], {"x": reducer})["x"]
-    for index, (label, group_values) in enumerate(SIGNED_ZERO_GROUPS.items()):
-        expected = reducer(np.array(group_values))
-        if np.isnan(expected):
-            assert np.isnan(result[index]), label
-        else:
-            assert np.signbit(result[index]) == np.signbit(expected), label
+    expected = [reducer(np.array(group_values)) for group_values in values]
+    np.testing.assert_array_equal(result, expected)  # -0.0 == 0.0; NaN == NaN here

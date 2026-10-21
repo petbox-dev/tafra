@@ -373,21 +373,18 @@ groupby_extreme(PyObject *args, int want_maximum)
         if (LABEL_OUT_OF_RANGE(group, input.group_count)) { invalid_label = 1; break; }
         npy_float64 value = data[i];
         npy_float64 current = result[group];
+        /* Equal values keep the first, so the sign of a zero result is
+         * unspecified, as in numpy, whose own choice depends on SIMD lane
+         * order. A tie-break here cost up to 3.5x on tie-heavy data. */
         if (skip_nan) {
-            /* current is NaN until the first non-NaN value arrives. Of two
-             * zeros, np.nanmin keeps -0.0 and np.nanmax +0.0 in any order. */
+            /* current is NaN until the first non-NaN value arrives */
             if (value == value
-                && (current != current
-                    || (want_maximum ? value > current : value < current)
-                    || (value == current
-                        && (want_maximum ? !npy_signbit(value) : npy_signbit(value)))))
+                && (current != current || (want_maximum ? value > current : value < current)))
                 result[group] = value;
         } else {
-            /* once NaN, stay NaN; a NaN value fails every comparison. Of
-             * equal values np.min / np.max keep the last, which decides
-             * between -0.0 and +0.0. */
+            /* once NaN, stay NaN; a NaN value fails every comparison */
             if (current == current
-                && !(want_maximum ? value < current : value > current))
+                && !(want_maximum ? value <= current : value >= current))
                 result[group] = value;
         }
     }

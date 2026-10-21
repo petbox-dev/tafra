@@ -46,10 +46,6 @@
   NaN values still in it, so `[1, nan, 4]` gave 4. With the C extension,
   `np.min` / `np.max` skipped NaN, and returned `inf` for an all-NaN group.
   The fast path now gives numpy's NaN result for every registered function.
-* **Fix**: With the C extension, `np.min` / `np.max` kept the first of equal
-  values, so `-0.0` and `0.0` came out with the wrong sign. They now follow
-  numpy: `np.min` / `np.max` keep the last of equal values, and `np.nanmin`
-  gives `-0.0` and `np.nanmax` `0.0` in any order.
 * **Fix**: With the C extension, `np.sum`, `np.min` and `np.max` converted the
   column to `float64`: an `int64` sum lost precision above 2**53, and `np.min`
   of an `int64`, `bool` or `datetime64` column returned `float64`. Results now

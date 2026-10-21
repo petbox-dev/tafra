@@ -36,6 +36,14 @@ StringDType keys ['a','b'] vs ['a', None], op '<'
 The same results at BASE 390157d (checked by the /code-fix WRITE auditor), so
 this is not a regression from 2.3.0.
 
+The same list-to-array step turns a NaN NULL into text. Run 2026-10-21 (both
+paths):
+
+```
+left k = StringDType(na_object=nan) ['a', nan, 'b']; right k = ['a']
+left.left_join(right, [('k', 'k', '!=')])['k']  -> <U32 ['a', 'nan', 'b']
+```
+
 ## What was ruled out
 
 - Not a dtype-label problem: `_dtypes` still says `'str'`; the array itself is

@@ -42,6 +42,7 @@ Rules:
 | [join-null-rule-outside-keys-module](open/join-null-rule-outside-keys-module.md) | 2026-10-21 | low | The join NULL-key rule lives in `group.py`, apart from the key-equality rule in `_keys.py`; `coalesce` has a third rule |
 | [moved-code-style-debt](open/moved-code-style-debt.md) | 2026-10-21 | low | Moved key/reducer code keeps shorthand names and 7 `mypy --strict` errors |
 | [numpy-datetime-cast-overflow-unverified](open/numpy-datetime-cast-overflow-unverified.md) | 2026-10-21 | low | The join behaviour on a numpy whose datetime unit casts raise is untested |
+| [union-concat-string-null-markers](open/union-concat-string-null-markers.md) | 2026-10-21 | low | `union` and `concat` raise on StringDType columns whose `na_object` values differ; joins handle them |
 
 ## Done
 

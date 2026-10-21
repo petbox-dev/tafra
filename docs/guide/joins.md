@@ -300,7 +300,7 @@ Null values in join keys (`None`, `NaN`, `NaT`) follow SQL semantics:
 | Key dtype | Null value | Behavior |
 |---|---|---|
 | Float | `NaN` | Excluded from matching |
-| String (`StringDType(na_object=None)`) | `None` | Excluded from matching |
+| String (`StringDType`) | its `na_object`: `None` by default, `''` or `NaN` when the dtype sets it | Excluded from matching |
 | Datetime (`datetime64`) | `NaT` | Excluded from matching |
 | Timedelta (`timedelta64`) | `NaT` | Excluded from matching |
 
