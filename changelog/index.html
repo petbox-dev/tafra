@@ -1519,7 +1519,9 @@
   <code>np.any</code> of a string column gave the strings <code>'True'</code>, and a string result
   was cut to the input's <code>&lt;U</code> width. The result column now takes numpy's
   promoted dtype of the per-group results (<code>object</code> when they share none),
-  in <code>group_by</code> and <code>transform</code>.</li>
+  in <code>group_by</code> and <code>transform</code>. A string mixed with a non-string also gives
+  <code>object</code>, so <code>'low'</code> with <code>2.0</code> keeps <code>2.0</code> a float; numpy would turn it
+  into the text <code>'2.0'</code>.</li>
 <li><strong>Fix</strong>: An equi left join put left rows with a NULL key (NaN, NaT,
   <code>None</code>) at the end of the result. They now keep their left-table position.</li>
 <li><strong>Fix</strong>: A join with a non-<code>==</code> operator judged NULL keys before unit
@@ -1528,7 +1530,15 @@
   <code>==</code> join already did.</li>
 <li><strong>Fix</strong>: <code>coalesce</code> into a new numeric column returned uninitialized memory:
   the column was allocated empty and only <code>None</code> or NaN slots were filled. A
-  new column now starts as the first fill, as SQL <code>COALESCE</code>.</li>
+  new column now starts as the first fill, as SQL <code>COALESCE</code>. With no fills,
+  <code>coalesce</code> raised <code>StopIteration</code>; it now returns an existing column
+  unchanged and raises <code>ValueError</code> for a new column.</li>
+<li><strong>Fix</strong>: An <code>==</code> join on two <code>StringDType</code> keys with different <code>na_object</code>
+  values (for example <code>None</code> and <code>''</code>) raised <code>TypeError: Cannot find common
+  instance for incompatible dtypes</code>, and a NULL written as <code>''</code> or NaN in such
+  a key matched as a value (under <code>!=</code>, or NaN to NaN under <code>==</code>). Each
+  <code>StringDType</code> key is now read with <code>na_object=None</code>, so its NULLs never
+  match, for every operator.</li>
 <li><strong>Fix</strong>: The pure-Python <code>np.var</code> / <code>np.std</code> fast path used
   <code>E[x^2] - E[x]^2</code>, which returned 2.0 for three values of 1e8 + 0.1. It
   now subtracts the group mean first. The C kernel used Welford's one-pass
